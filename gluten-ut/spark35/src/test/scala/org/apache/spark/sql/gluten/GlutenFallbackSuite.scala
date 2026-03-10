@@ -26,6 +26,7 @@ import org.apache.spark.SparkConf
 import org.apache.spark.internal.config.UI.UI_ENABLED
 import org.apache.spark.scheduler.{SparkListener, SparkListenerEvent}
 import org.apache.spark.sql.{GlutenSQLTestsTrait, Row}
+import org.apache.spark.sql.execution.GlutenImplicits
 import org.apache.spark.sql.execution.ProjectExec
 import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanHelper
 import org.apache.spark.sql.execution.aggregate.HashAggregateExec
@@ -166,6 +167,22 @@ class GlutenFallbackSuite extends GlutenSQLTestsTrait with AdaptiveSparkPlanHelp
         } finally {
           spark.sparkContext.removeSparkListener(listener)
         }
+      }
+    }
+  }
+
+  testGluten("approx_count_distinct_for_intervals no fallback in analyze table") {
+    withSQLConf(
+      "spark.sql.cbo.enabled" -> "true",
+      "spark.sql.statistics.histogram.enabled" -> "true",
+      "spark.sql.statistics.histogram.numBins" -> "2") {
+      withTable("t") {
+        spark.range(100).selectExpr("cast(id as int) as c").write.format("parquet").saveAsTable("t")
+        val df = spark.sql("ANALYZE TABLE t COMPUTE STATISTICS FOR COLUMNS c")
+        df.collect()
+        val fallbackSummary =
+          GlutenImplicits.collectQueryExecutionFallbackSummary(spark, df.queryExecution)
+        assert(fallbackSummary.numFallbackNodes == 0, fallbackSummary.toString)
       }
     }
   }
