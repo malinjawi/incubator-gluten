@@ -17,7 +17,8 @@
 package org.apache.gluten.execution
 
 import org.apache.spark.SparkConf
-import org.apache.spark.sql.Row
+import org.apache.spark.sql.{DataFrame, Row}
+import org.apache.spark.sql.delta.sources.DeltaSQLConf
 import org.apache.spark.sql.types._
 
 import scala.collection.JavaConverters._
@@ -196,26 +197,45 @@ abstract class DeltaSuite extends WholeStageTransformerSuite {
     }
   }
 
-  testWithMinSparkVersion("deletion vector", "3.4") {
+  private def withDeletionVectorTable(testBody: (String, DataFrame) => Unit): Unit = {
     withTempPath {
       p =>
         import testImplicits._
         val path = p.getCanonicalPath
-        val df1 = Seq(1, 2, 3, 4, 5).toDF("id")
-        val values2 = Seq(6, 7, 8, 9, 10)
-        val df2 = values2.toDF("id")
-        df1.union(df2).coalesce(1).write.format("delta").save(path)
+        val expectedRows = Seq(1, 2, 3, 4, 5).toDF("id")
+        val deletedRows = Seq(6, 7, 8, 9, 10).toDF("id")
+        expectedRows.union(deletedRows).coalesce(1).write.format("delta").save(path)
         spark.sql(
           s"ALTER TABLE delta.`$path` SET TBLPROPERTIES ('delta.enableDeletionVectors' = true)")
-        checkAnswer(spark.read.format("delta").load(path), df1.union(df2))
-        spark.sql(s"DELETE FROM delta.`$path` WHERE id IN (${values2.mkString(", ")})")
-        import org.apache.spark.sql.execution.GlutenImplicits._
-        val df = spark.read.format("delta").load(path)
-        assert(
-          df.fallbackSummary.fallbackNodeToReason
-            .flatMap(_.values)
-            .exists(_.contains("Deletion vector is not supported in native")))
-        checkAnswer(df, df1)
+        checkAnswer(spark.read.format("delta").load(path), expectedRows.union(deletedRows))
+        spark.sql(s"DELETE FROM delta.`$path` WHERE id IN (6, 7, 8, 9, 10)")
+        testBody(path, expectedRows)
+    }
+  }
+
+  private def assertDeletionVectorReadFallsBack(path: String, expectedRows: DataFrame): Unit = {
+    import org.apache.spark.sql.execution.GlutenImplicits._
+
+    val df = spark.read.format("delta").load(path)
+    assert(df.queryExecution.executedPlan.collect { case _: DeltaScanTransformer => true }.isEmpty)
+    assert(
+      df.fallbackSummary.fallbackNodeToReason
+        .flatMap(_.values)
+        .exists(_.contains("Deletion vector is not supported in native")))
+    checkAnswer(df, expectedRows)
+  }
+
+  testWithMinSparkVersion("deletion vector", "3.4") {
+    withDeletionVectorTable {
+      (path, expectedRows) => assertDeletionVectorReadFallsBack(path, expectedRows)
+    }
+  }
+
+  testWithMinSparkVersion("deletion vector with metadata row index", "3.4") {
+    withSQLConf(DeltaSQLConf.DELETION_VECTORS_USE_METADATA_ROW_INDEX.key -> "true") {
+      withDeletionVectorTable {
+        (path, expectedRows) => assertDeletionVectorReadFallsBack(path, expectedRows)
+      }
     }
   }
 
