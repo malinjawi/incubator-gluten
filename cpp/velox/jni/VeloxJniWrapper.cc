@@ -169,7 +169,7 @@ Java_org_apache_gluten_vectorized_PlanEvaluatorJniWrapper_nativeValidateWithFail
   }
 
   const auto pool = defaultLeafVeloxMemoryPool().get();
-  SubstraitToVeloxPlanValidator planValidator(pool);
+  SubstraitToVeloxPlanValidator planValidator(pool, ctx->getConfMap());
   ::substrait::Plan subPlan;
   parseProtobuf(planData, planSize, &subPlan);
 
@@ -226,8 +226,9 @@ JNIEXPORT jboolean JNICALL Java_org_apache_gluten_vectorized_PlanEvaluatorJniWra
     env->DeleteLocalRef(mapping);
   }
 
+  const auto ctx = getRuntime(env, wrapper);
   auto pool = defaultLeafVeloxMemoryPool().get();
-  SubstraitToVeloxPlanValidator planValidator(pool);
+  SubstraitToVeloxPlanValidator planValidator(pool, ctx->getConfMap());
   auto inputType = SubstraitParser::parseType(inputSubstraitType);
   if (inputType->kind() != TypeKind::ROW) {
     throw GlutenException("Input type is not a RowType.");
