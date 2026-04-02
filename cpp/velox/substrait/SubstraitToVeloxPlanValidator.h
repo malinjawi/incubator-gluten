@@ -18,8 +18,8 @@
 #pragma once
 
 #include <unordered_map>
-#include "config/GlutenConfig.h"
 #include "SubstraitToVeloxPlan.h"
+#include "config/GlutenConfig.h"
 #include "velox/core/QueryCtx.h"
 
 using namespace facebook;
