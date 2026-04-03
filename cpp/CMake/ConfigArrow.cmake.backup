@@ -25,13 +25,9 @@ set(ARROW_LIB_DIR "${ARROW_INSTALL_DIR}/lib")
 set(ARROW_LIB64_DIR "${ARROW_INSTALL_DIR}/lib64")
 
 function(FIND_ARROW_LIB LIB_NAME)
-  message(STATUS "DEBUG: Searching for ${LIB_NAME}")
   if(NOT TARGET Arrow::${LIB_NAME})
     set(ARROW_LIB_FULL_NAME
         ${CMAKE_SHARED_LIBRARY_PREFIX}${LIB_NAME}${ARROW_STATIC_LIBRARY_SUFFIX})
-    message(STATUS "DEBUG: ARROW_LIB_FULL_NAME = ${ARROW_LIB_FULL_NAME}")
-    message(STATUS "DEBUG: Search paths: ${ARROW_LIB_DIR} ${ARROW_LIB64_DIR}")
-    
     add_library(Arrow::${LIB_NAME} STATIC IMPORTED)
     # Firstly find the lib from bundled path in Velox. If not found, try to find
     # it from system.
@@ -40,17 +36,16 @@ function(FIND_ARROW_LIB LIB_NAME)
       NAMES ${ARROW_LIB_FULL_NAME}
       PATHS ${ARROW_LIB_DIR} ${ARROW_LIB64_DIR}
       NO_DEFAULT_PATH)
-    message(STATUS "DEBUG: First find_library result: ${ARROW_LIB_${LIB_NAME}}")
-    
     if(NOT ARROW_LIB_${LIB_NAME})
       find_library(ARROW_LIB_${LIB_NAME} NAMES ${ARROW_LIB_FULL_NAME})
-      message(STATUS "DEBUG: Second find_library result: ${ARROW_LIB_${LIB_NAME}}")
     endif()
-    
     if(NOT ARROW_LIB_${LIB_NAME})
       message(FATAL_ERROR "Arrow library Not Found: ${ARROW_LIB_FULL_NAME}")
     endif()
     message(STATUS "Found Arrow library: ${ARROW_LIB_${LIB_NAME}}")
+
+    # Get the parent-parent directory of the lib file. For example:
+    #
     # * ${ARROW_LIB_${LIB_NAME}}: /usr/local/lib/libarrow.a
     # * ${ARROW_LIB_INCLUDE_DIR}: /usr/local
     #

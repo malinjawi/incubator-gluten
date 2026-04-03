@@ -66,20 +66,14 @@ if(NOT DEFINED VELOX_HOME)
   message(STATUS "Set VELOX_HOME to ${VELOX_HOME}")
 endif()
 
-# Allow ARROW_HOME to be overridden from command line
-if(NOT DEFINED ARROW_HOME)
-  if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
-    set(ARROW_HOME
-        ${VELOX_HOME}/_build/debug/CMake/resolve_dependency_modules/arrow/arrow_ep/
-    )
-  else()
-    set(ARROW_HOME
-        ${VELOX_HOME}/_build/release/CMake/resolve_dependency_modules/arrow/arrow_ep
-    )
-  endif()
-  message(STATUS "ARROW_HOME not provided, using Velox's Arrow: ${ARROW_HOME}")
+if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+  set(ARROW_HOME
+      ${VELOX_HOME}/_build/debug/CMake/resolve_dependency_modules/arrow/arrow_ep/
+  )
 else()
-  message(STATUS "Using provided ARROW_HOME: ${ARROW_HOME}")
+  set(ARROW_HOME
+      ${VELOX_HOME}/_build/release/CMake/resolve_dependency_modules/arrow/arrow_ep
+  )
 endif()
 
 include(ResolveDependency)

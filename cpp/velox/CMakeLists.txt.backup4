@@ -262,10 +262,7 @@ target_include_directories(
          ${CMAKE_CURRENT_SOURCE_DIR}
          ${VELOX_HOME}
          ${PROTO_OUTPUT_DIR}
-         ${PROTOBUF_INCLUDE}
-         ${VELOX_HOME}/deps-download/folly
-         ${VELOX_HOME}/deps-download/folly/_build
-         /Users/malinjawi/velox/deps-install/include)
+         ${PROTOBUF_INCLUDE})
 
 set_target_properties(velox PROPERTIES LIBRARY_OUTPUT_DIRECTORY
                                        ${root_directory}/releases)
@@ -321,8 +318,7 @@ endif()
 
 target_link_libraries(velox PUBLIC facebook::velox)
 
-# Link Folly library (libvelox.a needs it for typeinfo/vtable symbols)
-target_link_libraries(velox PUBLIC ${VELOX_HOME}/deps-download/folly/_build/libfolly.a)
+target_link_libraries(velox PUBLIC Folly::folly)
 
 find_re2()
 target_link_libraries(velox PUBLIC ${RE2_LIBRARY})
@@ -331,30 +327,35 @@ set(CMAKE_FIND_LIBRARY_SUFFIXES_BCK ${CMAKE_FIND_LIBRARY_SUFFIXES})
 set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 
 find_library(STEMMER_LIB NAMES libstemmer.a)
-# Stemmer is bundled in libvelox.a, no need to import separately
 if(STEMMER_LIB)
   message(STATUS "Found stemmer: ${STEMMER_LIB}")
   add_library(external::stemmer STATIC IMPORTED)
   set_target_properties(external::stemmer PROPERTIES IMPORTED_LOCATION
                                                      ${STEMMER_LIB})
-  target_link_libraries(velox PUBLIC external::stemmer)
+else()
+  import_library(
+    external::stemmer
+    ${VELOX_BUILD_PATH}/_deps/libstemmer/src/libstemmer/libstemmer.a)
 endif()
-# else() block removed - stemmer is in libvelox.a
+target_link_libraries(velox PUBLIC external::stemmer)
 
-# Geos is bundled in libvelox.a, no need to import separately
 find_package(geos)
 if(geos_FOUND AND TARGET GEOS::geos)
   add_library(external::geos ALIAS GEOS::geos)
-  target_link_libraries(velox PUBLIC external::geos)
+else()
+  message(STATUS "import Velox bundled geos")
+  import_library(external::geos ${VELOX_BUILD_PATH}/lib/libgeos.a)
 endif()
-# else() block removed - geos is in libvelox.a
+target_link_libraries(velox PUBLIC external::geos)
 
-# Simdjson is bundled in libvelox.a, no need to import separately
 find_package(simdjson CONFIG)
 if(simdjson_FOUND AND TARGET simdjson::simdjson)
   target_link_libraries(velox PUBLIC simdjson::simdjson)
+else()
+  import_library(external::simdjson
+                 ${VELOX_BUILD_PATH}/_deps/simdjson-build/libsimdjson.a)
+  target_link_libraries(velox PUBLIC external::simdjson)
 endif()
-# else() block removed - simdjson is in libvelox.a
 
 set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES_BCK})
 
@@ -379,19 +380,6 @@ find_package(
   COMPONENTS i18n uc data
   REQUIRED)
 target_link_libraries(velox PUBLIC ICU::i18n ICU::uc ICU::data)
-
-# Link ZLIB (required by libvelox.a)
-find_package(ZLIB REQUIRED)
-target_link_libraries(velox PUBLIC ZLIB::ZLIB)
-
-# Link jemalloc if available (libvelox.a may have been built with it)
-find_library(JEMALLOC_LIB jemalloc PATHS /Users/malinjawi/velox/deps-install/lib /opt/homebrew/lib /usr/local/lib)
-if(JEMALLOC_LIB)
-  message(STATUS "Found jemalloc: ${JEMALLOC_LIB}")
-  target_link_libraries(velox PUBLIC ${JEMALLOC_LIB})
-else()
-  message(STATUS "jemalloc not found, assuming it's statically linked in libvelox.a")
-endif()
 
 if(BUILD_TESTS)
   add_subdirectory(tests)
