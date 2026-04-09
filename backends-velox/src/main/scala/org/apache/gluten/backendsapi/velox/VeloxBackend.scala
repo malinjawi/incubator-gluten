@@ -346,6 +346,7 @@ object VeloxBackendSettings extends BackendSettingsApi {
     def validateDataTypes(): Option[String] = {
       def hasUnsupportedType(dt: DataType): Boolean = dt match {
         case _: YearMonthIntervalType => true
+        case _: DayTimeIntervalType => true
         case st: StructType => st.fields.exists(f => hasUnsupportedType(f.dataType))
         case at: ArrayType => hasUnsupportedType(at.elementType)
         case mt: MapType => hasUnsupportedType(mt.keyType) || hasUnsupportedType(mt.valueType)

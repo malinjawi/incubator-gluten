@@ -169,6 +169,10 @@ object ConverterUtils extends Logging {
         val precision = decimal.getPrecision
         val scale = decimal.getScale
         (DecimalType(precision, scale), isNullable(decimal.getNullability))
+      case Type.KindCase.INTERVAL_YEAR =>
+        (YearMonthIntervalType.DEFAULT, isNullable(substraitType.getIntervalYear.getNullability))
+      case Type.KindCase.INTERVAL_DAY =>
+        (DayTimeIntervalType.DEFAULT, isNullable(substraitType.getIntervalDay.getNullability))
       case Type.KindCase.STRUCT =>
         val struct_ = substraitType.getStruct
         val fields = struct_.getTypesList.asScala.map {
@@ -219,6 +223,8 @@ object ConverterUtils extends Logging {
         TypeBuilder.makeDate(nullable)
       case YearMonthIntervalType.DEFAULT =>
         TypeBuilder.makeIntervalYear(nullable)
+      case DayTimeIntervalType.DEFAULT =>
+        TypeBuilder.makeIntervalDay(nullable)
       case DecimalType() =>
         val decimalType = datatype.asInstanceOf[DecimalType]
         val precision = decimalType.precision
@@ -273,6 +279,8 @@ object ConverterUtils extends Logging {
         DateType
       case _: IntervalYearTypeNode =>
         YearMonthIntervalType.DEFAULT
+      case _: IntervalDayTypeNode =>
+        DayTimeIntervalType.DEFAULT
       case d: DecimalTypeNode =>
         DecimalType(d.precision, d.scale)
       case _: TimestampTypeNode =>

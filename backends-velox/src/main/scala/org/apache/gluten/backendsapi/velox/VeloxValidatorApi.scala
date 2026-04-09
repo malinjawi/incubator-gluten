@@ -109,7 +109,7 @@ object VeloxValidatorApi {
     dataType match {
       case BooleanType | ByteType | ShortType | IntegerType | LongType | FloatType | DoubleType |
           StringType | BinaryType | _: DecimalType | DateType | TimestampType |
-          YearMonthIntervalType.DEFAULT | NullType =>
+          YearMonthIntervalType.DEFAULT | DayTimeIntervalType.DEFAULT | NullType =>
         true
       case dt
           if !enableTimestampNtzValidation &&
