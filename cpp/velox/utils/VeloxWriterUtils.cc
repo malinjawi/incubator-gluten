@@ -36,6 +36,13 @@ using namespace facebook::velox::common;
 namespace {
 const int32_t kGzipWindowBits4k = 12;
 const int32_t kZSTDDefaultCompressionLevel = 3;
+
+std::optional<std::string> normalizeSessionTimezone(const std::optional<std::string>& timezone) {
+  if (timezone.has_value() && timezone.value() == "GMT") {
+    return std::string("UTC");
+  }
+  return timezone;
+}
 } // namespace
 
 std::unique_ptr<WriterOptions> makeParquetWriteOption(const std::unordered_map<std::string, std::string>& sparkConfs) {
@@ -89,7 +96,8 @@ std::unique_ptr<WriterOptions> makeParquetWriteOption(const std::unordered_map<s
   writeOption->flushPolicyFactory = [maxRowGroupRows, maxRowGroupBytes]() {
     return std::make_unique<LambdaFlushPolicy>(maxRowGroupRows, maxRowGroupBytes, [&]() { return false; });
   };
-  writeOption->parquetWriteTimestampTimeZone = getConfigValue(sparkConfs, kSessionTimezone, std::nullopt);
+  writeOption->parquetWriteTimestampTimeZone =
+      normalizeSessionTimezone(getConfigValue(sparkConfs, kSessionTimezone, std::nullopt));
   writeOption->arrowMemoryPool =
       getDefaultMemoryManager()->getOrCreateArrowMemoryPool("VeloxParquetWrite.ArrowMemoryPool");
   if (auto it = sparkConfs.find(kParquetDataPageSize); it != sparkConfs.end()) {

@@ -43,12 +43,16 @@ import org.apache.spark.util.SparkDirectoryUtil
 import java.lang.{Long => JLong}
 import java.nio.charset.StandardCharsets
 import java.time.ZoneOffset
+import java.util.{Map => JMap}
 import java.util.UUID
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 class VeloxIteratorApi extends IteratorApi with Logging {
+  private val DeltaRowDeletedColumnName = "__delta_internal_is_row_deleted"
+  private val TableFormatKey = "table_format"
+  private val DeltaTableFormat = "delta"
 
   private def setFileSchemaForLocalFiles(
       localFilesNode: LocalFilesNode,
@@ -94,8 +98,16 @@ class VeloxIteratorApi extends IteratorApi with Logging {
     val metadataColumns = partitionFiles
       .map(
         f => SparkShimLoader.getSparkShims.generateMetadataColumns(f, metadataColumnNames).asJava)
+    val isDeltaDvScan = dataSchema.fieldNames.contains(DeltaRowDeletedColumnName)
     val otherMetadataColumns = partitionFiles
-      .map(f => SparkShimLoader.getSparkShims.getOtherConstantMetadataColumnValues(f))
+      .map(
+        f =>
+          annotateDeltaScan(
+            normalizeDeltaMetadataColumns(
+              partitionSchema.length,
+              f,
+              SparkShimLoader.getSparkShims.getOtherConstantMetadataColumnValues(f)),
+            isDeltaDvScan))
 
     setFileSchemaForLocalFiles(
       LocalFilesBuilder.makeLocalFiles(
@@ -177,6 +189,40 @@ class VeloxIteratorApi extends IteratorApi with Logging {
 
   override def injectWriteFilesTempPath(path: String, fileName: String): Unit = {
     NativePlanEvaluator.injectWriteFilesTempPath(path, fileName)
+  }
+
+  private def normalizeDeltaMetadataColumns(
+      partitionColumnCount: Int,
+      file: PartitionedFile,
+      metadata: JMap[String, Object]): JMap[String, Object] = {
+    val utilClassName = "org.apache.gluten.backendsapi.velox.VeloxDeltaMetadataUtils$"
+    try {
+      // scalastyle:off classforname
+      val moduleClass =
+        Class.forName(utilClassName, false, Thread.currentThread().getContextClassLoader)
+      // scalastyle:on classforname
+      val module = moduleClass.getField("MODULE$").get(null)
+      val method = moduleClass.getMethod(
+        "normalizeOtherMetadataColumns",
+        classOf[Int],
+        classOf[PartitionedFile],
+        classOf[JMap[_, _]])
+      method
+        .invoke(module, Int.box(partitionColumnCount), file, metadata)
+        .asInstanceOf[JMap[String, Object]]
+    } catch {
+      case _: ClassNotFoundException | _: NoClassDefFoundError | _: NoSuchMethodException =>
+        metadata
+    }
+  }
+
+  private def annotateDeltaScan(
+      metadata: JMap[String, Object],
+      isDeltaDvScan: Boolean): JMap[String, Object] = {
+    if (isDeltaDvScan) {
+      metadata.put(TableFormatKey, DeltaTableFormat)
+    }
+    metadata
   }
 
   /** Generate Iterator[ColumnarBatch] for first stage. */

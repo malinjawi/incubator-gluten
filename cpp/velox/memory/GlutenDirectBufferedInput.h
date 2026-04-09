@@ -65,7 +65,9 @@ class GlutenDirectBufferedInput : public facebook::velox::dwio::common::DirectBu
         }
       }
     }
-    coalescedLoads_.clear();
+    // DO NOT clear coalescedLoads_ here - let base class destructor handle it
+    // to avoid use-after-free crash on macOS. The base class destructor will
+    // safely cancel and clear coalescedLoads_ after this derived destructor completes.
   }
 };
 

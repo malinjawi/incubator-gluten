@@ -50,7 +50,7 @@ class CHDeltaComponent extends Component {
           Validators.newValidator(new GlutenConfig(c.sqlConf), offload),
           offload)
     }
-    DeltaPostTransformRules.rules.foreach(r => legacy.injectPostTransform(_ => r))
+    DeltaPostTransformRules.postRules.foreach(r => legacy.injectPostTransform(_ => r))
 
     DeltaShimLoader.getDeltaShims.registerExpressionExtension()
   }

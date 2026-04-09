@@ -20,7 +20,7 @@ import org.apache.spark.sql.{Row, SparkSession}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.delta.{GlutenOptimisticTransaction, OptimisticTransaction, TransactionExecutionObserver}
-import org.apache.spark.sql.execution.command.LeafRunnableCommand
+import org.apache.spark.sql.execution.command.{LeafRunnableCommand, RunnableCommand}
 import org.apache.spark.sql.execution.metric.SQLMetric
 
 case class GlutenDeltaLeafV2CommandExec(delegate: LeafV2CommandExec) extends LeafV2CommandExec {
@@ -41,8 +41,7 @@ case class GlutenDeltaLeafV2CommandExec(delegate: LeafV2CommandExec) extends Lea
   override def nodeName: String = "GlutenDelta " + delegate.nodeName
 }
 
-case class GlutenDeltaLeafRunnableCommand(delegate: LeafRunnableCommand)
-  extends LeafRunnableCommand {
+case class GlutenDeltaLeafRunnableCommand(delegate: RunnableCommand) extends LeafRunnableCommand {
   override lazy val metrics: Map[String, SQLMetric] = delegate.metrics
 
   override def output: Seq[Attribute] = {

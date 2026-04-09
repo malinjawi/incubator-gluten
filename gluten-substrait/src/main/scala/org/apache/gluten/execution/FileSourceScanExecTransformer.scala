@@ -23,6 +23,7 @@ import org.apache.gluten.substrait.rel.LocalFilesNode.ReadFileFormat
 import org.apache.gluten.utils.FileIndexUtil
 
 import org.apache.spark.Partition
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeReference, Expression, PlanExpression}
 import org.apache.spark.sql.catalyst.plans.QueryPlan
@@ -30,12 +31,14 @@ import org.apache.spark.sql.catalyst.util.truncatedString
 import org.apache.spark.sql.connector.read.streaming.SparkDataStream
 import org.apache.spark.sql.execution.FileSourceScanExecShim
 import org.apache.spark.sql.execution.datasources.HadoopFsRelation
+import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat
 import org.apache.spark.sql.execution.metric.SQLMetric
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.util.SparkVersionUtil
 import org.apache.spark.util.collection.BitSet
 
 import org.apache.commons.lang3.StringUtils
+import org.apache.hadoop.fs.Path
 
 case class FileSourceScanExecTransformer(
     @transient override val relation: HadoopFsRelation,
@@ -108,6 +111,12 @@ abstract class FileSourceScanExecTransformerBase(
     disableBucketedScan)
   with DatasourceScanTransformer {
 
+  private val DeltaSkipRowColumn = "__delta_internal_is_row_deleted"
+  private val DeltaRowIndexColumn = "__delta_internal_row_index"
+  private val DeltaFileFormatNames =
+    Set("DeltaParquetFileFormat", "GlutenDeltaParquetFileFormat")
+  private val DeltaFileIndexNames = Set("PreparedDeltaFileIndex", "TahoeFileIndex")
+
   // Note: "metrics" is made transient to avoid sending driver-side metrics to tasks.
   @transient override lazy val metrics: Map[String, SQLMetric] =
     BackendsApiManager.getMetricsApiInstance
@@ -149,6 +158,10 @@ abstract class FileSourceScanExecTransformerBase(
   }
 
   override protected def doValidateInternal(): ValidationResult = {
+    if (isPlainDeltaScanWithoutDvPreprocessing) {
+      return ValidationResult.failed("Unsupported plain Delta scan in native.")
+    }
+
     if (
       !metadataColumns.isEmpty && !BackendsApiManager.getSettings.supportNativeMetadataColumns()
     ) {
@@ -173,6 +186,49 @@ abstract class FileSourceScanExecTransformerBase(
           s"by field ids in native scan.")
     }
     super.doValidateInternal()
+  }
+
+  private def isPlainDeltaScanWithoutDvPreprocessing: Boolean = {
+    isDeltaLikeScan && !hasDeletionVectorMarkers
+  }
+
+  private def isDeltaLikeScan: Boolean = {
+    DeltaFileFormatNames.contains(relation.fileFormat.getClass.getSimpleName) ||
+    DeltaFileIndexNames.contains(relation.location.getClass.getSimpleName) ||
+    relation.location.rootPaths.exists(hasDeltaLogSibling)
+  }
+
+  private def hasDeletionVectorMarkers: Boolean = {
+    output.exists(attribute => isDeletionVectorMarker(attribute.name)) ||
+    requiredSchema.fieldNames.exists(isDeletionVectorMarker)
+  }
+
+  private def isDeletionVectorMarker(name: String): Boolean = {
+    name == DeltaSkipRowColumn ||
+    name == DeltaRowIndexColumn ||
+    name == ParquetFileFormat.ROW_INDEX_TEMPORARY_COLUMN_NAME
+  }
+
+  private def hasDeltaLogSibling(rootPath: Path): Boolean = {
+    SparkSession.getActiveSession.exists {
+      session =>
+        try {
+          val hadoopConf = session.sessionState.newHadoopConf()
+          val fs = rootPath.getFileSystem(hadoopConf)
+          deltaLogCandidatePaths(rootPath).exists(fs.exists)
+        } catch {
+          case _: Throwable => false
+        }
+    }
+  }
+
+  private def deltaLogCandidatePaths(rootPath: Path): Iterator[Path] = {
+    Iterator
+      .iterate(Option(rootPath))(_.flatMap(path => Option(path.getParent)))
+      .takeWhile(_.isDefined)
+      .flatten
+      .take(6)
+      .map(path => new Path(path, "_delta_log"))
   }
 
   override def metricsUpdater(): MetricsUpdater =

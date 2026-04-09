@@ -282,7 +282,10 @@ object VeloxListenerApi {
         // Default to linux
         "linux"
     }
-    val arch = System.getProperty("os.arch")
+    val arch = System.getProperty("os.arch") match {
+      case "arm64" if osName == "darwin" => "aarch64"
+      case other => other
+    }
     s"$osName/$arch"
   }
 

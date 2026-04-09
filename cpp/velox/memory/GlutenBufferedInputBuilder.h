@@ -48,6 +48,24 @@ class GlutenBufferedInputBuilder : public facebook::velox::connector::hive::Buff
           readerOpts,
           fileReadOps);
     }
+#ifdef __APPLE__
+    // The macOS scan teardown is currently unstable when DirectBufferedInput owns
+    // its own StringIdLease copies. For direct reads these ids are only used for
+    // tracking, not correctness, so pass empty leases to avoid the crashing
+    // release path until the underlying lifetime bug is fixed.
+    return std::make_unique<facebook::velox::dwio::common::DirectBufferedInput>(
+        fileHandle.file,
+        dwio::common::MetricsLog::voidLog(),
+        facebook::velox::StringIdLease{},
+        facebook::velox::connector::Connector::getTracker(
+            connectorQueryCtx->scanId(), readerOpts.loadQuantum()),
+        facebook::velox::StringIdLease{},
+        std::move(ioStatistics),
+        std::move(ioStats),
+        executor,
+        readerOpts,
+        fileReadOps);
+#else
     return std::make_unique<GlutenDirectBufferedInput>(
         fileHandle.file,
         dwio::common::MetricsLog::voidLog(),
@@ -59,6 +77,7 @@ class GlutenBufferedInputBuilder : public facebook::velox::connector::hive::Buff
         executor,
         readerOpts,
         fileReadOps);
+#endif
   }
 };
 

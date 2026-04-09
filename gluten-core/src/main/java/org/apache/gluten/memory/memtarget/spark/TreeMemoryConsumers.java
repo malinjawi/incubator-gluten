@@ -20,7 +20,6 @@ import org.apache.gluten.config.GlutenCoreConfig;
 import org.apache.gluten.memory.memtarget.Spillers;
 import org.apache.gluten.memory.memtarget.TreeMemoryTarget;
 
-import com.google.common.base.Preconditions;
 import org.apache.spark.memory.MemoryMode;
 import org.apache.spark.memory.TaskMemoryManager;
 import org.apache.spark.task.TaskResource;
@@ -49,11 +48,11 @@ public final class TreeMemoryConsumers {
               }
             });
     final MemoryMode foundMode = factory.sparkConsumer.getMode();
-    Preconditions.checkState(
-        foundMode == mode,
-        "An existing Spark memory consumer already exists but is of the different memory "
-            + "mode: %s",
-        foundMode);
+    if (foundMode != mode) {
+      throw new IllegalStateException(
+          "An existing Spark memory consumer already exists but is of the different memory mode: "
+              + foundMode);
+    }
     return factory;
   }
 
