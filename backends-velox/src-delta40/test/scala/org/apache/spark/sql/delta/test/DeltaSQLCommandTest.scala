@@ -16,6 +16,7 @@
  */
 package org.apache.spark.sql.delta.test
 
+import org.apache.gluten.config.GlutenConfig
 import org.apache.gluten.config.VeloxDeltaConfig
 
 import org.apache.spark.SparkConf
@@ -49,6 +50,8 @@ trait DeltaSQLCommandTest extends SharedSparkSession {
       .set("spark.sql.shuffle.partitions", "5")
       .set("spark.memory.offHeap.size", "2g")
       .set("spark.unsafe.exceptionOnMemoryLeak", "true")
+      .set(SQLConf.ANSI_ENABLED.key, "false")
+      .set(GlutenConfig.GLUTEN_ANSI_FALLBACK_ENABLED.key, "false")
       .set(VeloxDeltaConfig.ENABLE_NATIVE_WRITE.key, "true")
       .set("spark.databricks.delta.snapshotPartitions", "2")
       .set("spark.gluten.sql.fallbackUnexpectedMetadataParquet", "true")
