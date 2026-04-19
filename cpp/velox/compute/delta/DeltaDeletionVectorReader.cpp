@@ -195,6 +195,26 @@ DeltaDeletionVectorReader::DeltaDeletionVectorReader(
     std::shared_ptr<io::IoStatistics> ioStats)
     : fileSystem_(std::move(fileSystem)), pool_(pool), ioStats_(std::move(ioStats)) {}
 
+void DeltaDeletionVectorReader::loadSerializedDeletionVectorInternal(
+    std::string_view serializedPayload,
+    const std::string& debugName,
+    std::optional<uint64_t> expectedCardinality) {
+  VELOX_USER_CHECK_GT(serializedPayload.size(), 0, "Serialized deletion vector is empty: {}", debugName);
+
+  deletionBitmap_ = deserializeDeltaBitmapArray(serializedPayload, debugName);
+
+  if (expectedCardinality.has_value()) {
+    const auto actualCardinality = deletionBitmap_->cardinality();
+    VELOX_USER_CHECK_EQ(
+        actualCardinality,
+        expectedCardinality.value(),
+        "Deletion vector cardinality mismatch for {}: expected {}, got {}",
+        debugName,
+        expectedCardinality.value(),
+        actualCardinality);
+  }
+}
+
 void DeltaDeletionVectorReader::loadDeletionVector(
     const std::string& dvPath,
     std::optional<uint64_t> offset,
@@ -260,19 +280,7 @@ void DeltaDeletionVectorReader::loadDeletionVector(
         ? extractStoredPayload(std::string_view(buffer->as<char>(), bytesRead.size()), payloadSize.value(), dvPath)
         : std::string_view(buffer->as<char>(), bytesRead.size());
 
-    deletionBitmap_ = deserializeDeltaBitmapArray(serializedPayload, dvPath);
-
-    // Validate cardinality if provided
-    if (expectedCardinality.has_value()) {
-      const auto actualCardinality = deletionBitmap_->cardinality();
-      VELOX_USER_CHECK_EQ(
-          actualCardinality,
-          expectedCardinality.value(),
-          "Deletion vector cardinality mismatch for {}: expected {}, got {}",
-          dvPath,
-          expectedCardinality.value(),
-          actualCardinality);
-    }
+    loadSerializedDeletionVectorInternal(serializedPayload, dvPath, expectedCardinality);
 
     if (ioStats_) {
       ioStats_->incRawBytesRead(bytesToRead);
@@ -290,23 +298,19 @@ void DeltaDeletionVectorReader::loadInlineDeletionVector(
   try {
     const auto decodedSize = sizeInBytes.value_or((inlineData.size() / 5) * 4);
     std::string decoded = DeltaUuidUtils::decodeBase85ToBytes(inlineData, decodedSize);
-
-    VELOX_USER_CHECK_GT(decoded.size(), 0, "Decoded inline deletion vector is empty");
-
-    deletionBitmap_ = deserializeDeltaBitmapArray(decoded, "inline deletion vector");
-
-    // Validate cardinality if provided
-    if (expectedCardinality.has_value()) {
-      const auto actualCardinality = deletionBitmap_->cardinality();
-      VELOX_USER_CHECK_EQ(
-          actualCardinality,
-          expectedCardinality.value(),
-          "Inline deletion vector cardinality mismatch: expected {}, got {}",
-          expectedCardinality.value(),
-          actualCardinality);
-    }
+    loadSerializedDeletionVectorInternal(decoded, "inline deletion vector", expectedCardinality);
   } catch (const std::exception& e) {
     VELOX_USER_FAIL("Failed to load inline deletion vector: {}", e.what());
+  }
+}
+
+void DeltaDeletionVectorReader::loadSerializedDeletionVector(
+    std::string_view serializedPayload,
+    std::optional<uint64_t> expectedCardinality) {
+  try {
+    loadSerializedDeletionVectorInternal(serializedPayload, "serialized deletion vector", expectedCardinality);
+  } catch (const std::exception& e) {
+    VELOX_USER_FAIL("Failed to load serialized deletion vector: {}", e.what());
   }
 }
 

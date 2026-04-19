@@ -237,6 +237,28 @@ TEST_F(DeltaDeletionVectorReaderTest, LoadInline) {
   EXPECT_FALSE(reader->isRowDeleted(20));
 }
 
+TEST_F(DeltaDeletionVectorReaderTest, LoadSerializedPayload) {
+  RoaringBitmapArray bitmap;
+  bitmap.addSafe(2);
+  bitmap.addSafe(7);
+  bitmap.addSafe(12);
+
+  const auto serializedSize = bitmap.serializedSizeInBytes();
+  auto buffer = AlignedBuffer::allocate<char>(serializedSize, pool_.get());
+  bitmap.serialize(buffer->asMutable<char>());
+
+  auto reader = std::make_unique<DeltaDeletionVectorReader>(nullptr, pool_.get(), ioStats_);
+  reader->loadSerializedDeletionVector(std::string_view(buffer->as<char>(), serializedSize), 3);
+
+  EXPECT_TRUE(reader->isRowDeleted(2));
+  EXPECT_TRUE(reader->isRowDeleted(7));
+  EXPECT_TRUE(reader->isRowDeleted(12));
+
+  EXPECT_FALSE(reader->isRowDeleted(0));
+  EXPECT_FALSE(reader->isRowDeleted(3));
+  EXPECT_FALSE(reader->isRowDeleted(20));
+}
+
 TEST_F(DeltaDeletionVectorReaderTest, ApplyDeletionFilter) {
   // Create DV with rows 2, 5, 8 deleted
   auto inlineData = createInlineDVData({2, 5, 8});

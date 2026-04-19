@@ -42,6 +42,7 @@
 #include <optional>
 #include <roaring/roaring64map.hh>
 #include <string>
+#include <string_view>
 
 namespace gluten::delta {
 
@@ -105,6 +106,11 @@ class DeltaDeletionVectorReader {
       std::optional<uint64_t> sizeInBytes = std::nullopt,
       std::optional<uint64_t> expectedCardinality = std::nullopt);
 
+  /// Loads a deletion vector from an already decoded serialized Delta payload.
+  void loadSerializedDeletionVector(
+      std::string_view serializedPayload,
+      std::optional<uint64_t> expectedCardinality = std::nullopt);
+
   /// Checks if a specific row position is marked as deleted.
   /// Note: This method is not const because it may update internal caching
   /// state.
@@ -130,6 +136,11 @@ class DeltaDeletionVectorReader {
   uint64_t estimatedDeletedRowCount() const;
 
  private:
+  void loadSerializedDeletionVectorInternal(
+      std::string_view serializedPayload,
+      const std::string& debugName,
+      std::optional<uint64_t> expectedCardinality);
+
   std::shared_ptr<filesystems::FileSystem> fileSystem_;
   memory::MemoryPool* pool_;
   std::shared_ptr<io::IoStatistics> ioStats_;

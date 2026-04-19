@@ -38,6 +38,7 @@
 #include <string>
 #include <vector>
 
+#include "compute/Runtime.h"
 #include "velox/connectors/hive/HiveConnectorSplit.h"
 
 namespace gluten::delta {
@@ -90,6 +91,8 @@ struct DeltaDeletionVectorDescriptor {
   std::optional<uint64_t> offset;
   std::optional<uint64_t> sizeInBytes;
   std::optional<uint64_t> cardinality;
+  std::optional<std::string> serializedPayload;
+  std::optional<SplitPayloadBufferView> serializedPayloadView;
 
   /// Computes the uniqueId for this deletion vector descriptor.
   /// Used for snapshot reconstruction to differentiate the same file
@@ -118,24 +121,51 @@ struct DeltaDeletionVectorDescriptor {
 
   static DeltaDeletionVectorDescriptor inlineData(
       std::string data,
-      std::optional<uint64_t> cardinality = std::nullopt) {
-    return {DeltaDeletionVectorStorageType::kInlineData, std::move(data), std::nullopt, std::nullopt, cardinality};
+      std::optional<uint64_t> cardinality = std::nullopt,
+      std::optional<std::string> serializedPayload = std::nullopt,
+      std::optional<SplitPayloadBufferView> serializedPayloadView = std::nullopt) {
+    return {
+        DeltaDeletionVectorStorageType::kInlineData,
+        std::move(data),
+        std::nullopt,
+        std::nullopt,
+        cardinality,
+        std::move(serializedPayload),
+        serializedPayloadView};
   }
 
   static DeltaDeletionVectorDescriptor uuidPath(
       std::string z85EncodedUuid,
       std::optional<uint64_t> offset = std::nullopt,
       std::optional<uint64_t> sizeInBytes = std::nullopt,
-      std::optional<uint64_t> cardinality = std::nullopt) {
-    return {DeltaDeletionVectorStorageType::kUuidPath, std::move(z85EncodedUuid), offset, sizeInBytes, cardinality};
+      std::optional<uint64_t> cardinality = std::nullopt,
+      std::optional<std::string> serializedPayload = std::nullopt,
+      std::optional<SplitPayloadBufferView> serializedPayloadView = std::nullopt) {
+    return {
+        DeltaDeletionVectorStorageType::kUuidPath,
+        std::move(z85EncodedUuid),
+        offset,
+        sizeInBytes,
+        cardinality,
+        std::move(serializedPayload),
+        serializedPayloadView};
   }
 
   static DeltaDeletionVectorDescriptor filePath(
       std::string path,
       std::optional<uint64_t> offset = std::nullopt,
       std::optional<uint64_t> sizeInBytes = std::nullopt,
-      std::optional<uint64_t> cardinality = std::nullopt) {
-    return {DeltaDeletionVectorStorageType::kFilePath, std::move(path), offset, sizeInBytes, cardinality};
+      std::optional<uint64_t> cardinality = std::nullopt,
+      std::optional<std::string> serializedPayload = std::nullopt,
+      std::optional<SplitPayloadBufferView> serializedPayloadView = std::nullopt) {
+    return {
+        DeltaDeletionVectorStorageType::kFilePath,
+        std::move(path),
+        offset,
+        sizeInBytes,
+        cardinality,
+        std::move(serializedPayload),
+        serializedPayloadView};
   }
 
   bool isInline() const {

@@ -25,7 +25,7 @@ import org.apache.gluten.substrait.expression.ExpressionNode
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression}
 import org.apache.spark.sql.catalyst.plans.{ExistenceJoin, FullOuter, InnerLike, JoinType, LeftAnti, LeftOuter, LeftSemi, RightOuter}
 
-import com.google.protobuf.{Any, DoubleValue, Int32Value, Int64Value, Message, StringValue}
+import com.google.protobuf.{Any, ByteString, BytesValue, DoubleValue, Int32Value, Int64Value, Message, StringValue}
 import io.substrait.proto.{CrossRel, JoinRel, NamedStruct, Type}
 
 import java.lang.{Double => JDouble, Long => JLong}
@@ -117,6 +117,7 @@ object SubstraitUtil {
       case i: Integer => Int32Value.newBuilder.setValue(i).build
       case l: JLong => Int64Value.newBuilder.setValue(l).build
       case d: JDouble => DoubleValue.newBuilder.setValue(d).build
+      case bytes: Array[Byte] => BytesValue.newBuilder.setValue(ByteString.copyFrom(bytes)).build
       case _ =>
         // TODO: generate the message according to the object type
         StringValue.newBuilder.setValue(obj.toString).build

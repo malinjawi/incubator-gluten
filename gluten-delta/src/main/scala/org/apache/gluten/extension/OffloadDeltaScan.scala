@@ -21,22 +21,17 @@ import org.apache.gluten.extension.columnar.FallbackTags
 import org.apache.gluten.extension.columnar.offload.OffloadSingleNode
 
 import org.apache.spark.sql.delta.DeltaParquetFileFormat
-import org.apache.spark.sql.delta.DeltaParquetFileFormat.IS_ROW_DELETED_COLUMN_NAME
 import org.apache.spark.sql.delta.files.TahoeFileIndex
 import org.apache.spark.sql.delta.stats.PreparedDeltaFileIndex
 import org.apache.spark.sql.execution.{FileSourceScanExec, SparkPlan}
-import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat
 
 case class OffloadDeltaScan() extends OffloadSingleNode {
   override def offload(plan: SparkPlan): SparkPlan = plan match {
     case scan: FileSourceScanExec if isDeltaScan(scan) && isDeltaLogScan(scan) =>
       FallbackTags.add(scan, "fallback Delta _delta_log scan")
       scan
-    case scan: FileSourceScanExec if isDvPreparedDeltaScan(scan) =>
-      DeltaScanTransformer(scan)
     case scan: FileSourceScanExec if isDeltaScan(scan) =>
-      FallbackTags.add(scan, "fallback plain Delta scan without DV preprocessing")
-      scan
+      DeltaScanTransformer(scan)
     case other => other
   }
 
@@ -53,17 +48,6 @@ case class OffloadDeltaScan() extends OffloadSingleNode {
   private def isDeltaFileIndex(scan: FileSourceScanExec): Boolean = {
     scan.relation.location.isInstanceOf[TahoeFileIndex] ||
     scan.relation.location.isInstanceOf[PreparedDeltaFileIndex]
-  }
-
-  private def isDvPreparedDeltaScan(scan: FileSourceScanExec): Boolean = {
-    isDeltaScan(scan) && hasDeletionVectorMarkers(scan)
-  }
-
-  private def hasDeletionVectorMarkers(scan: FileSourceScanExec): Boolean = {
-    scan.output.exists(_.name == IS_ROW_DELETED_COLUMN_NAME) ||
-    scan.requiredSchema.fieldNames.contains(IS_ROW_DELETED_COLUMN_NAME) ||
-    scan.output.exists(_.name == ParquetFileFormat.ROW_INDEX_TEMPORARY_COLUMN_NAME) ||
-    scan.requiredSchema.fieldNames.contains(ParquetFileFormat.ROW_INDEX_TEMPORARY_COLUMN_NAME)
   }
 
   private def isDeltaLogScan(scan: FileSourceScanExec): Boolean = {

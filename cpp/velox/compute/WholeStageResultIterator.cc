@@ -17,9 +17,9 @@
 #include "WholeStageResultIterator.h"
 #include "VeloxBackend.h"
 #include "VeloxPlanConverter.h"
+#include "VeloxRuntime.h"
 #include "compute/delta/DeltaConnector.h"
 #include "compute/delta/DeltaSplit.h"
-#include "VeloxRuntime.h"
 #include "config/VeloxConfig.h"
 #include "utils/ConfigExtractor.h"
 #include "velox/connectors/hive/HiveConfig.h"
@@ -27,13 +27,12 @@
 #include "velox/exec/PlanNodeStats.h"
 #ifdef GLUTEN_ENABLE_GPU
 #include <cudf/io/types.hpp>
+#include "cudf/GpuLock.h"
 #include "velox/experimental/cudf/CudfConfig.h"
 #include "velox/experimental/cudf/connectors/hive/CudfHiveConnectorSplit.h"
 #include "velox/experimental/cudf/exec/ToCudf.h"
-#include "cudf/GpuLock.h"
 #endif
 #include "operators/plannodes/RowVectorStream.h"
-
 
 using namespace facebook;
 
@@ -76,6 +75,7 @@ const std::string kDeltaDvPathOrInline = "delta_dv_path_or_inline";
 const std::string kDeltaDvOffset = "delta_dv_offset";
 const std::string kDeltaDvSizeInBytes = "delta_dv_size_in_bytes";
 const std::string kDeltaDvCardinality = "delta_dv_cardinality";
+const std::string kDeltaDvSerializedPayload = "delta_dv_serialized_payload";
 const std::string kRowIndexFilterType = "row_index_filter_type";
 
 std::string normalizeSessionTimezone(const std::string& timezone) {
@@ -89,8 +89,7 @@ std::string normalizeSessionTimezone(const std::string& timezone) {
 bool isDeltaMetadata(const std::unordered_map<std::string, std::string>& metadata) {
   auto tableFormatIt = metadata.find(kTableFormatKey);
   return (tableFormatIt != metadata.end() && tableFormatIt->second == kDeltaTableFormat) ||
-      metadata.find(kDeltaDvStorageType) != metadata.end() ||
-      metadata.find(kDeltaDvPathOrInline) != metadata.end() ||
+      metadata.find(kDeltaDvStorageType) != metadata.end() || metadata.find(kDeltaDvPathOrInline) != metadata.end() ||
       metadata.find(kRowIndexFilterType) != metadata.end();
 }
 
@@ -143,7 +142,8 @@ std::optional<uint64_t> getOptionalUint64(
 }
 
 std::optional<gluten::delta::DeltaDeletionVectorDescriptor> parseDeltaDeletionVector(
-    const std::unordered_map<std::string, std::string>& metadata) {
+    const std::unordered_map<std::string, std::string>& metadata,
+    std::optional<SplitPayloadBufferView> serializedPayloadView) {
   auto storageTypeIt = metadata.find(kDeltaDvStorageType);
   auto pathIt = metadata.find(kDeltaDvPathOrInline);
   if (storageTypeIt == metadata.end() || pathIt == metadata.end()) {
@@ -153,17 +153,22 @@ std::optional<gluten::delta::DeltaDeletionVectorDescriptor> parseDeltaDeletionVe
   const auto offset = getOptionalUint64(metadata, kDeltaDvOffset);
   const auto sizeInBytes = getOptionalUint64(metadata, kDeltaDvSizeInBytes);
   const auto cardinality = getOptionalUint64(metadata, kDeltaDvCardinality);
+  std::optional<std::string> serializedPayload = std::nullopt;
+  std::optional<SplitPayloadBufferView> payloadView = serializedPayloadView;
+  if (auto payloadIt = metadata.find(kDeltaDvSerializedPayload); payloadIt != metadata.end()) {
+    serializedPayload = payloadIt->second;
+  }
 
   if (storageTypeIt->second == "i") {
     return gluten::delta::DeltaDeletionVectorDescriptor::inlineData(
-        pathIt->second, cardinality);
+        pathIt->second, cardinality, std::move(serializedPayload), payloadView);
   }
   if (storageTypeIt->second == "u") {
     return gluten::delta::DeltaDeletionVectorDescriptor::uuidPath(
-        pathIt->second, offset, sizeInBytes, cardinality);
+        pathIt->second, offset, sizeInBytes, cardinality, std::move(serializedPayload), payloadView);
   }
   return gluten::delta::DeltaDeletionVectorDescriptor::filePath(
-      pathIt->second, offset, sizeInBytes, cardinality);
+      pathIt->second, offset, sizeInBytes, cardinality, std::move(serializedPayload), payloadView);
 }
 
 gluten::delta::DeltaRowIndexFilterType parseDeltaRowIndexFilterType(
@@ -256,15 +261,11 @@ WholeStageResultIterator::WholeStageResultIterator(
     const auto& metadataColumns = scanInfo->metadataColumns;
     const auto scanNodeConnectorId = connectorIdForScanNode(veloxPlan_, scanNodeIds_[scanInfoIdx]);
     const bool isDeltaScan =
-        scanNodeConnectorId == gluten::delta::DeltaConnectorFactory::kDeltaConnectorName ||
-        isDeltaScanInfo(scanInfo);
+        scanNodeConnectorId == gluten::delta::DeltaConnectorFactory::kDeltaConnectorName || isDeltaScanInfo(scanInfo);
     const auto deltaMetadataFiles = std::count_if(
-        metadataColumns.begin(),
-        metadataColumns.end(),
-        [](const auto& metadata) { return isDeltaMetadata(metadata); });
-    LOG(INFO) << "WholeStageResultIterator scanInfo[" << scanInfoIdx << "] nodeId="
-              << scanNodeIds_[scanInfoIdx] << " files=" << paths.size()
-              << " connectorId=" << scanNodeConnectorId << " isDeltaScan=" << isDeltaScan
+        metadataColumns.begin(), metadataColumns.end(), [](const auto& metadata) { return isDeltaMetadata(metadata); });
+    LOG(INFO) << "WholeStageResultIterator scanInfo[" << scanInfoIdx << "] nodeId=" << scanNodeIds_[scanInfoIdx]
+              << " files=" << paths.size() << " connectorId=" << scanNodeConnectorId << " isDeltaScan=" << isDeltaScan
               << " deltaMetadataFiles=" << deltaMetadataFiles;
 #ifdef GLUTEN_ENABLE_GPU
     // Under the pre-condition that all the split infos has same partition column and format.
@@ -300,8 +301,7 @@ WholeStageResultIterator::WholeStageResultIterator(
             metadataColumn,
             properties[idx]);
       } else if (isDeltaScan) {
-        std::unordered_map<std::string, std::string> customSplitInfo{
-            {"table_format", kDeltaTableFormat}};
+        std::unordered_map<std::string, std::string> customSplitInfo{{"table_format", kDeltaTableFormat}};
         split = std::make_shared<gluten::delta::HiveDeltaSplit>(
             gluten::delta::DeltaConnectorFactory::kDeltaConnectorName,
             paths[idx],
@@ -314,15 +314,14 @@ WholeStageResultIterator::WholeStageResultIterator(
             nullptr,
             std::unordered_map<std::string, std::string>(),
             true,
-            parseDeltaDeletionVector(metadataColumn),
+            parseDeltaDeletionVector(metadataColumn, scanInfo->deletionVectorPayloads[idx]),
             std::nullopt,
             std::nullopt,
             parseDeltaRowIndexFilterType(metadataColumn),
             metadataColumn,
             properties[idx]);
       } else {
-        auto connectorId =
-            scanNodeConnectorId.empty() ? std::string(kHiveConnectorId) : scanNodeConnectorId;
+        auto connectorId = scanNodeConnectorId.empty() ? std::string(kHiveConnectorId) : scanNodeConnectorId;
 #ifdef GLUTEN_ENABLE_GPU
         if (connectorId == kHiveConnectorId && canUseCudfConnector && enableCudf_ &&
             veloxCfg_->get<bool>(kCudfEnableTableScan, kCudfEnableTableScanDefault)) {
@@ -508,14 +507,15 @@ void WholeStageResultIterator::constructPartitionColumns(
 }
 
 void WholeStageResultIterator::addIteratorSplits(const std::vector<std::shared_ptr<ResultIterator>>& inputIterators) {
-  GLUTEN_CHECK(!allSplitsAdded_, "Method addIteratorSplits should not be called since all splits has been added to the Velox task.");
+  GLUTEN_CHECK(
+      !allSplitsAdded_,
+      "Method addIteratorSplits should not be called since all splits has been added to the Velox task.");
   // Create IteratorConnectorSplit for each iterator
   for (size_t i = 0; i < streamIds_.size() && i < inputIterators.size(); ++i) {
     if (inputIterators[i] == nullptr) {
       continue;
     }
-    auto connectorSplit = std::make_shared<IteratorConnectorSplit>(
-        kIteratorConnectorId, inputIterators[i]);
+    auto connectorSplit = std::make_shared<IteratorConnectorSplit>(kIteratorConnectorId, inputIterators[i]);
     exec::Split split(folly::copy(connectorSplit), -1);
     task_->addSplit(streamIds_[i], std::move(split));
   }
@@ -535,7 +535,7 @@ void WholeStageResultIterator::noMoreSplits() {
   for (const auto& scanNodeId : scanNodeIds_) {
     task_->noMoreSplits(scanNodeId);
   }
-  
+
   // Mark no more splits for all stream nodes
   for (const auto& streamId : streamIds_) {
     task_->noMoreSplits(streamId);

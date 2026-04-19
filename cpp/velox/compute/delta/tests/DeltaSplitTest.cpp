@@ -63,6 +63,13 @@ TEST(DeltaSplitTest, inlineDeletionVectorDescriptor) {
   EXPECT_EQ(*descriptor.cardinality, 5);
 }
 
+TEST(DeltaSplitTest, descriptorCarriesSerializedPayload) {
+  auto descriptor = DeltaDeletionVectorDescriptor::filePath("/tmp/dv.bin", 4, 64, 2, std::string("serialized"));
+
+  ASSERT_TRUE(descriptor.serializedPayload.has_value());
+  EXPECT_EQ(*descriptor.serializedPayload, "serialized");
+}
+
 TEST(DeltaSplitTest, splitCarriesDeletionVectorDescriptor) {
   auto descriptor = DeltaDeletionVectorDescriptor::filePath("/tmp/dv.bin", 4, 64, 2);
 

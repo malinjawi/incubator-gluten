@@ -33,6 +33,7 @@
 #include "compute/delta/DeltaSplitReader.h"
 
 #include <sstream>
+#include <string_view>
 
 #include "compute/delta/DeltaSplit.h"
 #include "compute/delta/DeltaUuidUtils.h"
@@ -138,6 +139,22 @@ void DeltaSplitReader::prepareSplit(
   // Validate statistics if provided
   if (deltaSplit->statistics.has_value()) {
     validateStatisticsForDeletionVectors(*deltaSplit->statistics, descriptor);
+  }
+
+  if (descriptor.serializedPayloadView.has_value()) {
+    const auto& payloadView = descriptor.serializedPayloadView.value();
+    deletionVectorReader_ =
+        std::make_unique<DeltaDeletionVectorReader>(nullptr, connectorQueryCtx_->memoryPool(), ioStatistics_);
+    deletionVectorReader_->loadSerializedDeletionVector(
+        std::string_view(reinterpret_cast<const char*>(payloadView.data), payloadView.size), descriptor.cardinality);
+    return;
+  }
+
+  if (descriptor.serializedPayload.has_value()) {
+    deletionVectorReader_ =
+        std::make_unique<DeltaDeletionVectorReader>(nullptr, connectorQueryCtx_->memoryPool(), ioStatistics_);
+    deletionVectorReader_->loadSerializedDeletionVector(*descriptor.serializedPayload, descriptor.cardinality);
+    return;
   }
 
   // Determine the actual file path and file system

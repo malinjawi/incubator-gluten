@@ -19,10 +19,10 @@
 #include <filesystem>
 #include <optional>
 
+#include <google/protobuf/wrappers.pb.h>
 #include "config/GlutenConfig.h"
 #include "iceberg/IcebergPlanConverter.h"
 #include "operators/plannodes/IteratorSplit.h"
-#include <google/protobuf/wrappers.pb.h>
 
 namespace gluten {
 
@@ -42,8 +42,14 @@ VeloxPlanConverter::VeloxPlanConverter(
 }
 
 namespace {
-std::optional<std::string> unpackMetadataValue(
-    const google::protobuf::Any& value) {
+const std::string kDeltaDvPayloadIndex = "delta_dv_payload_index";
+
+std::optional<std::string> unpackMetadataValue(const google::protobuf::Any& value) {
+  google::protobuf::BytesValue bytesValue;
+  if (value.UnpackTo(&bytesValue)) {
+    return bytesValue.value();
+  }
+
   google::protobuf::StringValue stringValue;
   if (value.UnpackTo(&stringValue)) {
     return stringValue.value();
@@ -69,7 +75,8 @@ std::optional<std::string> unpackMetadataValue(
 
 std::shared_ptr<SplitInfo> parseScanSplitInfo(
     const facebook::velox::config::ConfigBase* veloxCfg,
-    const google::protobuf::RepeatedPtrField<substrait::ReadRel_LocalFiles_FileOrFiles>& fileList) {
+    const google::protobuf::RepeatedPtrField<substrait::ReadRel_LocalFiles_FileOrFiles>& fileList,
+    const std::vector<SplitPayloadBufferView>* splitPayloads) {
   using SubstraitFileFormatCase = ::substrait::ReadRel_LocalFiles_FileOrFiles::FileFormatCase;
 
   auto splitInfo = std::make_shared<SplitInfo>();
@@ -80,6 +87,7 @@ std::shared_ptr<SplitInfo> parseScanSplitInfo(
   splitInfo->partitionColumns.reserve(fileList.size());
   splitInfo->properties.reserve(fileList.size());
   splitInfo->metadataColumns.reserve(fileList.size());
+  splitInfo->deletionVectorPayloads.reserve(fileList.size());
   for (const auto& file : fileList) {
     // Expect all Partitions share the same index.
     splitInfo->partitionIndex = file.partition_index();
@@ -98,6 +106,21 @@ std::shared_ptr<SplitInfo> parseScanSplitInfo(
       if (auto unpackedValue = unpackMetadataValue(otherMetadataColumn.value())) {
         metadataColumnMap[otherMetadataColumn.key()] = std::move(*unpackedValue);
       }
+    }
+    if (auto payloadIndexIt = metadataColumnMap.find(kDeltaDvPayloadIndex);
+        payloadIndexIt != metadataColumnMap.end()) {
+      VELOX_USER_CHECK_NOT_NULL(splitPayloads, "Split payload index found without an external payload buffer");
+      const auto payloadIndex = static_cast<size_t>(std::stoul(payloadIndexIt->second));
+      VELOX_USER_CHECK_LT(
+          payloadIndex,
+          splitPayloads->size(),
+          "Split payload index {} is out of range for {} payload buffers",
+          payloadIndex,
+          splitPayloads->size());
+      splitInfo->deletionVectorPayloads.emplace_back(splitPayloads->at(payloadIndex));
+      metadataColumnMap.erase(payloadIndexIt);
+    } else {
+      splitInfo->deletionVectorPayloads.emplace_back(std::nullopt);
     }
     splitInfo->metadataColumns.emplace_back(metadataColumnMap);
 
@@ -162,12 +185,16 @@ std::shared_ptr<SplitInfo> parseScanSplitInfo(
 void parseLocalFileNodes(
     SubstraitToVeloxPlanConverter* planConverter,
     const facebook::velox::config::ConfigBase* veloxCfg,
-    std::vector<::substrait::ReadRel_LocalFiles>& localFiles) {
+    std::vector<::substrait::ReadRel_LocalFiles>& localFiles,
+    const std::unordered_map<int32_t, std::vector<SplitPayloadBufferView>>& splitPayloads) {
   std::vector<std::shared_ptr<SplitInfo>> splitInfos;
   splitInfos.reserve(localFiles.size());
-  for (const auto& localFile : localFiles) {
+  for (size_t splitIndex = 0; splitIndex < localFiles.size(); ++splitIndex) {
+    const auto& localFile = localFiles[splitIndex];
     const auto& fileList = localFile.items();
-    splitInfos.push_back(parseScanSplitInfo(veloxCfg, fileList));
+    auto payloadIt = splitPayloads.find(splitIndex);
+    splitInfos.push_back(
+        parseScanSplitInfo(veloxCfg, fileList, payloadIt == splitPayloads.end() ? nullptr : &payloadIt->second));
   }
 
   planConverter->setSplitInfos(std::move(splitInfos));
@@ -176,9 +203,10 @@ void parseLocalFileNodes(
 
 std::shared_ptr<const facebook::velox::core::PlanNode> VeloxPlanConverter::toVeloxPlan(
     const ::substrait::Plan& substraitPlan,
-    std::vector<::substrait::ReadRel_LocalFiles> localFiles) {
+    std::vector<::substrait::ReadRel_LocalFiles> localFiles,
+    const std::unordered_map<int32_t, std::vector<SplitPayloadBufferView>>& splitPayloads) {
   if (!validationMode_) {
-    parseLocalFileNodes(&substraitVeloxPlanConverter_, veloxCfg_, localFiles);
+    parseLocalFileNodes(&substraitVeloxPlanConverter_, veloxCfg_, localFiles, splitPayloads);
   }
 
   return substraitVeloxPlanConverter_.toVeloxPlan(substraitPlan);
