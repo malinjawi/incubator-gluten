@@ -41,6 +41,7 @@ import org.apache.spark.sql.vectorized.ColumnarBatch
 import org.apache.spark.util.SparkDirectoryUtil
 
 import java.lang.{Long => JLong}
+import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.time.ZoneOffset
 import java.util.UUID
@@ -49,7 +50,6 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 class VeloxIteratorApi extends IteratorApi with Logging {
-
   private def setFileSchemaForLocalFiles(
       localFilesNode: LocalFilesNode,
       fileSchema: StructType,
@@ -94,8 +94,9 @@ class VeloxIteratorApi extends IteratorApi with Logging {
     val metadataColumns = partitionFiles
       .map(
         f => SparkShimLoader.getSparkShims.generateMetadataColumns(f, metadataColumnNames).asJava)
-    val otherMetadataColumns = partitionFiles
-      .map(f => SparkShimLoader.getSparkShims.getOtherConstantMetadataColumnValues(f))
+    val otherMetadataColumns = partitionFiles.map {
+      f => SparkShimLoader.getSparkShims.getOtherConstantMetadataColumnValues(f)
+    }
 
     setFileSchemaForLocalFiles(
       LocalFilesBuilder.makeLocalFiles(
@@ -179,6 +180,24 @@ class VeloxIteratorApi extends IteratorApi with Logging {
     NativePlanEvaluator.injectWriteFilesTempPath(path, fileName)
   }
 
+  private def buildSplitPayloadBuffers(splitInfos: Array[SplitInfo]): Array[Array[ByteBuffer]] = {
+    val payloadBuffers = splitInfos.map {
+      case splitInfoWithPayloads: VeloxSplitInfoWithPayloads
+          if splitInfoWithPayloads.deletionVectorPayloads.nonEmpty =>
+        splitInfoWithPayloads.deletionVectorPayloads.map(toDirectByteBuffer)
+      case _ =>
+        null
+    }
+    if (payloadBuffers.exists(_ != null)) payloadBuffers else null
+  }
+
+  private def toDirectByteBuffer(bytes: Array[Byte]): ByteBuffer = {
+    val directBuffer = ByteBuffer.allocateDirect(bytes.length)
+    directBuffer.put(bytes)
+    directBuffer.flip()
+    directBuffer
+  }
+
   /** Generate Iterator[ColumnarBatch] for first stage. */
   override def genFirstStageIterator(
       inputPartition: BaseGlutenPartition,
@@ -205,6 +224,8 @@ class VeloxIteratorApi extends IteratorApi with Logging {
       .splitInfos
       .map(splitInfo => splitInfo.toProtobuf.toByteArray)
       .toArray
+    val splitPayloadBuffers =
+      buildSplitPayloadBuffers(inputPartition.asInstanceOf[GlutenPartition].splitInfos)
     val spillDirPath = SparkDirectoryUtil
       .get()
       .namespace("gluten-spill")
@@ -214,6 +235,7 @@ class VeloxIteratorApi extends IteratorApi with Logging {
       transKernel.createKernelWithBatchIterator(
         inputPartition.plan,
         if (splitInfoByteArray.nonEmpty) splitInfoByteArray else null,
+        splitPayloadBuffers,
         if (columnarNativeIterators.nonEmpty) columnarNativeIterators.toArray else null,
         partitionIndex,
         BackendsApiManager.getSparkPlanExecApiInstance.rewriteSpillPath(spillDirPath)
@@ -267,6 +289,7 @@ class VeloxIteratorApi extends IteratorApi with Logging {
     val nativeResultIterator =
       transKernel.createKernelWithBatchIterator(
         rootNode.toProtobuf.toByteArray,
+        null,
         null,
         if (columnarNativeIterator.nonEmpty) columnarNativeIterator.toArray else null,
         partitionIndex,
