@@ -37,6 +37,7 @@ import org.apache.spark.util.collection.BitSet
 
 import org.apache.hadoop.fs.Path
 
+import scala.collection.mutable.ListBuffer
 import scala.util.control.NonFatal
 
 case class DeltaScanTransformer(
@@ -66,10 +67,25 @@ case class DeltaScanTransformer(
 
   override lazy val fileFormat: ReadFileFormat = ReadFileFormat.ParquetReadFormat
 
-  private lazy val deltaDeletionVectorRegistryId: Option[String] =
+  private lazy val deltaDeletionVectorRegistration
+      : DeltaScanTransformer.DeletionVectorRegistration =
     DeltaScanTransformer.registerDeletionVectorsFromFileFormat(relation)
 
-  override protected def doValidateInternal(): ValidationResult = super.doValidateInternal()
+  private lazy val deltaDeletionVectorRegistryId: Option[String] =
+    deltaDeletionVectorRegistration.registryId
+
+  override protected def doValidateInternal(): ValidationResult = {
+    val validationResult = super.doValidateInternal()
+    if (!validationResult.ok()) {
+      return validationResult
+    }
+
+    if (!deltaDeletionVectorRegistration.isValid) {
+      return ValidationResult.failed(deltaDeletionVectorRegistration.failureReason)
+    }
+
+    ValidationResult.succeeded
+  }
 
   override def getProperties: Map[String, String] = {
     super.getProperties ++ deltaDeletionVectorRegistryId
@@ -102,76 +118,164 @@ case class DeltaScanTransformer(
 object DeltaScanTransformer {
   private val IfContainedFilterType = "IF_CONTAINED"
 
-  private def registerDeletionVectorsFromFileFormat(relation: HadoopFsRelation): Option[String] = {
-    registerDeletionVectorsFromBroadcastMap(relation)
-      .orElse(registerDeletionVectorsFromPreparedScan(relation))
-  }
+  private[execution] case class DeletionVectorRegistration(
+      attempted: Boolean,
+      deletionVectorCount: Int,
+      registryId: Option[String],
+      failures: Seq[String]) {
+    def isValid: Boolean = failures.isEmpty && (deletionVectorCount == 0 || registryId.nonEmpty)
 
-  private def registerDeletionVectorsFromBroadcastMap(
-      relation: HadoopFsRelation): Option[String] = {
-    try {
-      val format = relation.fileFormat
-      val formatClass = format.getClass
-      val broadcastDvMap = Option(formatClass.getMethod("broadcastDvMap").invoke(format))
-        .collect { case o: Option[_] => o }
-        .flatten
-        .collect { case b: Broadcast[_] => b.value }
-        .collect { case m: scala.collection.Map[_, _] => m }
-        .getOrElse(Map.empty)
-        .collect { case (uri: java.net.URI, value) => uri -> value }
-      if (broadcastDvMap.isEmpty) {
-        return None
-      }
-
-      val tablePath =
-        Option(formatClass.getMethod("tablePath").invoke(format))
-          .collect { case o: Option[_] => o }
-          .flatten
-          .map(_.toString)
-          .orElse(relation.location.rootPaths.headOption.map(_.toString))
-          .map(new Path(_))
-          .orNull
-      if (tablePath == null) {
-        return None
-      }
-
-      val dvStore = new HadoopFileSystemDVStore(relation.sparkSession.sessionState.newHadoopConf())
-      val registeredEntries = broadcastDvMap.iterator.flatMap {
-        case (uri, dvDescriptorWithFilterType) =>
-          try {
-            val descriptor = dvDescriptorWithFilterType.getClass
-              .getMethod("descriptor")
-              .invoke(dvDescriptorWithFilterType)
-              .asInstanceOf[DeletionVectorDescriptor]
-            val filterType = dvDescriptorWithFilterType.getClass
-              .getMethod("filterType")
-              .invoke(dvDescriptorWithFilterType)
-              .toString
-            val payload = StoredBitmap
-              .create(descriptor, tablePath)
-              .load(dvStore)
-              .serializeAsByteArray(RoaringBitmapArrayFormat.Portable)
-            pathAliases(uri).map {
-              _ -> DeltaDeletionVectorRegistry.Entry(descriptor.cardinality, filterType, payload)
-            }
-          } catch {
-            case NonFatal(_) => Seq.empty
-          }
-      }.toMap
-
-      if (registeredEntries.isEmpty) {
-        None
-      } else {
-        Some(DeltaDeletionVectorRegistry.register(registeredEntries))
-      }
-    } catch {
-      case _: NoSuchMethodException => None
-      case NonFatal(_) => None
+    def failureReason: String = {
+      val details =
+        if (failures.isEmpty) {
+          "no deletion vector payloads were registered"
+        } else {
+          failures.take(3).mkString("; ")
+        }
+      s"Unable to materialize Delta deletion vector payloads for native scan: $details"
     }
   }
 
+  private val NotAttemptedDeletionVectorRegistration =
+    DeletionVectorRegistration(
+      attempted = false,
+      deletionVectorCount = 0,
+      registryId = None,
+      failures = Nil)
+
+  private def registerDeletionVectorsFromFileFormat(
+      relation: HadoopFsRelation): DeletionVectorRegistration = {
+    val broadcastRegistration = registerDeletionVectorsFromBroadcastMap(relation)
+    if (broadcastRegistration.attempted) {
+      broadcastRegistration
+    } else {
+      registerDeletionVectorsFromPreparedScan(relation)
+    }
+  }
+
+  private def registerDeletionVectorsFromBroadcastMap(
+      relation: HadoopFsRelation): DeletionVectorRegistration = {
+    val format = relation.fileFormat
+    val broadcastDvMap: Option[scala.collection.Map[_, _]] =
+      try {
+        Option(format.getClass.getMethod("broadcastDvMap").invoke(format))
+          .collect { case o: Option[_] => o }
+          .flatten
+          .collect { case b: Broadcast[_] => b.value }
+          .collect { case m: scala.collection.Map[_, _] => m }
+      } catch {
+        case _: NoSuchMethodException =>
+          None
+        case NonFatal(e) =>
+          return DeletionVectorRegistration(
+            attempted = true,
+            deletionVectorCount = 1,
+            registryId = None,
+            failures =
+              Seq(s"failed to read Delta deletion vector broadcast map: ${errorMessage(e)}"))
+      }
+
+    val uriToDvDescriptor: Map[java.net.URI, Any] =
+      broadcastDvMap
+        .map {
+          _.asInstanceOf[scala.collection.Map[Any, Any]]
+            .collect { case (uri: java.net.URI, value) => uri -> value }
+            .toMap
+        }
+        .getOrElse(Map.empty[java.net.URI, Any])
+
+    if (uriToDvDescriptor.isEmpty) {
+      return NotAttemptedDeletionVectorRegistration
+    }
+
+    val tablePath = tablePathFromFileFormat(relation).orNull
+    if (tablePath == null) {
+      return DeletionVectorRegistration(
+        attempted = true,
+        deletionVectorCount = uriToDvDescriptor.size,
+        registryId = None,
+        failures = Seq("unable to resolve Delta table path for broadcast deletion vectors")
+      )
+    }
+
+    val dvStore = new HadoopFileSystemDVStore(relation.sparkSession.sessionState.newHadoopConf())
+    val registeredEntries = ListBuffer.empty[(String, DeltaDeletionVectorRegistry.Entry)]
+    val failures = ListBuffer.empty[String]
+    uriToDvDescriptor.foreach {
+      case (uri, dvDescriptorWithFilterType) =>
+        try {
+          val descriptor = dvDescriptorWithFilterType.getClass
+            .getMethod("descriptor")
+            .invoke(dvDescriptorWithFilterType)
+            .asInstanceOf[DeletionVectorDescriptor]
+          val filterType = dvDescriptorWithFilterType.getClass
+            .getMethod("filterType")
+            .invoke(dvDescriptorWithFilterType)
+            .toString
+          val payload = materializePayload(descriptor, tablePath, dvStore)
+          val aliases = pathAliases(uri)
+          if (aliases.isEmpty) {
+            failures += s"no file path aliases for deletion vector $uri"
+          } else {
+            registeredEntries ++= aliases.map {
+              _ -> DeltaDeletionVectorRegistry.Entry(descriptor.cardinality, filterType, payload)
+            }
+          }
+        } catch {
+          case NonFatal(e) =>
+            failures += s"$uri: ${errorMessage(e)}"
+        }
+    }
+
+    deletionVectorRegistration(
+      attempted = true,
+      deletionVectorCount = uriToDvDescriptor.size,
+      registeredEntries = registeredEntries.toSeq,
+      failures = failures.toSeq)
+  }
+
+  private def tablePathFromFileFormat(relation: HadoopFsRelation): Option[Path] = {
+    val tablePathFromFormat =
+      try {
+        Option(relation.fileFormat.getClass.getMethod("tablePath").invoke(relation.fileFormat))
+          .collect { case o: Option[_] => o }
+          .flatten
+          .map(_.toString)
+      } catch {
+        case _: NoSuchMethodException => None
+        case NonFatal(_) => None
+      }
+    tablePathFromFormat
+      .orElse(relation.location.rootPaths.headOption.map(_.toString))
+      .map(new Path(_))
+  }
+
+  private def materializePayload(
+      descriptor: DeletionVectorDescriptor,
+      tablePath: Path,
+      dvStore: HadoopFileSystemDVStore): Array[Byte] = {
+    StoredBitmap
+      .create(descriptor, tablePath)
+      .load(dvStore)
+      .serializeAsByteArray(RoaringBitmapArrayFormat.Portable)
+  }
+
+  private def deletionVectorRegistration(
+      attempted: Boolean,
+      deletionVectorCount: Int,
+      registeredEntries: Seq[(String, DeltaDeletionVectorRegistry.Entry)],
+      failures: Seq[String]): DeletionVectorRegistration = {
+    val registryId =
+      if (registeredEntries.isEmpty) {
+        None
+      } else {
+        Some(DeltaDeletionVectorRegistry.register(registeredEntries.toMap))
+      }
+    DeletionVectorRegistration(attempted, deletionVectorCount, registryId, failures)
+  }
+
   private def registerDeletionVectorsFromPreparedScan(
-      relation: HadoopFsRelation): Option[String] = {
+      relation: HadoopFsRelation): DeletionVectorRegistration = {
     relation.location match {
       case preparedIndex: PreparedDeltaFileIndex =>
         val tablePath =
@@ -179,7 +283,12 @@ object DeltaScanTransformer {
             .orElse(relation.location.rootPaths.headOption)
             .orNull
         if (tablePath == null) {
-          return None
+          return DeletionVectorRegistration(
+            attempted = true,
+            deletionVectorCount = preparedIndex.preparedScan.files.count(_.deletionVector != null),
+            registryId = None,
+            failures = Seq("unable to resolve Delta table path for prepared deletion vector scan")
+          )
         }
 
         val dvStore =
@@ -187,41 +296,54 @@ object DeltaScanTransformer {
         val preparedFiles = preparedIndex.preparedScan.files
         registerDeletionVectorsFromAddFiles(preparedFiles.iterator, tablePath, dvStore)
       case _ =>
-        None
+        NotAttemptedDeletionVectorRegistration
     }
   }
 
   private def registerDeletionVectorsFromAddFiles(
       files: Iterator[AddFile],
       tablePath: Path,
-      dvStore: HadoopFileSystemDVStore): Option[String] = {
-    val registeredEntries = files.flatMap {
+      dvStore: HadoopFileSystemDVStore): DeletionVectorRegistration = {
+    val registeredEntries = ListBuffer.empty[(String, DeltaDeletionVectorRegistry.Entry)]
+    val failures = ListBuffer.empty[String]
+    var deletionVectorCount = 0
+
+    files.foreach {
       addFile =>
-        Option(addFile.deletionVector).iterator.flatMap {
+        Option(addFile.deletionVector).foreach {
           descriptor =>
+            deletionVectorCount += 1
             try {
-              val payload = StoredBitmap
-                .create(descriptor, tablePath)
-                .load(dvStore)
-                .serializeAsByteArray(RoaringBitmapArrayFormat.Portable)
+              val payload = materializePayload(descriptor, tablePath, dvStore)
               val absolutePath = new Path(tablePath, addFile.path)
-              pathAliases(absolutePath.toUri, absolutePath.toString).map {
-                _ -> DeltaDeletionVectorRegistry.Entry(
-                  descriptor.cardinality,
-                  IfContainedFilterType,
-                  payload)
+              val aliases = pathAliases(absolutePath.toUri, absolutePath.toString)
+              if (aliases.isEmpty) {
+                failures += s"no file path aliases for deletion vector ${addFile.path}"
+              } else {
+                registeredEntries ++= aliases.map {
+                  _ -> DeltaDeletionVectorRegistry.Entry(
+                    descriptor.cardinality,
+                    IfContainedFilterType,
+                    payload)
+                }
               }
             } catch {
-              case NonFatal(_) => Seq.empty
+              case NonFatal(e) =>
+                failures += s"${addFile.path}: ${errorMessage(e)}"
             }
         }
-    }.toMap
-
-    if (registeredEntries.isEmpty) {
-      None
-    } else {
-      Some(DeltaDeletionVectorRegistry.register(registeredEntries))
     }
+
+    deletionVectorRegistration(
+      attempted = deletionVectorCount > 0,
+      deletionVectorCount = deletionVectorCount,
+      registeredEntries = registeredEntries.toSeq,
+      failures = failures.toSeq)
+  }
+
+  private def errorMessage(error: Throwable): String = {
+    val message = Option(error.getMessage).filter(_.nonEmpty).getOrElse(error.toString)
+    s"${error.getClass.getSimpleName}: $message"
   }
 
   private def pathAliases(uri: java.net.URI, extraAliases: String*): Seq[String] = {
