@@ -72,15 +72,15 @@ object VeloxDeltaMetadataUtils {
   private def serializePayload(
       dvStore: HadoopFileSystemDVStore,
       tablePath: Path,
-      descriptor: DeletionVectorDescriptor): Array[Byte] = {
+      descriptor: DeletionVectorDescriptor): Option[Array[Byte]] = {
     if (tablePath == null) {
-      throw new IllegalStateException(
-        "Unable to resolve Delta table path while materializing deletion vector payload")
+      return None
     }
-    StoredBitmap
-      .create(descriptor, tablePath)
-      .load(dvStore)
-      .serializeAsByteArray(RoaringBitmapArrayFormat.Portable)
+    Some(
+      StoredBitmap
+        .create(descriptor, tablePath)
+        .load(dvStore)
+        .serializeAsByteArray(RoaringBitmapArrayFormat.Portable))
   }
 
   private def normalizeMetadataWithDescriptor(
@@ -121,8 +121,11 @@ object VeloxDeltaMetadataUtils {
             val normalized = normalizeMetadataWithDescriptor(metadataWithDecodedPayload, descriptor)
             val payloadTablePath = resolveTablePath(partitionColumnCount, file)
             val serializedPayload = serializePayload(dvStore, payloadTablePath, descriptor)
-            normalized.put(DeltaDvPayloadIndex, Int.box(deletionVectorPayloads.length))
-            deletionVectorPayloads += serializedPayload
+            serializedPayload.foreach {
+              payload =>
+                normalized.put(DeltaDvPayloadIndex, Int.box(deletionVectorPayloads.length))
+                deletionVectorPayloads += payload
+            }
             normalizedMetadataColumns.add(normalized)
           case None =>
             normalizedMetadataColumns.add(metadataWithDecodedPayload)
