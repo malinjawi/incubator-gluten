@@ -22,6 +22,7 @@ Data sources:
 Output targets:
   stdout (default), --pr-comment, --job-summary, --output-file FILE
 """
+
 import argparse
 import glob
 import json
@@ -35,9 +36,7 @@ from collections import defaultdict
 
 # Shared analysis prompt — single source of truth consumed by both this script
 # and the local agent SKILL (`.github/skills/ansi-analysis.md`).
-SHARED_PROMPT_PATH = (
-    pathlib.Path(__file__).resolve().parent / "shared.md"
-)
+SHARED_PROMPT_PATH = pathlib.Path(__file__).resolve().parent / "shared.md"
 PROMPT_PLACEHOLDER = "{json_data}"
 
 
@@ -52,8 +51,8 @@ def _load_prompt_template():
         )
     return SHARED_PROMPT_PATH.read_text(encoding="utf-8")
 
-NO_EXCEPTION_RE = re.compile(
-    r"Expected .+ to be thrown, but no exception was thrown")
+
+NO_EXCEPTION_RE = re.compile(r"Expected .+ to be thrown, but no exception was thrown")
 WRONG_EXCEPTION_RE = re.compile(r"Expected (\S+) but got (\S+):")
 MSG_MISMATCH_RE = re.compile(r"Expected error message containing")
 
@@ -78,8 +77,8 @@ def _extract_short_message(message):
         return f"Expected {m.group(1)} but got {m.group(2)}"
     if NO_EXCEPTION_RE.search(message):
         m2 = re.search(
-            r"Expected (.+?) to be thrown, but no exception was thrown",
-            message)
+            r"Expected (.+?) to be thrown, but no exception was thrown", message
+        )
         if m2:
             return f"Expected {m2.group(1)} but no exception was thrown"
     if message.startswith("Exception evaluating"):
@@ -92,6 +91,7 @@ def _extract_short_message(message):
 # ===========================================================================
 # DATA LAYER
 # ===========================================================================
+
 
 def load_json_data(json_dir):
     """Load all JSON files from Tracker output directory."""
@@ -113,8 +113,9 @@ def load_surefire_xml(report_dir):
     results = []
     if not report_dir or not os.path.isdir(report_dir):
         return results
-    for xml_path in sorted(glob.glob(os.path.join(report_dir, "**/*.xml"),
-                                     recursive=True)):
+    for xml_path in sorted(
+        glob.glob(os.path.join(report_dir, "**/*.xml"), recursive=True)
+    ):
         try:
             tree = ET.parse(xml_path)
         except ET.ParseError:
@@ -139,13 +140,15 @@ def load_surefire_xml(report_dir):
             else:
                 status = "PASSED"
                 msg = ""
-            results.append({
-                "suite": suite_name,
-                "test": test_name,
-                "status": status,
-                "message": msg,
-                "job": job,
-            })
+            results.append(
+                {
+                    "suite": suite_name,
+                    "test": test_name,
+                    "status": status,
+                    "message": msg,
+                    "job": job,
+                }
+            )
     return results
 
 
@@ -160,6 +163,7 @@ def _infer_job_name(xml_path):
 # ===========================================================================
 # ANALYSIS LAYER
 # ===========================================================================
+
 
 def classify_record(offload_status, record_status):
     """Classify a single record (expression-level)."""
@@ -197,19 +201,21 @@ def analyze_json_tests(suites):
                 offload = rec.get("offload", "")
                 rec_status = rec.get("status", "PASS")
                 color, label = classify_record(offload, rec_status)
-                records_out.append({
-                    "suite": suite_name,
-                    "test": t["name"],
-                    "test_status": test_status,
-                    "status": rec_status,
-                    "color": color,
-                    "label": label,
-                    "category": category,
-                    "offload": offload,
-                    "expression": rec.get("expression", ""),
-                    "failCause": rec.get("failCause", ""),
-                    "meta": rec.get("meta", {}),
-                })
+                records_out.append(
+                    {
+                        "suite": suite_name,
+                        "test": t["name"],
+                        "test_status": test_status,
+                        "status": rec_status,
+                        "color": color,
+                        "label": label,
+                        "category": category,
+                        "offload": offload,
+                        "expression": rec.get("expression", ""),
+                        "failCause": rec.get("failCause", ""),
+                        "meta": rec.get("meta", {}),
+                    }
+                )
     return records_out
 
 
@@ -218,16 +224,18 @@ def analyze_xml_tests(xml_results):
     tests = []
     for t in xml_results:
         color, label = classify_test_for_xml(t["status"])
-        tests.append({
-            "suite": t["suite"],
-            "test": t["test"],
-            "status": t["status"],
-            "color": color,
-            "label": label,
-            "job": t.get("job", ""),
-            "message": t.get("message", ""),
-            "source": "xml",
-        })
+        tests.append(
+            {
+                "suite": t["suite"],
+                "test": t["test"],
+                "status": t["status"],
+                "color": color,
+                "label": label,
+                "job": t.get("job", ""),
+                "message": t.get("message", ""),
+                "source": "xml",
+            }
+        )
     return tests
 
 
@@ -242,28 +250,32 @@ def build_summary(json_records, xml_tests):
         by_color[r["label"]] += 1
         if r["status"] in ("FAILED", "ERROR", "FAIL"):
             fail_cause = r.get("failCause", "")
-            failures.append({
-                "suite": r["suite"],
-                "test": r["test"],
-                "color": r["color"],
-                "label": r["label"],
-                "message": fail_cause,
-                "source": "json",
-            })
+            failures.append(
+                {
+                    "suite": r["suite"],
+                    "test": r["test"],
+                    "color": r["color"],
+                    "label": r["label"],
+                    "message": fail_cause,
+                    "source": "json",
+                }
+            )
 
     for t in xml_tests:
         total += 1
         by_color[t["label"]] += 1
         if t["status"] in ("FAILED", "ERROR"):
-            failures.append({
-                "suite": t["suite"],
-                "test": t["test"],
-                "color": t["color"],
-                "label": t["label"],
-                "message": t.get("message", ""),
-                "job": t.get("job", ""),
-                "source": "xml",
-            })
+            failures.append(
+                {
+                    "suite": t["suite"],
+                    "test": t["test"],
+                    "color": t["color"],
+                    "label": t["label"],
+                    "message": t.get("message", ""),
+                    "job": t.get("job", ""),
+                    "source": "xml",
+                }
+            )
 
     json_test_names = set()
     for r in json_records:
@@ -283,24 +295,33 @@ def build_summary(json_records, xml_tests):
 # OUTPUT LAYER
 # ===========================================================================
 
+
 def format_summary(summary, json_records, suites=None):
     """Format record-level summary as markdown."""
     lines = ["# ANSI Mode Test Analysis Report (Spark 4.1)\n"]
     lines.append("> [!NOTE]")
     lines.append("> Expression-level ANSI mode offload coverage analysis.")
-    lines.append("> Test config: `spark.sql.ansi.enabled=true`,"
-                 " `spark.gluten.sql.ansiFallback.enabled=false`.")
+    lines.append(
+        "> Test config: `spark.sql.ansi.enabled=true`,"
+        " `spark.gluten.sql.ansiFallback.enabled=false`."
+    )
     lines.append("> - **Passed (🟢)**: Velox correctly handles ANSI semantics")
-    lines.append("> - **Fallback (🔴)**: Expression falls back to Spark execution,"
-                 " needs ANSI support in Velox")
-    lines.append("> - **Failed (🟡)**: Velox executes but ANSI error behavior"
-                 " differs from Spark, needs exception handling fix\n")
+    lines.append(
+        "> - **Fallback (🔴)**: Expression falls back to Spark execution,"
+        " needs ANSI support in Velox"
+    )
+    lines.append(
+        "> - **Failed (🟡)**: Velox executes but ANSI error behavior"
+        " differs from Spark, needs exception handling fix\n"
+    )
     json_test_count = summary["json_test_count"]
     json_record_count = summary["json_record_count"]
     xml_total = summary["xml_test_count"]
-    lines.append(f"**ANSI Offload suites: {json_test_count} tests, "
-                 f"{json_record_count} records** | "
-                 f"**Other suites: {xml_total} tests**\n")
+    lines.append(
+        f"**ANSI Offload suites: {json_test_count} tests, "
+        f"{json_record_count} records** | "
+        f"**Other suites: {xml_total} tests**\n"
+    )
 
     lines.append("## ANSI Offload\n")
 
@@ -308,8 +329,7 @@ def format_summary(summary, json_records, suites=None):
     lines.append("| Classification | Count | % |")
     lines.append("|---|---|---|")
     json_labels = ["Passed", "Failed", "Fallback"]
-    color_map = {"Passed": "🟢", "Failed": "🟡",
-                 "Fallback": "🔴"}
+    color_map = {"Passed": "🟢", "Failed": "🟡", "Fallback": "🔴"}
     for label in json_labels:
         count = summary["by_color"].get(label, 0)
         if count > 0:
@@ -320,8 +340,7 @@ def format_summary(summary, json_records, suites=None):
 
     if suites:
         lines.append("### Per-Suite Summary\n")
-        lines.append("| Suite | 🟢 Passed | 🟡 Failed "
-                     "| 🔴 Fallback |")
+        lines.append("| Suite | 🟢 Passed | 🟡 Failed " "| 🔴 Fallback |")
         lines.append("|---|---|---|---|")
         suite_rows = []
         for s in suites:
@@ -337,9 +356,9 @@ def format_summary(summary, json_records, suites=None):
             total = sum(counts.values())
             po = counts.get("Passed", 0)
             pct = f"{po * 100 / total:.0f}%" if total else "0%"
-            suite_rows.append((cat, name, po, pct,
-                               counts.get("Failed", 0),
-                               counts.get("Fallback", 0)))
+            suite_rows.append(
+                (cat, name, po, pct, counts.get("Failed", 0), counts.get("Fallback", 0))
+            )
         for cat, name, po, pct, fo, pfb in sorted(suite_rows):
             lines.append(f"| {name} | {po} ({pct}) | {fo} | {pfb} |")
         lines.append("")
@@ -353,8 +372,9 @@ def format_summary(summary, json_records, suites=None):
             cause = classify_fail_cause(f.get("message", ""))
             cause_counts[cause] += 1
 
-        lines.append(f"### Failure Cause Analysis "
-                     f"({len(json_failures)} failures)\n")
+        lines.append(
+            f"### Failure Cause Analysis " f"({len(json_failures)} failures)\n"
+        )
         cause_desc = {
             "NO_EXCEPTION": "Velox did not throw expected ANSI exception",
             "WRONG_EXCEPTION": "Exception wrapped as SparkException",
@@ -363,12 +383,10 @@ def format_summary(summary, json_records, suites=None):
         }
         lines.append("| Cause | Count | Description |")
         lines.append("|---|---|---|")
-        for cause in ["NO_EXCEPTION", "WRONG_EXCEPTION",
-                      "MSG_MISMATCH", "OTHER"]:
+        for cause in ["NO_EXCEPTION", "WRONG_EXCEPTION", "MSG_MISMATCH", "OTHER"]:
             cnt = cause_counts.get(cause, 0)
             if cnt > 0:
-                lines.append(f"| {cause} | {cnt} "
-                             f"| {cause_desc.get(cause, '')} |")
+                lines.append(f"| {cause} | {cnt} " f"| {cause_desc.get(cause, '')} |")
         lines.append("")
 
     if xml_failures:
@@ -386,12 +404,10 @@ def format_summary(summary, json_records, suites=None):
                 xml_suite_counts[short] += 1
                 xml_suite_tests[short].append(f.get("test", ""))
         if xml_suite_counts:
-            lines.append(f"## Other "
-                         f"({sum(xml_suite_counts.values())} failures)\n")
+            lines.append(f"## Other " f"({sum(xml_suite_counts.values())} failures)\n")
             lines.append("| Suite | Failures |")
             lines.append("|---|---|")
-            for suite, cnt in sorted(xml_suite_counts.items(),
-                                     key=lambda x: -x[1]):
+            for suite, cnt in sorted(xml_suite_counts.items(), key=lambda x: -x[1]):
                 if cnt <= 3:
                     tests = "<br/>".join(xml_suite_tests[suite])
                     lines.append(f"| {suite} | {tests} |")
@@ -402,8 +418,7 @@ def format_summary(summary, json_records, suites=None):
     return "\n".join(lines)
 
 
-def format_report(summary, json_records, suites=None,
-                  ai_content=None, ai_model=None):
+def format_report(summary, json_records, suites=None, ai_content=None, ai_model=None):
     """Format full report: summary + optional AI analysis."""
     parts = [format_summary(summary, json_records, suites)]
     if ai_content:
@@ -411,9 +426,11 @@ def format_report(summary, json_records, suites=None,
         parts.append("<details>")
         parts.append("<summary>🤖 AI Deep Analysis</summary>\n")
         parts.append(ai_content)
-        parts.append(f"\n---\n*Generated by {ai_model}. "
-                     f"AI analysis may not be fully accurate — "
-                     f"please verify before acting on recommendations.*")
+        parts.append(
+            f"\n---\n*Generated by {ai_model}. "
+            f"AI analysis may not be fully accurate — "
+            f"please verify before acting on recommendations.*"
+        )
         parts.append("</details>")
     return "\n".join(parts)
 
@@ -431,16 +448,19 @@ def _build_ai_context(summary, suites):
     for f in summary["failures"][:100]:
         cause = classify_fail_cause(f.get("message", ""))
         short_msg = _extract_short_message(f.get("message", ""))
-        compact_failures.append({
-            "suite": f["suite"].split(".")[-1],
-            "test": f["test"],
-            "source": f.get("source", ""),
-            "cause": cause,
-            "message": short_msg[:120],
-        })
+        compact_failures.append(
+            {
+                "suite": f["suite"].split(".")[-1],
+                "test": f["test"],
+                "source": f.get("source", ""),
+                "cause": cause,
+                "message": short_msg[:120],
+            }
+        )
 
-    compact_cats = defaultdict(lambda: {"tests_pass": 0, "tests_fail": 0,
-                                         "suites": set()})
+    compact_cats = defaultdict(
+        lambda: {"tests_pass": 0, "tests_fail": 0, "suites": set()}
+    )
     for s in suites:
         cat = s.get("category", "unknown")
         compact_cats[cat]["suites"].add(s.get("suite", ""))
@@ -450,18 +470,25 @@ def _build_ai_context(summary, suites):
             elif t.get("status") in ("FAIL", "FAILED", "ERROR"):
                 compact_cats[cat]["tests_fail"] += 1
 
-    json_colors = {k: v for k, v in summary["by_color"].items()
-                    if k not in ("Passed (no data)", "Skipped")}
+    json_colors = {
+        k: v
+        for k, v in summary["by_color"].items()
+        if k not in ("Passed (no data)", "Skipped")
+    }
 
     output = {
         "json_record_count": summary["json_record_count"],
         "by_color": json_colors,
         "failure_count": len(summary["failures"]),
         "failures": compact_failures,
-        "categories": {cat: {"tests_pass": d["tests_pass"],
-                              "tests_fail": d["tests_fail"],
-                              "suites": sorted(d["suites"])}
-                        for cat, d in compact_cats.items()},
+        "categories": {
+            cat: {
+                "tests_pass": d["tests_pass"],
+                "tests_fail": d["tests_fail"],
+                "suites": sorted(d["suites"]),
+            }
+            for cat, d in compact_cats.items()
+        },
     }
     return json.dumps(output, indent=2, ensure_ascii=False)
 
@@ -472,8 +499,9 @@ def call_ai_analysis(json_output, model=None):
 
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
     if not token:
-        print("Warning: no GITHUB_TOKEN/GH_TOKEN, skipping AI analysis",
-              file=sys.stderr)
+        print(
+            "Warning: no GITHUB_TOKEN/GH_TOKEN, skipping AI analysis", file=sys.stderr
+        )
         return None, None
 
     models_to_try = []
@@ -489,8 +517,7 @@ def call_ai_analysis(json_output, model=None):
 
     for m in models_to_try:
         try:
-            print(f"Calling GitHub Models API with model={m}...",
-                  file=sys.stderr)
+            print(f"Calling GitHub Models API with model={m}...", file=sys.stderr)
             resp = requests.post(
                 GITHUB_MODELS_API,
                 headers=headers,
@@ -504,11 +531,13 @@ def call_ai_analysis(json_output, model=None):
                 data = resp.json()
                 content = data["choices"][0]["message"]["content"].strip()
                 if content:
-                    print(f"AI analysis completed with model={m}",
-                          file=sys.stderr)
+                    print(f"AI analysis completed with model={m}", file=sys.stderr)
                     return content, m
-            print(f"Warning: model {m} returned status {resp.status_code}: "
-                  f"{resp.text[:300]}", file=sys.stderr)
+            print(
+                f"Warning: model {m} returned status {resp.status_code}: "
+                f"{resp.text[:300]}",
+                file=sys.stderr,
+            )
         except Exception as e:
             print(f"Warning: model {m} failed: {e}", file=sys.stderr)
 
@@ -520,18 +549,24 @@ def call_ai_analysis(json_output, model=None):
 # Output targets
 # ---------------------------------------------------------------------------
 
+
 def post_pr_comment(report):
     pr = os.environ.get("PR_NUMBER", "")
     repo = os.environ.get("GITHUB_REPOSITORY", "")
     token = os.environ.get("GH_TOKEN", "")
     if not all([pr, repo, token]):
-        print("Warning: missing PR_NUMBER/GITHUB_REPOSITORY/GH_TOKEN, "
-              "skipping PR comment", file=sys.stderr)
+        print(
+            "Warning: missing PR_NUMBER/GITHUB_REPOSITORY/GH_TOKEN, "
+            "skipping PR comment",
+            file=sys.stderr,
+        )
         return
     cmd = [
-        "gh", "api",
+        "gh",
+        "api",
         f"repos/{repo}/issues/{pr}/comments",
-        "-f", f"body={report}",
+        "-f",
+        f"body={report}",
     ]
     env = dict(os.environ, GH_TOKEN=token)
     subprocess.run(cmd, env=env, check=True)
@@ -549,6 +584,7 @@ def write_job_summary(report):
 # MAIN
 # ===========================================================================
 
+
 def main():
     parser = argparse.ArgumentParser(description="ANSI mode test analyzer")
     parser.add_argument("--json-dir", help="JSON directory from Tracker")
@@ -556,10 +592,12 @@ def main():
     parser.add_argument("--pr-comment", action="store_true")
     parser.add_argument("--job-summary", action="store_true")
     parser.add_argument("--output-file", help="Write output to file")
-    parser.add_argument("--ai-analysis", action="store_true",
-                        help="Call GitHub Models API for AI deep analysis")
-    parser.add_argument("--ai-model", default="",
-                        help="AI model (default: gpt-4.1)")
+    parser.add_argument(
+        "--ai-analysis",
+        action="store_true",
+        help="Call GitHub Models API for AI deep analysis",
+    )
+    parser.add_argument("--ai-model", default="", help="AI model (default: gpt-4.1)")
     args = parser.parse_args()
 
     suites = load_json_data(args.json_dir)
@@ -575,8 +613,9 @@ def main():
         model = args.ai_model or os.environ.get("AI_MODEL", "")
         ai_content, ai_model = call_ai_analysis(ai_context, model or None)
 
-    report = format_report(summary, json_records, suites,
-                           ai_content=ai_content, ai_model=ai_model)
+    report = format_report(
+        summary, json_records, suites, ai_content=ai_content, ai_model=ai_model
+    )
 
     if args.output_file:
         with open(args.output_file, "w") as f:
@@ -594,8 +633,9 @@ def main():
 
     test_count = summary["total"]
     fail_count = len(summary["failures"])
-    print(f"Analysis complete: {test_count} tests, {fail_count} failures",
-          file=sys.stderr)
+    print(
+        f"Analysis complete: {test_count} tests, {fail_count} failures", file=sys.stderr
+    )
 
 
 if __name__ == "__main__":
