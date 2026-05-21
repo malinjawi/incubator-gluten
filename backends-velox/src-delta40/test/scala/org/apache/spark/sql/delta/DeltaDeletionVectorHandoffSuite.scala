@@ -18,10 +18,12 @@ package org.apache.spark.sql.delta
 
 import org.apache.gluten.backendsapi.velox.VeloxDeltaMetadataUtils
 import org.apache.gluten.backendsapi.velox.VeloxDeltaMetadataUtils.{DeltaDvCardinality, DeltaDvPayloadIndex}
+import org.apache.gluten.execution.DeltaScanTransformer
 
 import org.apache.spark.paths.SparkPath
 import org.apache.spark.sql.QueryTest
 import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.delta.sources.DeltaSQLConf
 import org.apache.spark.sql.delta.test.{DeltaSQLCommandTest, DeltaSQLTestUtils}
 import org.apache.spark.sql.execution.datasources.PartitionedFile
 import org.apache.spark.sql.test.SharedSparkSession
@@ -39,6 +41,34 @@ class DeltaDeletionVectorHandoffSuite
   with DeltaSQLCommandTest {
 
   import testImplicits._
+
+  test("Spark 4 Delta DV scan should stay native when metadata row index is disabled") {
+    withTempDir {
+      tempDir =>
+        val path = tempDir.getCanonicalPath
+        Seq((1, "a"), (2, "b"), (3, "c"), (4, "d"))
+          .toDF("id", "value")
+          .coalesce(1)
+          .write
+          .format("delta")
+          .save(path)
+
+        spark.sql(
+          s"ALTER TABLE delta.`$path` SET TBLPROPERTIES ('delta.enableDeletionVectors' = true)")
+
+        withSQLConf(DeltaSQLConf.DELETION_VECTORS_USE_METADATA_ROW_INDEX.key -> "false") {
+          spark.sql(s"DELETE FROM delta.`$path` WHERE id IN (3, 4)")
+
+          val log = DeltaLog.forTable(spark, new Path(path))
+          assert(log.update().allFiles.collect().exists(_.deletionVector != null))
+
+          val df = spark.read.format("delta").load(path)
+          val executedPlan = df.queryExecution.executedPlan
+          assert(executedPlan.collect { case _: DeltaScanTransformer => true }.nonEmpty)
+          checkAnswer(df, Seq((1, "a"), (2, "b")).toDF())
+        }
+    }
+  }
 
   test("Spark 4 Delta DV handoff should materialize serialized payloads from scan metadata") {
     withTempDir {

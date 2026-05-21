@@ -29,18 +29,12 @@ import org.apache.spark.sql.execution.{FileSourceScanExec, SparkPlan}
 import org.apache.spark.util.SparkVersionUtil
 
 case class OffloadDeltaScan() extends OffloadSingleNode {
-  private val deletionVectorsUseMetadataRowIndexKey =
-    "spark.databricks.delta.deletionVectors.useMetadataRowIndex"
-
   override def offload(plan: SparkPlan): SparkPlan = plan match {
     case scan: FileSourceScanExec if isDeltaLogScan(scan) =>
       FallbackTags.add(scan, "fallback Delta _delta_log scan")
       scan
     case scan: FileSourceScanExec if shouldFallbackSpark34DeletionVectorScan(scan) =>
       FallbackTags.add(scan, "fallback Spark 3.4 Delta DV scan")
-      scan
-    case scan: FileSourceScanExec if shouldFallbackDeletionVectorScan(scan) =>
-      FallbackTags.add(scan, "fallback Delta DV scan without metadata row index")
       scan
     case scan: FileSourceScanExec if isDeltaScan(scan) =>
       DeltaScanTransformer(scan)
@@ -67,24 +61,6 @@ case class OffloadDeltaScan() extends OffloadSingleNode {
       path =>
         val root = path.toString
         root.contains("/_delta_log") || root.contains("\\_delta_log") || root.endsWith("_delta_log")
-    }
-  }
-
-  private def shouldFallbackDeletionVectorScan(scan: FileSourceScanExec): Boolean = {
-    val useMetadataRowIndex =
-      scan.relation.sparkSession.sessionState.conf
-        .getConfString(deletionVectorsUseMetadataRowIndexKey, "true")
-        .toBoolean
-    if (useMetadataRowIndex) {
-      return false
-    }
-
-    scan.relation.location match {
-      case index: TahoeFileIndex =>
-        val snapshot = index.asInstanceOf[SnapshotDescriptor]
-        deletionVectorsReadable(snapshot.protocol, snapshot.metadata)
-      case _ =>
-        false
     }
   }
 
