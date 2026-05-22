@@ -1,17 +1,17 @@
-# Licensed to the Apache Software Foundation (ASF) under one or more
-# contributor license agreements.  See the NOTICE file distributed with
-# this work for additional information regarding copyright ownership.
-# The ASF licenses this file to You under the Apache License, Version 2.0
-# (the "License"); you may not use this file except in compliance with
-# the License.  You may obtain a copy of the License at
+#Licensed to the Apache Software Foundation(ASF) under one or more
+#contributor license agreements.See the NOTICE file distributed with
+#this work for additional information regarding copyright ownership.
+#The ASF licenses this file to You under the Apache License, Version 2.0
+#(the "License"); you may not use this file except in compliance with
+#the License.You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#http: // www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+#Unless required by applicable law or agreed to in writing, software
+#distributed under the License is distributed on an "AS IS" BASIS,
+#WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#See the License for the specific language governing permissions and
+#limitations under the License.
 
 cmake_minimum_required(VERSION 3.16)
 
@@ -62,7 +62,7 @@ endif()
 
 message("Velox module final CMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}")
 
-# User can specify VELOX_BUILD_PATH, if Velox are built elsewhere.
+#User can specify VELOX_BUILD_PATH, if Velox are built elsewhere.
 if(NOT DEFINED VELOX_BUILD_PATH)
   if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
     set(VELOX_BUILD_PATH
@@ -135,11 +135,11 @@ macro(find_azure)
   find_package(azure-identity-cpp CONFIG REQUIRED)
 endmacro()
 
-# Set up Proto
+#Set up Proto
 set(PROTO_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/proto")
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/proto)
 
-# List Gluten Proto compiled files
+#List Gluten Proto compiled files
 file(GLOB VELOX_PROTO_FILES ${VELOX_PROTO_SRC_DIR}/*.proto)
 foreach(PROTO ${VELOX_PROTO_FILES})
   file(RELATIVE_PATH REL_PROTO ${VELOX_PROTO_SRC_DIR} ${PROTO})
@@ -174,6 +174,7 @@ set(VELOX_SRCS
     memory/VeloxColumnarBatch.cc
     memory/VeloxMemoryManager.cc
     operators/functions/RegistrationAllFunctions.cc
+    operators/functions/DeltaBitmapAggregator.cc
     operators/functions/RowConstructorWithNull.cc
     operators/functions/SparkExprToSubfieldFilterParser.cc
     operators/plannodes/RowVectorStream.cc
@@ -242,6 +243,25 @@ if(BUILD_TEST_UTILS)
 endif()
 
 add_library(velox SHARED ${VELOX_SRCS})
+
+set(GLUTEN_VELOX_HIVE_SPLIT_READER_HAS_SPLIT_IO_STATS OFF)
+set(HIVE_SPLIT_READER_HEADER
+    "${VELOX_HOME}/velox/connectors/hive/HiveSplitReader.h")
+if(EXISTS "${HIVE_SPLIT_READER_HEADER}")
+  file(READ "${HIVE_SPLIT_READER_HEADER}" HIVE_SPLIT_READER_CONTENTS)
+  if(HIVE_SPLIT_READER_CONTENTS MATCHES "metadataIoStats")
+    set(GLUTEN_VELOX_HIVE_SPLIT_READER_HAS_SPLIT_IO_STATS ON)
+  endif()
+endif()
+message(
+  STATUS
+    "HiveSplitReader has split IO stats: ${GLUTEN_VELOX_HIVE_SPLIT_READER_HAS_SPLIT_IO_STATS}"
+)
+target_compile_definitions(
+  velox
+  PRIVATE
+    GLUTEN_VELOX_HIVE_SPLIT_READER_HAS_SPLIT_IO_STATS=$<BOOL:${GLUTEN_VELOX_HIVE_SPLIT_READER_HAS_SPLIT_IO_STATS}>
+)
 
 if(ENABLE_GLUTEN_VCPKG AND NOT CMAKE_SYSTEM_NAME MATCHES "Darwin")
   # Hide some symbols to avoid conflict.

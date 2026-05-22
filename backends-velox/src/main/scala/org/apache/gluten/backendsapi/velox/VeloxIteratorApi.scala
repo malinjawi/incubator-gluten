@@ -47,7 +47,7 @@ import java.lang.{Long => JLong}
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.time.ZoneOffset
-import java.util.{ArrayList => JArrayList, HashMap => JHashMap, UUID}
+import java.util.{ArrayList => JArrayList, HashMap => JHashMap, Map => JMap, UUID}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -56,6 +56,14 @@ import scala.util.Try
 class VeloxIteratorApi extends IteratorApi with Logging {
   private val deltaMetadataUtilsClassName =
     "org.apache.gluten.backendsapi.velox.VeloxDeltaMetadataUtils$"
+  private val skipDeltaMetadataNormalizationKey =
+    "gluten.delta.skip_metadata_normalization"
+  private val tableFormatKey = "table_format"
+  private val deltaTableFormat = "delta"
+  private val deltaDvCardinalityKey = "delta_dv_cardinality"
+  private val deltaDvPayloadIndexKey = "delta_dv_payload_index"
+  private val rowIndexFilterIdEncodedKey = "row_index_filter_id_encoded"
+  private val rowIndexFilterTypeKey = "row_index_filter_type"
 
   private def setFileSchemaForLocalFiles(
       localFilesNode: LocalFilesNode,
@@ -102,15 +110,21 @@ class VeloxIteratorApi extends IteratorApi with Logging {
       .map(
         f => SparkShimLoader.getSparkShims.generateMetadataColumns(f, metadataColumnNames).asJava)
     val (otherMetadataColumns, deletionVectorPayloads) =
-      normalizeRegisteredDeltaSplitMetadata(partitionFiles, properties)
-        .orElse(normalizeDeltaSplitMetadata(partitionSchema.fields.length, partitionFiles))
-        .getOrElse {
-          (
-            partitionFiles.map {
-              f => SparkShimLoader.getSparkShims.getOtherConstantMetadataColumnValues(f)
-            },
-            Array.empty[Array[Byte]])
-        }
+      if (skipDeltaMetadataNormalization(properties)) {
+        (
+          partitionFiles.map(sanitizedOtherConstantMetadataColumnValues),
+          Array.empty[Array[Byte]])
+      } else {
+        normalizeRegisteredDeltaSplitMetadata(partitionFiles, properties)
+          .orElse(normalizeDeltaSplitMetadata(partitionSchema.fields.length, partitionFiles))
+          .getOrElse {
+            (
+              partitionFiles.map {
+                f => SparkShimLoader.getSparkShims.getOtherConstantMetadataColumnValues(f)
+              },
+              Array.empty[Array[Byte]])
+          }
+      }
 
     val localFiles = setFileSchemaForLocalFiles(
       LocalFilesBuilder.makeLocalFiles(
@@ -136,6 +150,28 @@ class VeloxIteratorApi extends IteratorApi with Logging {
     } else {
       localFiles
     }
+  }
+
+  private def skipDeltaMetadataNormalization(properties: Map[String, String]): Boolean =
+    properties.get(skipDeltaMetadataNormalizationKey).contains("true")
+
+  private def sanitizedOtherConstantMetadataColumnValues(file: PartitionedFile)
+      : JMap[String, Object] = {
+    val metadata = SparkShimLoader.getSparkShims.getOtherConstantMetadataColumnValues(file)
+    if (metadata == null) {
+      return null
+    }
+
+    val sanitized = new JHashMap[String, Object]()
+    sanitized.putAll(metadata)
+    Option(sanitized.get(tableFormatKey))
+      .filter(_.toString == deltaTableFormat)
+      .foreach(_ => sanitized.remove(tableFormatKey))
+    sanitized.remove(deltaDvCardinalityKey)
+    sanitized.remove(deltaDvPayloadIndexKey)
+    sanitized.remove(rowIndexFilterIdEncodedKey)
+    sanitized.remove(rowIndexFilterTypeKey)
+    sanitized
   }
 
   /** Generate native row partition. */

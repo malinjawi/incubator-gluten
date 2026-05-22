@@ -197,6 +197,30 @@ void VeloxBackend::init(
         ioThreads, std::make_unique<folly::UnboundedBlockingQueue<folly::CPUThreadPoolExecutor::CPUTask>>());
   }
 
+  auto registerConnectorIfMissing = [&](const std::string& connectorId, auto makeConnector) {
+    if (!velox::connector::hasConnector(connectorId)) {
+      GLUTEN_CHECK(
+          velox::connector::registerConnector(makeConnector()), "Failed to register process connector: " + connectorId);
+    }
+  };
+  registerConnectorIfMissing(
+      kHiveConnectorId, [&]() { return createHiveConnector(kHiveConnectorId, ioExecutor_.get()); });
+  registerConnectorIfMissing(delta::DeltaConnectorFactory::kDeltaConnectorName, [&]() {
+    return createDeltaConnector(delta::DeltaConnectorFactory::kDeltaConnectorName, ioExecutor_.get());
+  });
+  const auto valueStreamDynamicFilterEnabled =
+      backendConf_->get<bool>(kValueStreamDynamicFilterEnabled, kValueStreamDynamicFilterEnabledDefault);
+  registerConnectorIfMissing(kIteratorConnectorId, [&]() {
+    return createValueStreamConnector(kIteratorConnectorId, valueStreamDynamicFilterEnabled);
+  });
+#ifdef GLUTEN_ENABLE_GPU
+  if (backendConf_->get<bool>(kCudfEnableTableScan, kCudfEnableTableScanDefault) &&
+      backendConf_->get<bool>(kCudfEnabled, kCudfEnabledDefault)) {
+    registerConnectorIfMissing(
+        kCudfHiveConnectorId, [&]() { return createCudfHiveConnector(kCudfHiveConnectorId, ioExecutor_.get()); });
+  }
+#endif
+
   initJolFilesystem();
 
   velox::dwio::common::registerFileSinks();
