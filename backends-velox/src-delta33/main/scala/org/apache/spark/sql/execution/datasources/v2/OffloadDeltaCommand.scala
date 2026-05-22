@@ -20,7 +20,7 @@ import org.apache.gluten.config.VeloxDeltaConfig
 import org.apache.gluten.extension.columnar.offload.OffloadSingleNode
 
 import org.apache.spark.sql.delta.catalog.DeltaCatalog
-import org.apache.spark.sql.delta.commands.{DeleteCommand, UpdateCommand}
+import org.apache.spark.sql.delta.commands.{DeleteCommand, GlutenDeleteCommand, UpdateCommand}
 import org.apache.spark.sql.delta.sources.DeltaDataSource
 import org.apache.spark.sql.execution.SparkPlan
 import org.apache.spark.sql.execution.command.ExecutedCommandExec
@@ -35,7 +35,7 @@ case class OffloadDeltaCommand() extends OffloadSingleNode {
       case ExecutedCommandExec(uc: UpdateCommand) =>
         ExecutedCommandExec(GlutenDeltaLeafRunnableCommand(uc))
       case ExecutedCommandExec(dc: DeleteCommand) =>
-        ExecutedCommandExec(GlutenDeltaLeafRunnableCommand(dc))
+        ExecutedCommandExec(GlutenDeltaLeafRunnableCommand(GlutenDeleteCommand(dc)))
       case ExecutedCommandExec(s @ SaveIntoDataSourceCommand(_, _: DeltaDataSource, _, _)) =>
         ExecutedCommandExec(GlutenDeltaLeafRunnableCommand(s))
       case ctas: AtomicCreateTableAsSelectExec if ctas.catalog.isInstanceOf[DeltaCatalog] =>
