@@ -39,12 +39,13 @@ import scala.collection.mutable
 object PullOutPreProject extends RewriteSingleNode with PullOutProjectHelper {
   override def isRewritable(plan: SparkPlan): Boolean = {
     plan match {
-      case _: SortExec => true
-      case _: TakeOrderedAndProjectExec => true
-      case _: BaseAggregateExec => true
-      case _: WindowExec => true
-      case plan if SparkShimLoader.getSparkShims.isWindowGroupLimitExec(plan) => true
-      case _: ExpandExec => true
+      case sort: SortExec => needsPreProject(sort)
+      case take: TakeOrderedAndProjectExec => needsPreProject(take)
+      case agg: BaseAggregateExec => supportedAggregate(agg) && needsPreProject(agg)
+      case window: WindowExec => needsPreProject(window)
+      case plan if SparkShimLoader.getSparkShims.isWindowGroupLimitExec(plan) =>
+        needsPreProject(plan)
+      case expand: ExpandExec => needsPreProject(expand)
       case _: GenerateExec => true
       case _: ArrowEvalPythonExec => true
       case _ => false

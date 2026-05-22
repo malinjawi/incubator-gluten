@@ -28,7 +28,7 @@ import org.apache.spark.sql.execution.joins.{ShuffledHashJoinExec, SortMergeJoin
 object RewriteJoin extends RewriteSingleNode with JoinSelectionHelper {
   override def isRewritable(plan: SparkPlan): Boolean = {
     plan match {
-      case _: SortMergeJoinExec => true
+      case _: SortMergeJoinExec => GlutenConfig.get.forceShuffledHashJoin
       case _ => false
     }
   }
