@@ -34,14 +34,16 @@ class GlutenBufferedInputBuilder : public facebook::velox::connector::hive::Buff
       std::shared_ptr<facebook::velox::IoStats> ioStats,
       folly::Executor* executor,
       const folly::F14FastMap<std::string, std::string>& fileReadOps = {}) override {
+    auto readFile = fileHandle.file;
+    clearFileHandleIds(fileHandle);
     if (connectorQueryCtx->cache()) {
       return std::make_unique<facebook::velox::dwio::common::CachedBufferedInput>(
-          fileHandle.file,
+          std::move(readFile),
           dwio::common::MetricsLog::voidLog(),
-          fileHandle.uuid,
+          facebook::velox::StringIdLease{},
           connectorQueryCtx->cache(),
           facebook::velox::connector::Connector::getTracker(connectorQueryCtx->scanId(), readerOpts.loadQuantum()),
-          fileHandle.groupId,
+          facebook::velox::StringIdLease{},
           std::move(ioStatistics),
           std::move(ioStats),
           executor,
@@ -49,16 +51,33 @@ class GlutenBufferedInputBuilder : public facebook::velox::connector::hive::Buff
           fileReadOps);
     }
     return std::make_unique<GlutenDirectBufferedInput>(
-        fileHandle.file,
+        std::move(readFile),
         dwio::common::MetricsLog::voidLog(),
-        fileHandle.uuid,
-        facebook::velox::connector::Connector::getTracker(connectorQueryCtx->scanId(), readerOpts.loadQuantum()),
-        fileHandle.groupId,
+        facebook::velox::StringIdLease{},
+        nullptr,
+        facebook::velox::StringIdLease{},
         std::move(ioStatistics),
         std::move(ioStats),
         executor,
         readerOpts,
         fileReadOps);
+  }
+
+ private:
+  static void clearFileHandleIds(const facebook::velox::FileHandle& fileHandle) {
+    clearStringIdLease(const_cast<facebook::velox::StringIdLease&>(fileHandle.uuid));
+    clearStringIdLease(const_cast<facebook::velox::StringIdLease&>(fileHandle.groupId));
+  }
+
+  static void clearStringIdLease(facebook::velox::StringIdLease& lease) {
+    struct LeaseLayout {
+      facebook::velox::StringIdMap* ids;
+      uint64_t id;
+    };
+    static_assert(sizeof(LeaseLayout) == sizeof(facebook::velox::StringIdLease));
+    auto* layout = reinterpret_cast<LeaseLayout*>(&lease);
+    layout->ids = nullptr;
+    layout->id = facebook::velox::StringIdMap::kNoId;
   }
 };
 

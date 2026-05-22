@@ -36,6 +36,10 @@ import scala.collection.JavaConverters._
 trait BasicScanExecTransformer extends LeafTransformSupport with BaseDataSource {
   import org.apache.spark.sql.catalyst.util._
 
+  private val treatDeltaIsRowDeletedAsMetadataKey =
+    "gluten.delta.treat_is_row_deleted_as_metadata"
+  private val deltaIsRowDeletedColumnName = "__delta_internal_is_row_deleted"
+
   /** Returns the filters that can be pushed down to native file scan */
   final def filterExprs(): Seq[Expression] = {
     if (pushDownFilters.nonEmpty) {
@@ -147,6 +151,11 @@ trait BasicScanExecTransformer extends LeafTransformSupport with BaseDataSource 
   private def makeColumnTypeNode(attr: Attribute): ColumnTypeNode = {
     if (getPartitionSchema.exists(_.name.equals(attr.name))) {
       new ColumnTypeNode(NamedStruct.ColumnType.PARTITION_COL)
+    } else if (
+      getProperties.get(treatDeltaIsRowDeletedAsMetadataKey).contains("true") &&
+      attr.name.equalsIgnoreCase(deltaIsRowDeletedColumnName)
+    ) {
+      new ColumnTypeNode(NamedStruct.ColumnType.METADATA_COL)
     } else if (BackendsApiManager.getSparkPlanExecApiInstance.isRowIndexMetadataColumn(attr.name)) {
       new ColumnTypeNode(NamedStruct.ColumnType.ROWINDEX_COL)
     } else if (attr.isMetadataCol) {

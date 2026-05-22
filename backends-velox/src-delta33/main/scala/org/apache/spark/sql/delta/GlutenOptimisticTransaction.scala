@@ -20,7 +20,7 @@ import org.apache.gluten.backendsapi.velox.VeloxBatchType
 import org.apache.gluten.extension.columnar.transition.Transitions
 
 import org.apache.spark.sql.{AnalysisException, Dataset}
-import org.apache.spark.sql.delta.actions.{AddFile, FileAction}
+import org.apache.spark.sql.delta.actions.{Action, AddFile, FileAction, RemoveFile}
 import org.apache.spark.sql.delta.constraints.{Constraint, Constraints, DeltaInvariantCheckerExec}
 import org.apache.spark.sql.delta.files.{GlutenDeltaFileFormatWriter, TransactionalWrite}
 import org.apache.spark.sql.delta.hooks.AutoCompact
@@ -36,12 +36,91 @@ import org.apache.spark.util.SerializableConfiguration
 
 import scala.collection.mutable.ListBuffer
 
+object GlutenOptimisticTransaction {
+  val SkipAllFilesInCrcForDvDeleteKey: String =
+    "spark.gluten.sql.delta.delete.dv.checksum.skipAllFilesInCrc"
+  val SkipChecksumForDvDeleteKey: String =
+    "spark.gluten.sql.delta.delete.dv.checksum.skipWrite"
+}
+
 class GlutenOptimisticTransaction(delegate: OptimisticTransaction)
   extends OptimisticTransaction(
     delegate.deltaLog,
     delegate.catalogTable,
     delegate.snapshot
   ) {
+
+  override def commit(actions: Seq[Action], op: DeltaOperations.Operation): Long = {
+    withChecksumConfsForDvDelete(actions, op) {
+      super.commit(actions, op)
+    }
+  }
+
+  override def commit(
+      actions: Seq[Action],
+      op: DeltaOperations.Operation,
+      tags: Map[String, String]): Long = {
+    withChecksumConfsForDvDelete(actions, op) {
+      super.commit(actions, op, tags)
+    }
+  }
+
+  override def commitIfNeeded(
+      actions: Seq[Action],
+      op: DeltaOperations.Operation,
+      tags: Map[String, String]): Option[Long] = {
+    withChecksumConfsForDvDelete(actions, op) {
+      super.commitIfNeeded(actions, op, tags)
+    }
+  }
+
+  private def withChecksumConfsForDvDelete[T](
+      actions: Seq[Action],
+      op: DeltaOperations.Operation)(f: => T): T = {
+    val skipAllFilesInCrc = shouldApplyDvDeleteChecksumConf(
+      actions,
+      op,
+      GlutenOptimisticTransaction.SkipAllFilesInCrcForDvDeleteKey)
+    val skipChecksum = shouldApplyDvDeleteChecksumConf(
+      actions,
+      op,
+      GlutenOptimisticTransaction.SkipChecksumForDvDeleteKey)
+    if (!skipAllFilesInCrc && !skipChecksum) {
+      return f
+    }
+
+    val keysToDisable =
+      Seq(
+        Option.when(skipAllFilesInCrc)(DeltaSQLConf.DELTA_ALL_FILES_IN_CRC_ENABLED.key),
+        Option.when(skipChecksum)(DeltaSQLConf.DELTA_WRITE_CHECKSUM_ENABLED.key)
+      ).flatten
+    val previousValues = keysToDisable.map(key => key -> spark.conf.getOption(key))
+    keysToDisable.foreach(key => spark.conf.set(key, "false"))
+    try {
+      f
+    } finally {
+      previousValues.foreach {
+        case (key, Some(value)) => spark.conf.set(key, value)
+        case (key, None) => spark.conf.unset(key)
+      }
+    }
+  }
+
+  private def shouldApplyDvDeleteChecksumConf(
+      actions: Seq[Action],
+      op: DeltaOperations.Operation,
+      key: String): Boolean = {
+    val enabled = spark.sessionState.conf
+      .getConfString(key, "false")
+      .toBoolean
+    enabled &&
+    op.name == "DELETE" &&
+    actions.exists {
+      case add: AddFile => add.deletionVector != null
+      case remove: RemoveFile => remove.deletionVector != null
+      case _ => false
+    }
+  }
 
   override def writeFiles(
       inputData: Dataset[_],

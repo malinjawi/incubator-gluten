@@ -43,6 +43,10 @@
 #endif
 #endif
 
+#ifndef GLUTEN_VELOX_HIVE_SPLIT_READER_HAS_SPLIT_IO_STATS
+#define GLUTEN_VELOX_HIVE_SPLIT_READER_HAS_SPLIT_IO_STATS 0
+#endif
+
 #if GLUTEN_VELOX_DELTA_USE_FILE_SPLIT_READER
 #include "velox/connectors/hive/HiveSplitReader.h"
 #elif __has_include("velox/connectors/hive/SplitReader.h")
@@ -79,7 +83,7 @@ class DeltaSplitReader : public DeltaSplitReaderBase {
       const ConnectorQueryCtx* connectorQueryCtx,
       const std::shared_ptr<const DeltaConfig>& fileConfig,
       const RowTypePtr& readerOutputType,
-#if GLUTEN_VELOX_DELTA_USE_FILE_SPLIT_READER
+#if GLUTEN_VELOX_DELTA_USE_FILE_SPLIT_READER && GLUTEN_VELOX_HIVE_SPLIT_READER_HAS_SPLIT_IO_STATS
       const std::shared_ptr<io::IoStatistics>& dataIoStats,
       const std::shared_ptr<io::IoStatistics>& metadataIoStats,
 #else

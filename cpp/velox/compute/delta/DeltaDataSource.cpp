@@ -65,8 +65,12 @@ std::unique_ptr<FileSplitReader> DeltaDataSource::createSplitReader() {
       connectorQueryCtx_,
       fileConfig_,
       readerOutputType_,
+#if GLUTEN_VELOX_HIVE_SPLIT_READER_HAS_SPLIT_IO_STATS
       dataIoStats_,
       metadataIoStats_,
+#else
+      ioStatistics_,
+#endif
       ioStats_,
       fileHandleFactory_,
       ioExecutor_,

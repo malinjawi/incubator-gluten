@@ -207,16 +207,12 @@ std::unique_ptr<folly::Executor> makeHookedExecutor(
   return std::make_unique<HookedExecutor>(parent, name, debug, joinTimeout);
 }
 
-std::string makeScopedConnectorId(const std::string& base, uint64_t runtimeId) {
-  return fmt::format("{}-runtime-{}", base, runtimeId);
-}
-
-VeloxConnectorIds makeScopedConnectorIds(uint64_t runtimeId) {
+VeloxConnectorIds makeScopedConnectorIds(uint64_t /*runtimeId*/) {
   return VeloxConnectorIds{
-      .hive = makeScopedConnectorId(kHiveConnectorId, runtimeId),
-      .delta = makeScopedConnectorId(delta::DeltaConnectorFactory::kDeltaConnectorName, runtimeId),
-      .iterator = makeScopedConnectorId(kIteratorConnectorId, runtimeId),
-      .cudfHive = makeScopedConnectorId(kCudfHiveConnectorId, runtimeId)};
+      .hive = kHiveConnectorId,
+      .delta = delta::DeltaConnectorFactory::kDeltaConnectorName,
+      .iterator = kIteratorConnectorId,
+      .cudfHive = kCudfHiveConnectorId};
 }
 
 } // namespace
@@ -244,11 +240,9 @@ VeloxRuntime::VeloxRuntime(
   connectorIds_ = makeScopedConnectorIds(runtimeId++);
 
   initializeExecutors();
-  registerConnectors();
 }
 
 VeloxRuntime::~VeloxRuntime() {
-  unregisterConnectors();
   executor_.reset();
   spillExecutor_.reset();
   ioExecutor_.reset();

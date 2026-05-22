@@ -20,6 +20,7 @@ import org.apache.spark.sql.{Row, SparkSession}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.delta.{GlutenOptimisticTransaction, OptimisticTransaction, TransactionExecutionObserver}
+import org.apache.spark.sql.delta.commands.GlutenDeltaDeleteTiming
 import org.apache.spark.sql.execution.command.LeafRunnableCommand
 import org.apache.spark.sql.execution.metric.SQLMetric
 
@@ -50,9 +51,25 @@ case class GlutenDeltaLeafRunnableCommand(delegate: LeafRunnableCommand)
   }
 
   override def run(sparkSession: SparkSession): Seq[Row] = {
-    TransactionExecutionObserver.withObserver(
-      DeltaV2WriteOperators.UseColumnarDeltaTransactionLog) {
-      delegate.run(sparkSession)
+    val timingEnabled = GlutenDeltaDeleteTiming.isEnabled(sparkSession)
+    val start = GlutenDeltaDeleteTiming.now()
+    try {
+      val result = TransactionExecutionObserver.withObserver(
+        DeltaV2WriteOperators.createTransactionObserver(timingEnabled, delegate.nodeName)) {
+        delegate.run(sparkSession)
+      }
+      GlutenDeltaDeleteTiming.logIfEnabled(
+        timingEnabled,
+        s"command totalMs=${GlutenDeltaDeleteTiming.elapsedMs(start)} command=${delegate.nodeName}")
+      result
+    } catch {
+      case t: Throwable =>
+        GlutenDeltaDeleteTiming.logIfEnabled(
+          timingEnabled,
+          s"command failed totalMs=${GlutenDeltaDeleteTiming.elapsedMs(start)} " +
+            s"command=${delegate.nodeName} error=${t.getClass.getName}: ${t.getMessage}"
+        )
+        throw t
     }
   }
 
@@ -60,6 +77,16 @@ case class GlutenDeltaLeafRunnableCommand(delegate: LeafRunnableCommand)
 }
 
 object DeltaV2WriteOperators {
+  def createTransactionObserver(
+      timingEnabled: Boolean,
+      commandName: String): TransactionExecutionObserver = {
+    if (timingEnabled) {
+      new TimingTransactionExecutionObserver(commandName)
+    } else {
+      UseColumnarDeltaTransactionLog
+    }
+  }
+
   object UseColumnarDeltaTransactionLog extends TransactionExecutionObserver {
     override def startingTransaction(f: => OptimisticTransaction): OptimisticTransaction = {
       val delegate = f
@@ -80,6 +107,91 @@ object DeltaV2WriteOperators {
 
     override def createChild(): TransactionExecutionObserver = {
       TransactionExecutionObserver.getObserver
+    }
+  }
+
+  private class TimingTransactionExecutionObserver(commandName: String)
+    extends TransactionExecutionObserver {
+    private var startingTransactionNs: Long = 0
+    private var prepareCommitNs: Long = 0
+    private var doCommitStart: Long = 0
+    private var doCommitNs: Long = 0
+    private var backfillStart: Long = 0
+    private var backfillNs: Long = 0
+    private var postCommitStart: Long = 0
+    private var postCommitNs: Long = 0
+    private val transactionStart = GlutenDeltaDeleteTiming.now()
+
+    override def startingTransaction(f: => OptimisticTransaction): OptimisticTransaction = {
+      val start = GlutenDeltaDeleteTiming.now()
+      val delegate = f
+      startingTransactionNs += GlutenDeltaDeleteTiming.now() - start
+      new GlutenOptimisticTransaction(delegate)
+    }
+
+    override def preparingCommit[T](f: => T): T = {
+      val start = GlutenDeltaDeleteTiming.now()
+      try {
+        f
+      } finally {
+        prepareCommitNs += GlutenDeltaDeleteTiming.now() - start
+      }
+    }
+
+    override def beginDoCommit(): Unit = {
+      doCommitStart = GlutenDeltaDeleteTiming.now()
+    }
+
+    override def beginBackfill(): Unit = {
+      val now = GlutenDeltaDeleteTiming.now()
+      if (doCommitStart != 0) {
+        doCommitNs += now - doCommitStart
+        doCommitStart = 0
+      }
+      backfillStart = now
+    }
+
+    override def beginPostCommit(): Unit = {
+      val now = GlutenDeltaDeleteTiming.now()
+      if (backfillStart != 0) {
+        backfillNs += now - backfillStart
+        backfillStart = 0
+      } else if (doCommitStart != 0) {
+        doCommitNs += now - doCommitStart
+        doCommitStart = 0
+      }
+      postCommitStart = now
+    }
+
+    override def transactionCommitted(): Unit = {
+      val now = GlutenDeltaDeleteTiming.now()
+      if (postCommitStart != 0) {
+        postCommitNs += now - postCommitStart
+        postCommitStart = 0
+      }
+      GlutenDeltaDeleteTiming.logIfEnabled(
+        enabled = true,
+        transactionTimingMessage(now, "committed"))
+    }
+
+    override def transactionAborted(): Unit = {
+      GlutenDeltaDeleteTiming.logIfEnabled(
+        enabled = true,
+        transactionTimingMessage(GlutenDeltaDeleteTiming.now(), "aborted"))
+    }
+
+    override def createChild(): TransactionExecutionObserver = {
+      new TimingTransactionExecutionObserver(s"$commandName.child")
+    }
+
+    private def transactionTimingMessage(now: Long, status: String): String = {
+      s"transaction status=$status command=$commandName " +
+        s"totalMs=${GlutenDeltaDeleteTiming.nanosToMs(now - transactionStart)} " +
+        s"startingTransactionMs=${GlutenDeltaDeleteTiming.nanosToMs(startingTransactionNs)} " +
+        s"prepareCommitMs=${GlutenDeltaDeleteTiming.nanosToMs(prepareCommitNs)} " +
+        s"doCommitMs=${GlutenDeltaDeleteTiming.nanosToMs(doCommitNs)} " +
+        s"backfillMs=${GlutenDeltaDeleteTiming.nanosToMs(backfillNs)} " +
+        s"postCommitMs=${GlutenDeltaDeleteTiming.nanosToMs(postCommitNs)}"
     }
   }
 }
