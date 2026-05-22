@@ -16,12 +16,18 @@
  */
 package org.apache.gluten.execution
 
+import org.apache.gluten.config.GlutenConfig
+
 import org.apache.spark.SparkConf
-import org.apache.spark.sql.Row
+import org.apache.spark.sql.{DataFrame, Row}
+import org.apache.spark.sql.delta.DeltaLog
+import org.apache.spark.sql.delta.sources.DeltaSQLConf
+import org.apache.spark.sql.delta.stats.PreparedDeltaFileIndex
 import org.apache.spark.sql.execution.FileSourceScanExec
 import org.apache.spark.sql.execution.datasources.v2.BatchScanExec
 import org.apache.spark.sql.types._
-import org.apache.spark.util.SparkVersionUtil
+
+import org.apache.hadoop.fs.Path
 
 import scala.collection.JavaConverters._
 
@@ -44,6 +50,49 @@ abstract class DeltaSuite extends WholeStageTransformerSuite {
       .set("spark.sql.sources.useV1SourceList", "avro")
       .set("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
       .set("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+  }
+
+  private def assertNativeDeletionVectorScan(df: DataFrame): Seq[DeltaScanTransformer] = {
+    val executedPlan = df.queryExecution.executedPlan
+    val scans = executedPlan.collect { case scan: DeltaScanTransformer => scan }
+    assert(scans.nonEmpty, executedPlan.toString())
+
+    val planText = executedPlan.toString()
+    Seq(
+      "__delta_internal_is_row_deleted",
+      "__delta_internal_row_index",
+      "_tmp_metadata_row_index",
+      "row_index").foreach {
+      columnName =>
+        assert(!planText.contains(columnName), planText)
+    }
+    scans
+  }
+
+  private def deletionVectorFileCount(path: String): Int = {
+    val log = DeltaLog.forTable(spark, new Path(path))
+    log.update().allFiles.collect().count(_.deletionVector != null)
+  }
+
+  private def withTemporarySQLConf[T](pairs: (String, String)*)(body: => T): T = {
+    val previousValues = pairs.map { case (key, _) => key -> spark.conf.getOption(key) }
+    try {
+      pairs.foreach { case (key, value) => spark.conf.set(key, value) }
+      body
+    } finally {
+      previousValues.foreach {
+        case (key, Some(value)) => spark.conf.set(key, value)
+        case (key, None) => spark.conf.unset(key)
+      }
+    }
+  }
+
+  private def withSparkDeletionVectorSetup[T](body: => T): T = {
+    withTemporarySQLConf(GlutenConfig.GLUTEN_ENABLED.key -> "false")(body)
+  }
+
+  private def withNativeScanOnly[T](body: => T): T = {
+    withTemporarySQLConf("spark.gluten.sql.columnar.scanOnly" -> "true")(body)
   }
 
   // IdMapping is supported in Delta 2.2 (related to Spark3.3.1)
@@ -200,7 +249,7 @@ abstract class DeltaSuite extends WholeStageTransformerSuite {
     }
   }
 
-  testWithMinSparkVersion("deletion vector", "3.4") {
+  testWithMinSparkVersion("deletion vector", "3.5") {
     withTempPath {
       p =>
         import testImplicits._
@@ -208,22 +257,171 @@ abstract class DeltaSuite extends WholeStageTransformerSuite {
         val df1 = Seq(1, 2, 3, 4, 5).toDF("id")
         val values2 = Seq(6, 7, 8, 9, 10)
         val df2 = values2.toDF("id")
-        df1.union(df2).coalesce(1).write.format("delta").save(path)
-        spark.sql(
-          s"ALTER TABLE delta.`$path` SET TBLPROPERTIES ('delta.enableDeletionVectors' = true)")
-        checkAnswer(spark.read.format("delta").load(path), df1.union(df2))
-        spark.sql(s"DELETE FROM delta.`$path` WHERE id IN (${values2.mkString(", ")})")
-        val df = spark.read.format("delta").load(path)
-        val executedPlan = df.queryExecution.executedPlan
-        if (SparkVersionUtil.gteSpark35) {
+        withSparkDeletionVectorSetup {
+          df1.union(df2).coalesce(1).write.format("delta").save(path)
+          spark.sql(
+            s"ALTER TABLE delta.`$path` SET TBLPROPERTIES ('delta.enableDeletionVectors' = true)")
+          checkAnswer(spark.read.format("delta").load(path), df1.union(df2))
+          spark.sql(s"DELETE FROM delta.`$path` WHERE id IN (${values2.mkString(", ")})")
+        }
+        withNativeScanOnly {
+          val df = spark.read.format("delta").load(path)
+          val executedPlan = df.queryExecution.executedPlan
           assert(executedPlan.collect { case _: DeltaScanTransformer => true }.nonEmpty)
           val planText = executedPlan.toString()
           assert(!planText.contains("__delta_internal_is_row_deleted"))
           assert(!planText.contains("__delta_internal_row_index"))
-        } else {
-          assert(executedPlan.collect { case _: DeltaScanTransformer => true }.isEmpty)
+          assert(!planText.contains("_tmp_metadata_row_index"))
+          checkAnswer(df, df1)
         }
-        checkAnswer(df, df1)
+    }
+  }
+
+  testWithMinSparkVersion("deletion vector with metadata row index disabled", "3.5") {
+    withTempPath {
+      p =>
+        import testImplicits._
+        val path = p.getCanonicalPath
+        withSparkDeletionVectorSetup {
+          Seq((1, "a"), (2, "b"), (3, "c"), (4, "d"))
+            .toDF("id", "value")
+            .coalesce(1)
+            .write
+            .format("delta")
+            .save(path)
+          spark.sql(
+            s"ALTER TABLE delta.`$path` SET TBLPROPERTIES ('delta.enableDeletionVectors' = true)")
+          spark.sql(s"DELETE FROM delta.`$path` WHERE id IN (3, 4)")
+          assert(deletionVectorFileCount(path) == 1)
+        }
+
+        withSQLConf(DeltaSQLConf.DELETION_VECTORS_USE_METADATA_ROW_INDEX.key -> "false") {
+          withNativeScanOnly {
+            val df = spark.read.format("delta").load(path)
+            assertNativeDeletionVectorScan(df)
+            checkAnswer(df, Seq(Row(1, "a"), Row(2, "b")))
+          }
+        }
+    }
+  }
+
+  testWithMinSparkVersion("deletion vector on partitioned table", "3.5") {
+    withTempPath {
+      p =>
+        import testImplicits._
+        val path = p.getCanonicalPath
+        withSparkDeletionVectorSetup {
+          Seq((0, 0), (10, 0), (1, 1), (11, 1))
+            .toDF("id", "part")
+            .write
+            .format("delta")
+            .partitionBy("part")
+            .save(path)
+          spark.sql(
+            s"ALTER TABLE delta.`$path` SET TBLPROPERTIES ('delta.enableDeletionVectors' = true)")
+          spark.sql(s"DELETE FROM delta.`$path` WHERE id IN (0, 1)")
+          assert(deletionVectorFileCount(path) == 2)
+        }
+
+        withNativeScanOnly {
+          val df = spark.read.format("delta").load(path).where("part = 1")
+          assertNativeDeletionVectorScan(df)
+          checkAnswer(df, Seq(Row(11, 1)))
+        }
+    }
+  }
+
+  testWithMinSparkVersion("deletion vector on multiple data files", "3.5") {
+    withTempPath {
+      p =>
+        import testImplicits._
+        val path = p.getCanonicalPath
+        withSparkDeletionVectorSetup {
+          Seq((0L, "a"), (100L, "a")).toDF("id", "grp").coalesce(1)
+            .write.format("delta").save(path)
+          Seq((1L, "b"), (101L, "b")).toDF("id", "grp").coalesce(1)
+            .write.format("delta").mode("append").save(path)
+          Seq((2L, "c"), (102L, "c")).toDF("id", "grp").coalesce(1)
+            .write.format("delta").mode("append").save(path)
+          Seq((3L, "d"), (103L, "d")).toDF("id", "grp").coalesce(1)
+            .write.format("delta").mode("append").save(path)
+          spark.sql(
+            s"ALTER TABLE delta.`$path` SET TBLPROPERTIES ('delta.enableDeletionVectors' = true)")
+
+          spark.sql(s"DELETE FROM delta.`$path` WHERE id IN (0, 1, 2, 3)")
+          assert(deletionVectorFileCount(path) == 4)
+        }
+
+        withNativeScanOnly {
+          val df = spark.read.format("delta").load(path)
+          assertNativeDeletionVectorScan(df)
+          checkAnswer(
+            df,
+            Seq(Row(100L, "a"), Row(101L, "b"), Row(102L, "c"), Row(103L, "d")))
+        }
+    }
+  }
+
+  testWithMinSparkVersion("deletion vector with column mapping", "3.5") {
+    withTempPath {
+      p =>
+        val path = p.getCanonicalPath
+        withSparkDeletionVectorSetup {
+          spark.sql(
+            s"""
+               |CREATE TABLE delta.`$path` (
+               |  id BIGINT,
+               |  payload STRUCT<name: STRING, count: INT>
+               |)
+               |USING delta
+               |TBLPROPERTIES (
+               |  'delta.columnMapping.mode' = 'name',
+               |  'delta.enableDeletionVectors' = true)
+               |""".stripMargin)
+          spark.sql(
+            s"""
+               |INSERT INTO delta.`$path` VALUES
+               |  (1, named_struct('name', 'keep-a', 'count', 10)),
+               |  (2, named_struct('name', 'drop', 'count', 20)),
+               |  (3, named_struct('name', 'keep-b', 'count', 30))
+               |""".stripMargin)
+          spark.sql(s"DELETE FROM delta.`$path` WHERE id = 2")
+          assert(deletionVectorFileCount(path) == 1)
+        }
+
+        withNativeScanOnly {
+          val df = spark.sql(s"SELECT id, payload.name, payload.count FROM delta.`$path`")
+          assertNativeDeletionVectorScan(df)
+          checkAnswer(df, Seq(Row(1L, "keep-a", 10), Row(3L, "keep-b", 30)))
+        }
+    }
+  }
+
+  testWithMinSparkVersion("deletion vector with prepared scan and stats skipping", "3.5") {
+    withTempPath {
+      p =>
+        import testImplicits._
+        val path = p.getCanonicalPath
+        withSparkDeletionVectorSetup {
+          (0L until 10L).toDF("id").coalesce(1).write.format("delta").save(path)
+          (100L until 110L).toDF("id").coalesce(1).write.format("delta").mode("append").save(path)
+          (200L until 210L).toDF("id").coalesce(1).write.format("delta").mode("append").save(path)
+          spark.sql(
+            s"ALTER TABLE delta.`$path` SET TBLPROPERTIES ('delta.enableDeletionVectors' = true)")
+          spark.sql(s"DELETE FROM delta.`$path` WHERE id = 105")
+          assert(deletionVectorFileCount(path) == 1)
+        }
+
+        withNativeScanOnly {
+          val df = spark.read.format("delta").load(path).where("id >= 100 AND id < 110")
+          val scans = assertNativeDeletionVectorScan(df)
+          assert(scans.exists(_.relation.location.isInstanceOf[PreparedDeltaFileIndex]))
+          df.queryExecution.executedPlan.execute().count()
+          val numFiles = scans.head.metrics.get("numFiles")
+          assert(numFiles.nonEmpty)
+          assert(numFiles.get.value == 1)
+          checkAnswer(df, (100L until 110L).filterNot(_ == 105L).map(Row(_)))
+        }
     }
   }
 

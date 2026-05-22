@@ -16,6 +16,7 @@
  */
 package org.apache.gluten.execution
 
+import org.apache.gluten.extension.DeltaPostTransformRules
 import org.apache.gluten.sql.shims.SparkShimLoader
 import org.apache.gluten.substrait.rel.LocalFilesNode.ReadFileFormat
 import org.apache.gluten.utils.DeltaDeletionVectorRegistry
@@ -36,6 +37,8 @@ import org.apache.spark.sql.types.StructType
 import org.apache.spark.util.collection.BitSet
 
 import org.apache.hadoop.fs.Path
+
+import java.util.concurrent.ConcurrentHashMap
 
 import scala.collection.mutable.ListBuffer
 import scala.util.control.NonFatal
@@ -117,6 +120,7 @@ case class DeltaScanTransformer(
 
 object DeltaScanTransformer {
   private val IfContainedFilterType = "IF_CONTAINED"
+  private val materializedPayloadCache = new ConcurrentHashMap[String, Array[Byte]]()
 
   private[execution] case class DeletionVectorRegistration(
       attempted: Boolean,
@@ -145,11 +149,11 @@ object DeltaScanTransformer {
 
   private def registerDeletionVectorsFromFileFormat(
       relation: HadoopFsRelation): DeletionVectorRegistration = {
-    val broadcastRegistration = registerDeletionVectorsFromBroadcastMap(relation)
-    if (broadcastRegistration.attempted) {
-      broadcastRegistration
+    val preparedScanRegistration = registerDeletionVectorsFromPreparedScan(relation)
+    if (preparedScanRegistration.attempted) {
+      preparedScanRegistration
     } else {
-      registerDeletionVectorsFromPreparedScan(relation)
+      registerDeletionVectorsFromBroadcastMap(relation)
     }
   }
 
@@ -254,10 +258,18 @@ object DeltaScanTransformer {
       descriptor: DeletionVectorDescriptor,
       tablePath: Path,
       dvStore: HadoopFileSystemDVStore): Array[Byte] = {
-    StoredBitmap
+    val cacheKey = s"${tablePath.toUri}|${descriptor.uniqueId}"
+    val cached = materializedPayloadCache.get(cacheKey)
+    if (cached != null) {
+      return cached
+    }
+
+    val payload = StoredBitmap
       .create(descriptor, tablePath)
       .load(dvStore)
       .serializeAsByteArray(RoaringBitmapArrayFormat.Portable)
+    val existing = materializedPayloadCache.putIfAbsent(cacheKey, payload)
+    if (existing == null) payload else existing
   }
 
   private def deletionVectorRegistration(
@@ -293,7 +305,7 @@ object DeltaScanTransformer {
 
         val dvStore =
           new HadoopFileSystemDVStore(relation.sparkSession.sessionState.newHadoopConf())
-        val preparedFiles = preparedIndex.preparedScan.files
+        val preparedFiles = preparedIndex.preparedScan.files.filter(_.deletionVector != null)
         registerDeletionVectorsFromAddFiles(preparedFiles.iterator, tablePath, dvStore)
       case _ =>
         NotAttemptedDeletionVectorRegistration
@@ -402,7 +414,9 @@ object DeltaScanTransformer {
       scanExec.partitionFilters,
       scanExec.optionalBucketSet,
       scanExec.optionalNumCoalescedBuckets,
-      scanExec.dataFilters,
+      // Native validation sees this transformer before post-transform cleanup. Strip Spark's
+      // synthetic DV predicate here; the native scan applies the materialized DV payload.
+      scanExec.dataFilters.flatMap(DeltaPostTransformRules.stripDeletionVectorPredicate),
       scanExec.tableIdentifier,
       scanExec.disableBucketedScan
     )

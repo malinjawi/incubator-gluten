@@ -28,6 +28,60 @@ Native Delta write is controlled by:
   - Default: `false`
   - Type: experimental
 
+## Deletion Vector Read Benchmarking
+
+When benchmarking native Delta deletion-vector reads, start with scan-only mode to isolate the
+read-scan path:
+
+- `spark.gluten.sql.columnar.scanOnly=true`
+
+This keeps the Delta DV scan in Velox while leaving wider aggregation and shuffle planning to Spark.
+That is the recommended posture for evaluating DV read-scan acceleration. To measure a normal native
+scan-consuming query, set the benchmark's `scanOnly` argument to `false`; full query wall time can
+still be dominated by broader Gluten validation and planning costs.
+
+For review and performance analysis, report both:
+
+- Physical planning time: time to materialize `queryExecution.executedPlan`.
+- Post-planning execution time: action time after the executed plan has already been materialized.
+
+The split avoids hiding a fast native DV scan behind unrelated physical planning overhead.
+
+The focused benchmark is:
+
+- `org.apache.gluten.execution.DeltaDeletionVectorReadBenchmark`
+
+Its arguments are:
+
+- `rows files deleteModulo iterations warmups minExecutionSpeedup minTotalSpeedup scanOnly printPlans mode`
+
+The `mode` argument is either `materialize` or `count`. `materialize` reads the data rows and also
+reports the native columnar child below the top row conversion when available. `count` runs a normal
+`count(*)` query over the DV-bearing table.
+
+The benchmark disables Gluten fallback reporting because fallback reporting is diagnostic logging,
+not part of the scan path being measured. Native validation remains enabled.
+
+For example, a native count-scan gate that requires at least 2x post-planning execution speedup is:
+
+- `org.apache.gluten.execution.DeltaDeletionVectorReadBenchmark 5000000 16 10 5 2 2.0 0.0 false false count`
+
+Use the same test classpath as `VeloxDeltaSuite`; the benchmark compares Spark and Gluten in one
+process, validates the row count for both variants, and verifies that the Gluten variant uses
+`DeltaScanTransformer`.
+
+Local measurements should report the execution speedup and total speedup separately. The native DV
+scan can be more than 2x faster after planning, while full wall-clock speedup may still be bounded by
+shared Delta `PrepareDeltaScan` work and generic Gluten physical planning.
+
+For correctness, run the Delta DV scan tests in both supported profiles:
+
+- Spark 3.5 / Delta 3.3: `org.apache.gluten.execution.VeloxDeltaSuite`
+- Spark 4.0 / Delta 4.0: `org.apache.gluten.execution.VeloxDeltaSuite`
+
+The DV read tests cover metadata row-index enabled and disabled, partitioned tables, multiple
+DV-bearing files, column mapping, and prepared scans with stats skipping.
+
 | Feature | Delta minWriterVersion | Delta minReaderVersion | Iceberg format-version | Feature type | Supported by Gluten (Velox) |
 |---|---:|---:|---:|---|---|
 | Basic functionality | 2 | 1 | 1 | Writer | Yes |

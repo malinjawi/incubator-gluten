@@ -23,6 +23,11 @@ import org.apache.gluten.extension.columnar.offload.OffloadSingleNode
 import org.apache.spark.sql.execution.{FilterExec, SparkPlan}
 
 case class OffloadDeltaFilter() extends OffloadSingleNode {
+  def isCandidate(plan: SparkPlan): Boolean = plan match {
+    case FilterExec(condition, _) if containsIncrementMetricExpr(condition) => true
+    case _ => false
+  }
+
   override def offload(plan: SparkPlan): SparkPlan = plan match {
     case FilterExec(condition, child) if containsIncrementMetricExpr(condition) =>
       DeltaFilterExecTransformer(condition, child)

@@ -21,14 +21,16 @@ import org.apache.gluten.execution.{DeltaScanTransformer, FilterExecTransformerB
 import org.apache.gluten.extension.columnar.transition.RemoveTransitions
 
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.catalyst.expressions.{Alias, And, Attribute, AttributeReference, Expression, InputFileBlockLength, InputFileBlockStart, InputFileName, NamedExpression}
+import org.apache.spark.sql.catalyst.expressions.{Alias, And, Attribute, AttributeReference, CreateNamedStruct, Expression, GetStructField, If, InputFileBlockLength, InputFileBlockStart, InputFileName, IsNull, LambdaFunction, Literal, NamedExpression, NamedLambdaVariable}
+import org.apache.spark.sql.catalyst.expressions.{ArrayTransform, TransformKeys, TransformValues}
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.trees.TreeNodeTag
 import org.apache.spark.sql.delta.{DeltaColumnMapping, DeltaParquetFileFormat, NoMapping}
 import org.apache.spark.sql.execution.{FilterExec, ProjectExec, SparkPlan}
 import org.apache.spark.sql.execution.datasources.FileFormat
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types.{ArrayType, DataType, MapType, StructType}
 
+import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
 object DeltaPostTransformRules {
@@ -39,14 +41,18 @@ object DeltaPostTransformRules {
       columnMappingRule :: Nil
 
   private val deletionVectorDeletedRowColumnName = "__delta_internal_is_row_deleted"
-  private val deletionVectorRowIndexColumnName = "__delta_internal_row_index"
+  private val deletionVectorRowIndexColumnNames =
+    Set("__delta_internal_row_index", "_tmp_metadata_row_index", "row_index")
   private val deletionVectorInternalColumnNames =
-    Set(deletionVectorDeletedRowColumnName, deletionVectorRowIndexColumnName)
+    deletionVectorRowIndexColumnNames + deletionVectorDeletedRowColumnName
+  private val deltaMetadataColumnName = "_metadata"
 
   private val COLUMN_MAPPING_RULE_TAG: TreeNodeTag[String] =
     TreeNodeTag[String]("org.apache.gluten.delta.column.mapping")
   private val PRESERVE_DELETION_VECTOR_ROW_INDEX_TAG: TreeNodeTag[Boolean] =
     TreeNodeTag[Boolean]("org.apache.gluten.delta.preserve.deletion.vector.row.index")
+  private val PRESERVE_DELTA_METADATA_TAG: TreeNodeTag[Boolean] =
+    TreeNodeTag[Boolean]("org.apache.gluten.delta.preserve.metadata")
 
   private def notAppliedColumnMappingRule(plan: SparkPlan): Boolean = {
     plan.getTagValue(COLUMN_MAPPING_RULE_TAG).isEmpty
@@ -87,7 +93,10 @@ object DeltaPostTransformRules {
         val cleanedPushDownFilters =
           scan.pushDownFilters.map(_.flatMap(stripDeletionVectorPredicate))
         val preserveRowIndex = shouldPreserveDeletionVectorRowIndex(scan)
-        val cleanedOutput = stripDeletionVectorInternalOutput(scan.output, preserveRowIndex)
+        val cleanedOutput = stripDeletionVectorInternalOutput(
+          scan,
+          preserveRowIndex,
+          shouldPreserveDeltaMetadata(scan))
         val cleanedRequiredSchema =
           stripDeletionVectorInternalSchema(scan.requiredSchema, preserveRowIndex)
         if (
@@ -107,7 +116,8 @@ object DeltaPostTransformRules {
       case project: ProjectExecTransformer if containsNativeDeltaScan(project.child) =>
         val cleanedProjectList = stripDeletionVectorInternalProjectList(
           project.projectList,
-          shouldPreserveDeletionVectorRowIndex(project))
+          shouldPreserveDeletionVectorRowIndex(project),
+          shouldPreserveDeltaMetadata(project))
         if (cleanedProjectList == project.projectList) {
           project
         } else if (cleanedProjectList.isEmpty) {
@@ -118,7 +128,8 @@ object DeltaPostTransformRules {
       case project: ProjectExec if containsNativeDeltaScan(project.child) =>
         val cleanedProjectList = stripDeletionVectorInternalProjectList(
           project.projectList,
-          shouldPreserveDeletionVectorRowIndex(project))
+          shouldPreserveDeletionVectorRowIndex(project),
+          shouldPreserveDeltaMetadata(project))
         if (cleanedProjectList == project.projectList) {
           project
         } else if (cleanedProjectList.isEmpty) {
@@ -173,8 +184,20 @@ object DeltaPostTransformRules {
     expr.references.exists(attr => deletionVectorInternalColumnNames.contains(attr.name))
   }
 
+  private def referencesDeletionVectorDeletedRow(expr: Expression): Boolean = {
+    expr.references.exists(_.name == deletionVectorDeletedRowColumnName)
+  }
+
   private def referencesDeletionVectorRowIndex(expr: Expression): Boolean = {
-    expr.references.exists(_.name == deletionVectorRowIndexColumnName)
+    expr.references.exists(attr => deletionVectorRowIndexColumnNames.contains(attr.name))
+  }
+
+  private def referencesDeltaMetadata(expr: Expression): Boolean = {
+    expr.references.exists(_.name == deltaMetadataColumnName)
+  }
+
+  private def isDeletionVectorInternalMetadataProject(expr: NamedExpression): Boolean = {
+    expr.name == deltaMetadataColumnName && referencesDeletionVectorRowIndex(expr)
   }
 
   private def tagRowIndexRequiredSubtrees(plan: SparkPlan): Unit = {
@@ -182,12 +205,16 @@ object DeltaPostTransformRules {
       subtree.foreach(_.setTagValue(PRESERVE_DELETION_VECTOR_ROW_INDEX_TAG, true))
     }
 
+    def tagMetadataSubtree(subtree: SparkPlan): Unit = {
+      subtree.foreach(_.setTagValue(PRESERVE_DELTA_METADATA_TAG, true))
+    }
+
     def visit(node: SparkPlan): Unit = {
-      val shouldPreserveRowIndex =
-        node.expressions.exists(containsIncrementMetricExpr) ||
-          node.expressions.exists(referencesDeletionVectorRowIndex)
-      if (shouldPreserveRowIndex) {
+      if (expressionsRequireDeletionVectorRowIndex(node)) {
         node.children.foreach(tagSubtree)
+      }
+      if (expressionsRequireDeltaMetadata(node)) {
+        node.children.foreach(tagMetadataSubtree)
       }
       node.children.foreach(visit)
     }
@@ -197,28 +224,69 @@ object DeltaPostTransformRules {
 
   private def shouldPreserveDeletionVectorRowIndex(plan: SparkPlan): Boolean = {
     plan.getTagValue(PRESERVE_DELETION_VECTOR_ROW_INDEX_TAG).contains(true) ||
+    shouldPreserveDeltaMetadata(plan) ||
+    (!plan.isInstanceOf[DeltaScanTransformer] && expressionsRequireDeletionVectorRowIndex(plan))
+  }
+
+  private def shouldPreserveDeltaMetadata(plan: SparkPlan): Boolean = {
+    plan.getTagValue(PRESERVE_DELTA_METADATA_TAG).contains(true) ||
+    (!plan.isInstanceOf[DeltaScanTransformer] && expressionsRequireDeltaMetadata(plan))
+  }
+
+  private def expressionsRequireDeletionVectorRowIndex(plan: SparkPlan): Boolean = {
     plan.expressions.exists(containsIncrementMetricExpr) ||
-    plan.expressions.exists(referencesDeletionVectorRowIndex)
+    (plan match {
+      case filter: FilterExecTransformerBase =>
+        stripDeletionVectorPredicate(filter.cond).exists(referencesDeletionVectorRowIndex)
+      case filter: FilterExec =>
+        stripDeletionVectorPredicate(filter.condition).exists(referencesDeletionVectorRowIndex)
+      case project: ProjectExecTransformer =>
+        stripDeletionVectorInternalProjectList(
+          project.projectList,
+          preserveRowIndex = false,
+          preserveMetadata = false)
+          .exists(referencesDeletionVectorRowIndex)
+      case project: ProjectExec =>
+        stripDeletionVectorInternalProjectList(
+          project.projectList,
+          preserveRowIndex = false,
+          preserveMetadata = false)
+          .exists(referencesDeletionVectorRowIndex)
+      case _ =>
+        plan.expressions.exists(referencesDeletionVectorRowIndex)
+    })
+  }
+
+  private def expressionsRequireDeltaMetadata(plan: SparkPlan): Boolean = {
+    plan.expressions.exists(referencesDeltaMetadata)
   }
 
   private def shouldStripDeletionVectorInternalColumn(
       columnName: String,
       preserveRowIndex: Boolean): Boolean = {
     columnName == deletionVectorDeletedRowColumnName ||
-    (!preserveRowIndex && columnName == deletionVectorRowIndexColumnName)
+    (!preserveRowIndex && deletionVectorRowIndexColumnNames.contains(columnName))
   }
 
   private def stripDeletionVectorInternalOutput(
-      output: Seq[Attribute],
-      preserveRowIndex: Boolean): Seq[Attribute] = {
-    output.filterNot(attr => shouldStripDeletionVectorInternalColumn(attr.name, preserveRowIndex))
+      scan: DeltaScanTransformer,
+      preserveRowIndex: Boolean,
+      preserveMetadata: Boolean): Seq[Attribute] = {
+    scan.output.filterNot(
+      attr =>
+        shouldStripDeletionVectorInternalColumn(attr.name, preserveRowIndex) ||
+          (!preserveMetadata && scan.isMetadataColumn(attr)))
   }
 
   private def stripDeletionVectorInternalProjectList(
       projectList: Seq[NamedExpression],
-      preserveRowIndex: Boolean): Seq[NamedExpression] = {
+      preserveRowIndex: Boolean,
+      preserveMetadata: Boolean): Seq[NamedExpression] = {
     projectList.filterNot(
-      expr => shouldStripDeletionVectorInternalColumn(expr.name, preserveRowIndex))
+      expr =>
+        shouldStripDeletionVectorInternalColumn(expr.name, preserveRowIndex) ||
+          referencesDeletionVectorDeletedRow(expr) ||
+          (!preserveMetadata && isDeletionVectorInternalMetadataProject(expr)))
   }
 
   private def stripDeletionVectorInternalSchema(
@@ -229,7 +297,7 @@ object DeltaPostTransformRules {
         field => shouldStripDeletionVectorInternalColumn(field.name, preserveRowIndex)))
   }
 
-  private def stripDeletionVectorPredicate(expr: Expression): Option[Expression] = {
+  private[gluten] def stripDeletionVectorPredicate(expr: Expression): Option[Expression] = {
     expr match {
       case And(left, right) =>
         (stripDeletionVectorPredicate(left), stripDeletionVectorPredicate(right)) match {
@@ -263,6 +331,73 @@ object DeltaPostTransformRules {
   }
 
   /**
+   * Checks whether two structurally compatible DataTypes have different struct field names at any
+   * nesting level.
+   */
+  private def nestedFieldNamesDiffer(logical: DataType, physical: DataType): Boolean = {
+    (logical, physical) match {
+      case (l: StructType, p: StructType) if l.length == p.length =>
+        l.zip(p).exists {
+          case (lf, pf) =>
+            lf.name != pf.name || nestedFieldNamesDiffer(lf.dataType, pf.dataType)
+        }
+      case (l: ArrayType, p: ArrayType) =>
+        nestedFieldNamesDiffer(l.elementType, p.elementType)
+      case (l: MapType, p: MapType) =>
+        nestedFieldNamesDiffer(l.keyType, p.keyType) ||
+        nestedFieldNamesDiffer(l.valueType, p.valueType)
+      case _ => false
+    }
+  }
+
+  /**
+   * Rebuilds an expression tree so that nested struct field names match the logical schema. Uses
+   * positional extraction and reconstruction instead of Cast, so correctness does not depend on
+   * Velox's cast_match_struct_by_name config.
+   */
+  private def reconcileFieldNames(
+      expr: Expression,
+      logical: DataType,
+      physical: DataType): Expression = {
+    (logical, physical) match {
+      case (l: StructType, p: StructType) if l.length == p.length =>
+        val rebuiltFields = l.zip(p).zipWithIndex.flatMap {
+          case ((lf, pf), i) =>
+            val extracted = GetStructField(expr, i, None)
+            val reconciled = reconcileFieldNames(extracted, lf.dataType, pf.dataType)
+            Seq(Literal(lf.name), reconciled)
+        }
+        val rebuilt = CreateNamedStruct(rebuiltFields)
+        If(IsNull(expr), Literal.create(null, l), rebuilt)
+      case (l: ArrayType, p: ArrayType) if nestedFieldNamesDiffer(l.elementType, p.elementType) =>
+        val lambdaVar = NamedLambdaVariable("element", p.elementType, p.containsNull)
+        val body = reconcileFieldNames(lambdaVar, l.elementType, p.elementType)
+        ArrayTransform(expr, LambdaFunction(body, Seq(lambdaVar)))
+      case (l: MapType, p: MapType) =>
+        val needKeys = nestedFieldNamesDiffer(l.keyType, p.keyType)
+        val needValues = nestedFieldNamesDiffer(l.valueType, p.valueType)
+        var result = expr
+        if (needValues) {
+          val keyVar = NamedLambdaVariable("key", p.keyType, false)
+          val valueVar = NamedLambdaVariable("value", p.valueType, p.valueContainsNull)
+          val body = reconcileFieldNames(valueVar, l.valueType, p.valueType)
+          result = TransformValues(result, LambdaFunction(body, Seq(keyVar, valueVar)))
+        }
+        if (needKeys) {
+          val keyVar = NamedLambdaVariable("key", p.keyType, false)
+          val valueVar = NamedLambdaVariable(
+            "value",
+            if (needValues) l.valueType else p.valueType,
+            p.valueContainsNull)
+          val body = reconcileFieldNames(keyVar, l.keyType, p.keyType)
+          result = TransformKeys(result, LambdaFunction(body, Seq(keyVar, valueVar)))
+        }
+        result
+      case _ => expr
+    }
+  }
+
+  /**
    * This method is only used for Delta ColumnMapping FileFormat(e.g. nameMapping and idMapping)
    * transform the metadata of Delta into Parquet's, each plan should only be transformed once.
    */
@@ -284,8 +419,9 @@ object DeltaPostTransformRules {
       )(SparkSession.active)
       // transform output's name into physical name so Reader can read data correctly
       // should keep the columns order the same as the origin output
-      val originColumnNames = ListBuffer.empty[String]
-      val transformedAttrs = ListBuffer.empty[Attribute]
+      case class ColumnMapping(logicalName: String, logicalType: DataType, physicalAttr: Attribute)
+      val columnMappings = ListBuffer.empty[ColumnMapping]
+      val seenNames = mutable.Set.empty[String]
       def mapAttribute(attr: Attribute) = {
         val newAttr = if (plan.isMetadataColumn(attr)) {
           attr
@@ -296,9 +432,8 @@ object DeltaPostTransformRules {
             .createPhysicalAttributes(Seq(attr), fmt.referenceSchema, fmt.columnMappingMode)
             .head
         }
-        if (!originColumnNames.contains(attr.name)) {
-          transformedAttrs += newAttr
-          originColumnNames += attr.name
+        if (seenNames.add(attr.name)) {
+          columnMappings += ColumnMapping(attr.name, attr.dataType, newAttr)
         }
         newAttr
       }
@@ -338,9 +473,18 @@ object DeltaPostTransformRules {
       scanExecTransformer.copyTagsFrom(plan)
       tagColumnMappingRule(scanExecTransformer)
 
-      // alias physicalName into tableName
-      val expr = (transformedAttrs, originColumnNames).zipped.map {
-        (attr, columnName) => Alias(attr, columnName)(exprId = attr.exprId)
+      // Alias physical names back to logical names. For struct-typed columns, Delta column
+      // mapping renames internal field names to physical UUIDs. A top-level Alias only restores
+      // the column name, not the struct's internal field names.
+      val expr = columnMappings.map {
+        cm =>
+          val projectedExpr: Expression =
+            if (nestedFieldNamesDiffer(cm.logicalType, cm.physicalAttr.dataType)) {
+              reconcileFieldNames(cm.physicalAttr, cm.logicalType, cm.physicalAttr.dataType)
+            } else {
+              cm.physicalAttr
+            }
+          Alias(projectedExpr, cm.logicalName)(exprId = cm.physicalAttr.exprId)
       }
       val projectExecTransformer = ProjectExecTransformer(expr.toSeq, scanExecTransformer)
       projectExecTransformer
