@@ -50,7 +50,7 @@ object RewriteMultiChildrenCount extends RewriteSingleNode with PullOutProjectHe
 
   override def isRewritable(plan: SparkPlan): Boolean = {
     plan match {
-      case _: BaseAggregateExec => true
+      case agg: BaseAggregateExec => shouldRewriteCount && shouldRewrite(agg.aggregateExpressions)
       case _ => false
     }
   }

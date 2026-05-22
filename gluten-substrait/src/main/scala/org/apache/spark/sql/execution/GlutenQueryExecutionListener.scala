@@ -80,6 +80,9 @@ class GlutenQueryExecutionListener(sc: SparkContext) extends SparkListener with 
       if (!enabledAtStart) {
         return
       }
+      if (!GlutenUIUtils.uiEnabled(sc)) {
+        return
+      }
       if (shouldSkipInternalDeltaLogQuery(qe)) {
         return
       }

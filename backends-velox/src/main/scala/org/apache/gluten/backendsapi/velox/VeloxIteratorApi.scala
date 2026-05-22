@@ -56,6 +56,10 @@ import scala.util.Try
 class VeloxIteratorApi extends IteratorApi with Logging {
   private val deltaMetadataUtilsClassName =
     "org.apache.gluten.backendsapi.velox.VeloxDeltaMetadataUtils$"
+  private val deltaDvCardinalityMetadata = "delta_dv_cardinality"
+  private val deltaDvPayloadIndexMetadata = "delta_dv_payload_index"
+  private val rowIndexFilterIdEncodedMetadata = "row_index_filter_id_encoded"
+  private val rowIndexFilterTypeMetadata = "row_index_filter_type"
 
   private def setFileSchemaForLocalFiles(
       localFilesNode: LocalFilesNode,
@@ -258,7 +262,6 @@ class VeloxIteratorApi extends IteratorApi with Logging {
         registeredEntries =>
           val normalizedMetadataColumns = new JArrayList[java.util.Map[String, Object]]()
           val deletionVectorPayloads = mutable.ArrayBuffer.empty[Array[Byte]]
-          var matchedDeletionVectors = 0
           partitionFiles.foreach {
             file =>
               val metadata = new JHashMap[String, Object]()
@@ -267,21 +270,22 @@ class VeloxIteratorApi extends IteratorApi with Logging {
               if (baseMetadata != null) {
                 metadata.putAll(baseMetadata)
               }
-              lookupRegisteredDeltaDeletionVector(file, registeredEntries).foreach {
-                entry =>
-                  metadata.put("delta_dv_cardinality", Long.box(entry.cardinality))
-                  metadata.put("row_index_filter_type", entry.filterType)
-                  metadata.put("delta_dv_payload_index", Int.box(deletionVectorPayloads.length))
+              lookupRegisteredDeltaDeletionVector(file, registeredEntries) match {
+                case Some(entry) =>
+                  metadata.remove(rowIndexFilterIdEncodedMetadata)
+                  metadata.put(deltaDvCardinalityMetadata, Long.box(entry.cardinality))
+                  metadata.put(rowIndexFilterTypeMetadata, entry.filterType)
+                  metadata.put(deltaDvPayloadIndexMetadata, Int.box(deletionVectorPayloads.length))
                   deletionVectorPayloads += entry.payload
-                  matchedDeletionVectors += 1
+                case None if metadata.containsKey(rowIndexFilterIdEncodedMetadata) =>
+                  throw new IllegalStateException(
+                    "Unable to match registered Delta deletion vector payload for split file: " +
+                      unescapePathName(file.filePath.toString))
+                case None =>
               }
               normalizedMetadataColumns.add(metadata)
           }
-          if (matchedDeletionVectors == 0) {
-            None
-          } else {
-            Some((normalizedMetadataColumns.asScala.toSeq, deletionVectorPayloads.toArray))
-          }
+          Some((normalizedMetadataColumns.asScala.toSeq, deletionVectorPayloads.toArray))
       }
   }
 

@@ -34,8 +34,8 @@ import org.apache.spark.sql.types.StructType
 object RewriteIn extends RewriteSingleNode {
   override def isRewritable(plan: SparkPlan): Boolean = {
     plan match {
-      case _: FileSourceScanExec => true
-      case _: FilterExec => true
+      case scan: FileSourceScanExec => scan.dataFilters.exists(_.find(shouldRewrite).isDefined)
+      case filter: FilterExec => filter.condition.find(shouldRewrite).isDefined
       case _ => false
     }
   }
