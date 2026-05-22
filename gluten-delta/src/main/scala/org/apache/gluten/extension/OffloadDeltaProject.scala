@@ -23,6 +23,11 @@ import org.apache.gluten.extension.columnar.offload.OffloadSingleNode
 import org.apache.spark.sql.execution.{ProjectExec, SparkPlan}
 
 case class OffloadDeltaProject() extends OffloadSingleNode {
+  def isCandidate(plan: SparkPlan): Boolean = plan match {
+    case ProjectExec(projectList, _) if projectList.exists(containsIncrementMetricExpr) => true
+    case _ => false
+  }
+
   override def offload(plan: SparkPlan): SparkPlan = plan match {
     case ProjectExec(projectList, child) if projectList.exists(containsIncrementMetricExpr) =>
       DeltaProjectExecTransformer(projectList, child)

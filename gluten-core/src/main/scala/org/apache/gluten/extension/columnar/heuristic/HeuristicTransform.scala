@@ -25,6 +25,7 @@ import org.apache.gluten.extension.columnar.offload.OffloadSingleNode
 import org.apache.gluten.extension.columnar.offload.OffloadSingleNode._
 import org.apache.gluten.extension.columnar.rewrite.RewriteSingleNode
 import org.apache.gluten.extension.columnar.validator.Validator
+import org.apache.gluten.execution.GlutenPlan
 import org.apache.gluten.extension.injector.Injector
 import org.apache.gluten.logging.LogLevelUtil
 
@@ -72,24 +73,50 @@ object HeuristicTransform {
    *
    * Validator will be called before applying the offload rules.
    */
-  case class Simple(validator: Validator, offloadRules: Seq[OffloadSingleNode])
+  case class Simple(
+      validator: Validator,
+      offloadRules: Seq[OffloadSingleNode],
+      validateOncePerNode: Boolean = false,
+      shouldValidate: SparkPlan => Boolean = (_: SparkPlan) => true)
     extends Rule[SparkPlan]
     with Logging {
     override def apply(plan: SparkPlan): SparkPlan = {
-      offloadRules.foldLeft(plan) {
-        case (p, rule) =>
-          p.transformUp {
-            node =>
-              validator.validate(node) match {
-                case Validator.Passed =>
-                  rule.offloadAndPropagateTag(node)
-                case Validator.Failed(reason) =>
-                  logDebug(s"Validation failed by reason: $reason on query plan: ${node.nodeName}")
-                  if (FallbackTags.maybeOffloadable(node)) {
-                    FallbackTags.add(node, reason)
-                  }
-                  node
+      if (!validateOncePerNode) {
+        return offloadRules.foldLeft(plan) {
+          case (p, rule) =>
+            p.transformUp {
+              case node if !shouldValidate(node) =>
+                node
+              case node =>
+                validator.validate(node) match {
+                  case Validator.Passed =>
+                    rule.offloadAndPropagateTag(node)
+                  case Validator.Failed(reason) =>
+                    logDebug(s"Validation failed by reason: $reason on query plan: ${node.nodeName}")
+                    if (FallbackTags.maybeOffloadable(node)) {
+                      FallbackTags.add(node, reason)
+                    }
+                    node
+                }
+            }
+        }
+      }
+
+      plan.transformUp {
+        case node if !shouldValidate(node) =>
+          node
+        case node =>
+          validator.validate(node) match {
+            case Validator.Passed =>
+              offloadRules.foldLeft(node: SparkPlan) {
+                case (p, rule) => rule.offloadAndPropagateTag(p)
               }
+            case Validator.Failed(reason) =>
+              logDebug(s"Validation failed by reason: $reason on query plan: ${node.nodeName}")
+              if (FallbackTags.maybeOffloadable(node)) {
+                FallbackTags.add(node, reason)
+              }
+              node
           }
       }
     }
@@ -107,11 +134,14 @@ object HeuristicTransform {
       rewriteRules: Seq[RewriteSingleNode],
       offloadRules: Seq[OffloadSingleNode])
     extends Rule[SparkPlan] {
-    private val validate = AddFallbackTags(validator)
-    private val rewrite = RewriteSparkPlanRulesManager(validate, rewriteRules)
     private val offload = LegacyOffload(offloadRules)
 
     override def apply(plan: SparkPlan): SparkPlan = {
+      val validate = AddFallbackTags(
+        validator,
+        memoizeValidation = true,
+        shouldValidate = (plan: SparkPlan) => !plan.isInstanceOf[GlutenPlan])
+      val rewrite = RewriteSparkPlanRulesManager(validate, rewriteRules)
       Seq(rewrite, validate, offload).foldLeft(plan) {
         case (plan, stage) =>
           stage(plan)

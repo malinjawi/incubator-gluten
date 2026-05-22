@@ -29,6 +29,12 @@ import org.apache.spark.sql.execution.{FileSourceScanExec, SparkPlan}
 import org.apache.spark.util.SparkVersionUtil
 
 case class OffloadDeltaScan() extends OffloadSingleNode {
+  def isCandidate(plan: SparkPlan): Boolean = plan match {
+    case scan: FileSourceScanExec =>
+      isDeltaLogScan(scan) || shouldFallbackSpark34DeletionVectorScan(scan) || isDeltaScan(scan)
+    case _ => false
+  }
+
   override def offload(plan: SparkPlan): SparkPlan = plan match {
     case scan: FileSourceScanExec if isDeltaLogScan(scan) =>
       FallbackTags.add(scan, "fallback Delta _delta_log scan")
