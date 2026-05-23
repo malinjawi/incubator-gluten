@@ -22,6 +22,7 @@ import org.apache.gluten.extension.{DeltaPostTransformRules, OffloadDeltaFilter,
 import org.apache.gluten.extension.columnar.heuristic.HeuristicTransform
 import org.apache.gluten.extension.columnar.validator.Validators
 import org.apache.gluten.extension.injector.Injector
+import org.apache.gluten.execution.GlutenPlan
 
 import org.apache.spark.util.SparkReflectionUtil
 
@@ -38,11 +39,20 @@ class VeloxDeltaComponent extends Component {
     val legacy = injector.gluten.legacy
     legacy.injectTransform {
       c =>
-        val offload = Seq(OffloadDeltaScan(), OffloadDeltaProject(), OffloadDeltaFilter())
-          .map(_.toStrcitRule())
+        val deltaScan = OffloadDeltaScan()
+        val deltaProject = OffloadDeltaProject()
+        val deltaFilter = OffloadDeltaFilter()
+        val offload = Seq(deltaScan, deltaProject, deltaFilter).map(_.toStrcitRule())
         HeuristicTransform.Simple(
           Validators.newValidator(new GlutenConfig(c.sqlConf), offload),
-          offload)
+          offload,
+          validateOncePerNode = true,
+          shouldValidate =
+            plan =>
+              !plan.isInstanceOf[GlutenPlan] &&
+                (deltaScan.isCandidate(plan) ||
+                  deltaProject.isCandidate(plan) ||
+                  deltaFilter.isCandidate(plan)))
     }
     legacy.injectTransform(_ => DeltaPostTransformRules.nativeDeletionVectorRule)
     DeltaPostTransformRules.rules.foreach(r => legacy.injectPostTransform(_ => r))
