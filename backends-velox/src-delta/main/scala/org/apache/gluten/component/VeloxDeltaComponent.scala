@@ -22,7 +22,10 @@ import org.apache.gluten.extension.{DeltaPostTransformRules, OffloadDeltaFilter,
 import org.apache.gluten.extension.columnar.heuristic.HeuristicTransform
 import org.apache.gluten.extension.columnar.validator.Validators
 import org.apache.gluten.extension.injector.Injector
+import org.apache.gluten.execution.GlutenPlan
 
+import org.apache.spark.sql.delta.DeltaParquetFileFormat
+import org.apache.spark.sql.execution.{FileSourceScanExec, FilterExec, ProjectExec, SparkPlan}
 import org.apache.spark.util.SparkReflectionUtil
 
 class VeloxDeltaComponent extends Component {
@@ -38,12 +41,32 @@ class VeloxDeltaComponent extends Component {
     val legacy = injector.gluten.legacy
     legacy.injectTransform {
       c =>
-        val offload = Seq(OffloadDeltaScan(), OffloadDeltaProject(), OffloadDeltaFilter())
-          .map(_.toStrcitRule())
+        val deltaScan = OffloadDeltaScan()
+        val deltaProject = OffloadDeltaProject()
+        val deltaFilter = OffloadDeltaFilter()
+        val offload = Seq(deltaScan, deltaProject, deltaFilter).map(_.toStrcitRule())
         HeuristicTransform.Simple(
           Validators.newValidator(new GlutenConfig(c.sqlConf), offload),
-          offload)
+          offload,
+          validateOncePerNode = true,
+          shouldValidate = isDeltaOffloadCandidate)
     }
     DeltaPostTransformRules.rules.foreach(r => legacy.injectPostTransform(_ => r))
+  }
+
+  private def isDeltaOffloadCandidate(plan: SparkPlan): Boolean = {
+    !plan.isInstanceOf[GlutenPlan] && (plan match {
+      case scan: FileSourceScanExec
+          if scan.relation.fileFormat.getClass == classOf[DeltaParquetFileFormat] =>
+        true
+      case ProjectExec(projectList, _) if projectList.exists(
+            DeltaPostTransformRules.containsIncrementMetricExpr) =>
+        true
+      case FilterExec(condition, _) if DeltaPostTransformRules.containsIncrementMetricExpr(
+            condition) =>
+        true
+      case _ =>
+        false
+    })
   }
 }

@@ -18,6 +18,7 @@ package org.apache.gluten.backendsapi.velox
 
 import org.apache.gluten.backendsapi.{BackendsApiManager, RuleApi}
 import org.apache.gluten.config.GlutenConfig
+import org.apache.gluten.execution.GlutenPlan
 import org.apache.gluten.extension._
 import org.apache.gluten.extension.columnar._
 import org.apache.gluten.extension.columnar.MiscColumnarRules.{PreventBatchTypeMismatchInTableCache, RemoveGlutenTableCacheColumnarToRow, RemoveTopmostColumnarToRow, RewriteSubqueryBroadcast}
@@ -100,12 +101,23 @@ object VeloxRuleApi {
         PullOutPreProject,
         PullOutPostProject,
         ProjectColumnPruning)
-    injector.injectTransform(
+    injector.injectTransform {
       c =>
-        HeuristicTransform.WithRewrites(
-          validatorBuilder(new GlutenConfig(c.sqlConf)),
-          rewrites,
-          offloads))
+        val glutenConf = new GlutenConfig(c.sqlConf)
+        val validator = validatorBuilder(glutenConf)
+        if (glutenConf.enableScanOnly) {
+          HeuristicTransform.Simple(
+            validator,
+            offloads,
+            validateOncePerNode = true,
+            shouldValidate = (plan: SparkPlan) => !plan.isInstanceOf[GlutenPlan])
+        } else {
+          HeuristicTransform.WithRewrites(
+            validator,
+            rewrites,
+            offloads)
+        }
+    }
 
     // Legacy: Post-transform rules.
     injector.injectPostTransform(_ => AppendBatchResizeForShuffleInputAndOutput())
