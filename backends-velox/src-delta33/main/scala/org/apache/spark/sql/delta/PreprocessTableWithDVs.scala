@@ -24,6 +24,7 @@ import org.apache.spark.sql.delta.DeltaParquetFileFormat._
 import org.apache.spark.sql.delta.commands.DeletionVectorUtils.deletionVectorsReadable
 import org.apache.spark.sql.delta.files.{TahoeFileIndex, TahoeLogFileIndex}
 import org.apache.spark.sql.delta.sources.DeltaSQLConf
+import org.apache.spark.sql.delta.stats.PreparedDeltaFileIndex
 import org.apache.spark.sql.execution.datasources.FileFormat.METADATA_NAME
 import org.apache.spark.sql.execution.datasources.HadoopFsRelation
 import org.apache.spark.sql.execution.datasources.LogicalRelation
@@ -86,10 +87,7 @@ object ScanWithDeletionVectors {
       return None
     }
 
-    val filesWithDVs = index
-      .matchingFiles(partitionFilters = Seq(TrueLiteral), dataFilters = Seq(TrueLiteral))
-      .filter(_.deletionVector != null)
-    if (filesWithDVs.isEmpty) {
+    if (!hasFilesWithDeletionVectors(index)) {
       return None
     }
 
@@ -117,10 +115,7 @@ object ScanWithDeletionVectors {
       return None
     }
 
-    val filesWithDVs = index
-      .matchingFiles(partitionFilters = Seq(TrueLiteral), dataFilters = Seq(TrueLiteral))
-      .filter(_.deletionVector != null)
-    if (filesWithDVs.isEmpty) {
+    if (!hasFilesWithDeletionVectors(index)) {
       return None
     }
 
@@ -129,6 +124,15 @@ object ScanWithDeletionVectors {
     val newScan = createScanWithSkipRowColumn(spark, scan, fileFormat, index, hadoopRelation)
     val rowIndexFilter = createRowIndexFilterNode(newScan)
     Some(Project(planOutput, rowIndexFilter))
+  }
+
+  private def hasFilesWithDeletionVectors(index: TahoeFileIndex): Boolean = index match {
+    case preparedIndex: PreparedDeltaFileIndex =>
+      preparedIndex.preparedScan.files.exists(_.deletionVector != null)
+    case _ =>
+      index
+        .matchingFiles(partitionFilters = Seq(TrueLiteral), dataFilters = Seq(TrueLiteral))
+        .exists(_.deletionVector != null)
   }
 
   private def addRowIndexIfMissing(attribute: AttributeReference): AttributeReference = {
