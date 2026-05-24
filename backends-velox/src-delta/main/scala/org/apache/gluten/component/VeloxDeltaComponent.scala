@@ -45,6 +45,8 @@ class VeloxDeltaComponent extends Component {
           offload)
     }
     legacy.injectTransform(_ => DeltaPostTransformRules.nativeDeletionVectorRule)
-    DeltaPostTransformRules.rules.foreach(r => legacy.injectPostTransform(_ => r))
+    DeltaPostTransformRules.postRulesAfterNativeDeletionVectorCleanup.foreach {
+      r => legacy.injectPostTransform(_ => r)
+    }
   }
 }

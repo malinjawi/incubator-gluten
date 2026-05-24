@@ -40,6 +40,11 @@ object DeltaPostTransformRules {
       pushDownInputFileExprRule ::
       columnMappingRule :: Nil
 
+  def postRulesAfterNativeDeletionVectorCleanup: Seq[Rule[SparkPlan]] =
+    RemoveTransitions ::
+      pushDownInputFileExprRule ::
+      columnMappingRule :: Nil
+
   private val deletionVectorDeletedRowColumnName = "__delta_internal_is_row_deleted"
   private val deletionVectorRowIndexColumnNames =
     Set("__delta_internal_row_index", "_tmp_metadata_row_index", "row_index")
