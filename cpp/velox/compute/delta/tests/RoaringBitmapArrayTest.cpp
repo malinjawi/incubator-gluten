@@ -43,6 +43,25 @@ TEST(RoaringBitmapArrayTest, SerializeRoundTrip) {
   EXPECT_FALSE(restored.containsSafe(2));
 }
 
+TEST(RoaringBitmapArrayTest, MergeCardinalityAndLast) {
+  RoaringBitmapArray left;
+  left.addSafe(1);
+  left.addSafe((1ULL << 32) + 5);
+
+  RoaringBitmapArray right;
+  right.addSafe(1);
+  right.addSafe((2ULL << 32) + 3);
+
+  left.merge(right);
+
+  EXPECT_EQ(left.cardinality(), 3);
+  ASSERT_TRUE(left.last().has_value());
+  EXPECT_EQ(left.last().value(), (2ULL << 32) + 3);
+  EXPECT_TRUE(left.containsSafe(1));
+  EXPECT_TRUE(left.containsSafe((1ULL << 32) + 5));
+  EXPECT_TRUE(left.containsSafe((2ULL << 32) + 3));
+}
+
 TEST(RoaringBitmapArrayTest, RejectsBadMagic) {
   RoaringBitmapArray bitmap;
   std::vector<char> invalid(sizeof(uint32_t), '\0');
