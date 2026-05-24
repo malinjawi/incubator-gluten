@@ -29,7 +29,7 @@ case class OffloadDeltaFilter() extends OffloadSingleNode {
   }
 
   override def offload(plan: SparkPlan): SparkPlan = plan match {
-    case FilterExec(condition, child) if containsIncrementMetricExpr(condition) =>
+    case FilterExec(condition, child) if isCandidate(plan) =>
       DeltaFilterExecTransformer(condition, child)
     case p => p
   }

@@ -29,7 +29,7 @@ case class OffloadDeltaProject() extends OffloadSingleNode {
   }
 
   override def offload(plan: SparkPlan): SparkPlan = plan match {
-    case ProjectExec(projectList, child) if projectList.exists(containsIncrementMetricExpr) =>
+    case ProjectExec(projectList, child) if isCandidate(plan) =>
       DeltaProjectExecTransformer(projectList, child)
     case p => p
   }
