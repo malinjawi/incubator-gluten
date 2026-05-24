@@ -24,8 +24,15 @@ import org.apache.spark.sql.execution.{FilterExec, SparkPlan}
 
 case class OffloadDeltaFilter() extends OffloadSingleNode {
   override def offload(plan: SparkPlan): SparkPlan = plan match {
-    case FilterExec(condition, child) if containsIncrementMetricExpr(condition) =>
+    case FilterExec(condition, child) if isCandidate(plan) =>
       DeltaFilterExecTransformer(condition, child)
     case p => p
+  }
+
+  def isCandidate(plan: SparkPlan): Boolean = plan match {
+    case FilterExec(condition, _) if containsIncrementMetricExpr(condition) =>
+      true
+    case _ =>
+      false
   }
 }
