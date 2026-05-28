@@ -24,7 +24,8 @@ import org.apache.gluten.iterator.Iterators
 import org.apache.gluten.metrics.{IMetrics, IteratorMetricsJniWrapper}
 import org.apache.gluten.sql.shims.SparkShimLoader
 import org.apache.gluten.substrait.plan.PlanNode
-import org.apache.gluten.substrait.rel.{LocalFilesBuilder, LocalFilesNode, SplitInfo}
+import org.apache.gluten.substrait.rel.{DeltaLocalFilesBuilder, LocalFilesBuilder, LocalFilesNode, SplitInfo}
+import org.apache.gluten.substrait.rel.DeltaLocalFilesNode.DeltaFileReadOptions
 import org.apache.gluten.substrait.rel.LocalFilesNode.ReadFileFormat
 import org.apache.gluten.vectorized._
 
@@ -49,6 +50,11 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 class VeloxIteratorApi extends IteratorApi with Logging {
+  private type NormalizedDeltaSplitMetadata =
+    (Seq[java.util.Map[String, Object]], Seq[DeltaFileReadOptions])
+
+  private val deltaMetadataUtilsClassName =
+    "org.apache.gluten.backendsapi.velox.VeloxDeltaMetadataUtils$"
 
   private def setFileSchemaForLocalFiles(
       localFilesNode: LocalFilesNode,
@@ -94,10 +100,33 @@ class VeloxIteratorApi extends IteratorApi with Logging {
     val metadataColumns = partitionFiles
       .map(
         f => SparkShimLoader.getSparkShims.generateMetadataColumns(f, metadataColumnNames).asJava)
-    val otherMetadataColumns = partitionFiles
-      .map(f => SparkShimLoader.getSparkShims.getOtherConstantMetadataColumnValues(f))
+    val (otherMetadataColumns, deltaReadOptions) =
+      normalizeDeltaSplitMetadata(partitionSchema.fields.length, partitionFiles)
+        .getOrElse {
+          (
+            partitionFiles.map {
+              f => SparkShimLoader.getSparkShims.getOtherConstantMetadataColumnValues(f)
+            },
+            Seq.empty[DeltaFileReadOptions])
+        }
 
-    setFileSchemaForLocalFiles(
+    val localFilesNode = if (deltaReadOptions.nonEmpty) {
+      DeltaLocalFilesBuilder.makeDeltaLocalFiles(
+        partitionIndex,
+        paths.asJava,
+        starts.asJava,
+        lengths.asJava,
+        fileSizes.asJava,
+        modificationTimes.asJava,
+        partitionColumns.map(_.asJava).asJava,
+        metadataColumns.asJava,
+        fileFormat,
+        locations.toList.asJava,
+        mapAsJavaMap(properties),
+        otherMetadataColumns.asJava,
+        deltaReadOptions.asJava
+      )
+    } else {
       LocalFilesBuilder.makeLocalFiles(
         partitionIndex,
         paths.asJava,
@@ -111,10 +140,16 @@ class VeloxIteratorApi extends IteratorApi with Logging {
         locations.toList.asJava,
         mapAsJavaMap(properties),
         otherMetadataColumns.asJava
-      ),
+      )
+    }
+
+    val localFiles = setFileSchemaForLocalFiles(
+      localFilesNode,
       dataSchema,
       fileFormat
     )
+
+    localFiles
   }
 
   /** Generate native row partition. */
@@ -177,6 +212,38 @@ class VeloxIteratorApi extends IteratorApi with Logging {
 
   override def injectWriteFilesTempPath(path: String, fileName: String): Unit = {
     NativePlanEvaluator.injectWriteFilesTempPath(path, fileName)
+  }
+
+  private def normalizeDeltaSplitMetadata(
+      partitionColumnCount: Int,
+      partitionFiles: Seq[PartitionedFile]): Option[NormalizedDeltaSplitMetadata] = {
+    try {
+      // scalastyle:off classforname
+      val moduleClass = Class.forName(deltaMetadataUtilsClassName)
+      // scalastyle:on classforname
+      val module = moduleClass.getField("MODULE$").get(null)
+      val normalizeMethod =
+        moduleClass.getMethod("normalizeSplitMetadata", classOf[Int], classOf[java.util.List[_]])
+      val normalized =
+        normalizeMethod.invoke(module, Int.box(partitionColumnCount), partitionFiles.asJava)
+      val metadataMethod = normalized.getClass.getMethod("otherMetadataColumns")
+      val deltaOptionsMethod = normalized.getClass.getMethod("deltaReadOptions")
+      Some(
+        metadataMethod
+          .invoke(normalized)
+          .asInstanceOf[java.util.List[java.util.Map[String, Object]]]
+          .asScala
+          .toSeq,
+        deltaOptionsMethod
+          .invoke(normalized)
+          .asInstanceOf[java.util.List[DeltaFileReadOptions]]
+          .asScala
+          .toSeq
+      )
+    } catch {
+      case _: ClassNotFoundException | _: NoSuchMethodException =>
+        None
+    }
   }
 
   /** Generate Iterator[ColumnarBatch] for first stage. */
