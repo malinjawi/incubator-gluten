@@ -17,7 +17,7 @@
 package org.apache.spark.sql.delta
 
 import org.apache.gluten.config.{GlutenConfig, VeloxDeltaConfig}
-import org.apache.gluten.execution.DeltaScanTransformer
+import org.apache.gluten.execution.{DeltaScanTransformer, HashAggregateExecTransformer}
 import org.apache.gluten.extension.DeltaDeletionVectorDmlUtils
 import org.apache.gluten.extension.columnar.FallbackTags
 
@@ -86,6 +86,10 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
       deletePlans: Int,
       glutenDeleteCommands: Int,
       deltaScanTransformers: Int,
+      nativeHashAggregateTransformers: Int,
+      bitmapAggregatorMentions: Int,
+      nativeBitmapAggregatePlans: Int,
+      sparkBitmapAggregatePlans: Int,
       dmlRowIndexFallbackScans: Int,
       fallbackReasons: Seq[String])
 
@@ -353,6 +357,20 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
   private def summarizePlans(executedPlans: Seq[SparkPlan]): PlanSummary = {
     val planNodes = executedPlans.flatMap(_.collect { case node: SparkPlan => node })
     val fileScans = planNodes.collect { case scan: FileSourceScanExec => scan }
+    val planTexts = executedPlans.map(_.treeString.toLowerCase(Locale.ROOT))
+    val bitmapAggregatorMentions = planTexts.map(countBitmapAggregatorMentions).sum
+    val nativeBitmapAggregatePlans = executedPlans.count {
+      plan =>
+        val planText = plan.treeString.toLowerCase(Locale.ROOT)
+        containsBitmapAggregator(planText) &&
+        plan.collect { case _: HashAggregateExecTransformer => true }.nonEmpty
+    }
+    val sparkBitmapAggregatePlans = executedPlans.count {
+      plan =>
+        val planText = plan.treeString.toLowerCase(Locale.ROOT)
+        containsBitmapAggregator(planText) &&
+        plan.collect { case _: HashAggregateExecTransformer => true }.isEmpty
+    }
     val fallbackReasons =
       planNodes.flatMap(plan => FallbackTags.getOption(plan).map(_.reason())).distinct.sorted
     val dmlFallbackScans = fileScans.count {
@@ -366,9 +384,28 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
       deletePlans = executedPlans.length,
       glutenDeleteCommands = planNodes.count(_.nodeName.contains("GlutenDeleteCommand")),
       deltaScanTransformers = planNodes.count(_.isInstanceOf[DeltaScanTransformer]),
+      nativeHashAggregateTransformers =
+        planNodes.count(_.isInstanceOf[HashAggregateExecTransformer]),
+      bitmapAggregatorMentions = bitmapAggregatorMentions,
+      nativeBitmapAggregatePlans = nativeBitmapAggregatePlans,
+      sparkBitmapAggregatePlans = sparkBitmapAggregatePlans,
       dmlRowIndexFallbackScans = dmlFallbackScans,
       fallbackReasons = fallbackReasons
     )
+  }
+
+  private def containsBitmapAggregator(planText: String): Boolean =
+    planText.contains("bitmapaggregator") || planText.contains("bitmap_aggregator")
+
+  private def countBitmapAggregatorMentions(planText: String): Int =
+    countOccurrences(planText, "bitmapaggregator") +
+      countOccurrences(planText, "bitmap_aggregator")
+
+  private def countOccurrences(text: String, token: String): Int = {
+    Iterator
+      .iterate(text.indexOf(token))(index => text.indexOf(token, index + token.length))
+      .takeWhile(_ >= 0)
+      .size
   }
 
   private def validateDeleteResult(
@@ -408,6 +445,11 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
           s"deletePlans=${result.planSummary.deletePlans}, " +
           s"glutenDeleteCommands=${result.planSummary.glutenDeleteCommands}, " +
           s"deltaScanTransformers=${result.planSummary.deltaScanTransformers}, " +
+          s"nativeHashAggregateTransformers=" +
+          s"${result.planSummary.nativeHashAggregateTransformers}, " +
+          s"bitmapAggregatorMentions=${result.planSummary.bitmapAggregatorMentions}, " +
+          s"nativeBitmapAggregatePlans=${result.planSummary.nativeBitmapAggregatePlans}, " +
+          s"sparkBitmapAggregatePlans=${result.planSummary.sparkBitmapAggregatePlans}, " +
           s"dmlRowIndexFallbackScans=${result.planSummary.dmlRowIndexFallbackScans}, " +
           s"fallbackReasons=${result.planSummary.fallbackReasons.mkString("[", "; ", "]")}")
     }
