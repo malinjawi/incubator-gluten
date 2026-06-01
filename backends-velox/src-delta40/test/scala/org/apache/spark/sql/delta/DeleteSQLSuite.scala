@@ -16,6 +16,8 @@
  */
 package org.apache.spark.sql.delta
 
+import org.apache.gluten.config.VeloxDeltaConfig
+
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.delta.sources.DeltaSQLConf
 import org.apache.spark.sql.delta.test.{DeltaExcludedTestMixin, DeltaSQLCommandTest}
@@ -143,6 +145,169 @@ class DeleteSQLWithDeletionVectorsSuite extends DeleteSQLSuite
     testComplexTempViews("superset cols")(
       text = "SELECT key, value, 1 FROM tab",
       expectResult = Row(0, 3, 1) :: Nil)
+  }
+
+  private val deleteMetricKeys = Seq(
+    "numDeletedRows",
+    "numRemovedFiles",
+    "numDeletionVectorsAdded",
+    "numDeletionVectorsUpdated",
+    "numDeletionVectorsRemoved")
+
+  private case class LatestDeleteActionSummary(
+      addFiles: Int,
+      removeFiles: Int,
+      addFilesWithDvs: Int,
+      addedDvCardinality: Long,
+      addFilesWithStats: Int,
+      addFilesWithPhysicalRecords: Int,
+      metrics: Map[String, Long])
+
+  private case class RepeatedDeleteScenarioResult(
+      finalRows: Seq[Long],
+      finalPartitions: Seq[Int],
+      activeDvFiles: Int,
+      activeDvCardinality: Long,
+      actionSummaries: Seq[LatestDeleteActionSummary])
+
+  private def latestDeleteMetrics(path: String): Map[String, Long] = {
+    val metrics = io.delta.tables.DeltaTable
+      .forPath(path)
+      .history()
+      .select("operationMetrics")
+      .take(1)
+      .head
+      .getMap(0)
+      .asInstanceOf[Map[String, String]]
+      .map { case (key, value) => key -> value.toLong }
+    deleteMetricKeys.map(key => key -> metrics.getOrElse(key, 0L)).toMap
+  }
+
+  private def latestActionSummary(log: DeltaLog, path: String): LatestDeleteActionSummary = {
+    val (adds, removes) = getFileActionsInLastVersion(log)
+    LatestDeleteActionSummary(
+      addFiles = adds.size,
+      removeFiles = removes.size,
+      addFilesWithDvs = adds.count(_.deletionVector != null),
+      addedDvCardinality = adds.flatMap(add => Option(add.deletionVector).map(_.cardinality)).sum,
+      addFilesWithStats = adds.count(add => Option(add.stats).exists(_.nonEmpty)),
+      addFilesWithPhysicalRecords = adds.count(_.numPhysicalRecords.isDefined),
+      metrics = latestDeleteMetrics(path))
+  }
+
+  private def runRepeatedDeleteScenario(nativeWriteEnabled: Boolean): RepeatedDeleteScenarioResult = {
+    var result = Option.empty[RepeatedDeleteScenarioResult]
+    withTempDir { (dir: java.io.File) =>
+      val path = dir.getCanonicalPath
+      spark.range(0, 6, 1, numPartitions = 1)
+        .selectExpr("id", "cast(0 as int) as part")
+        .write
+        .format("delta")
+        .partitionBy("part")
+        .save(path)
+      spark.range(6, 12, 1, numPartitions = 1)
+        .selectExpr("id", "cast(1 as int) as part")
+        .write
+        .format("delta")
+        .partitionBy("part")
+        .mode("append")
+        .save(path)
+
+      val log = DeltaLog.forTable(spark, path)
+      val summaries = Seq.newBuilder[LatestDeleteActionSummary]
+
+      def rows: Seq[Long] =
+        sql(s"SELECT id FROM delta.`$path` ORDER BY id").collect().map(_.getLong(0)).toSeq
+
+      def partitions: Seq[Int] =
+        sql(s"SELECT DISTINCT part FROM delta.`$path` ORDER BY part")
+          .collect()
+          .map(_.getInt(0))
+          .toSeq
+
+      def assertRows(expected: Long*): Unit = {
+        checkAnswer(sql(s"SELECT id FROM delta.`$path` ORDER BY id"), expected.map(Row(_)))
+      }
+
+      def activeDeletionVectorSummary(): (Int, Long) = {
+        val filesWithDVs = getFilesWithDeletionVectors(log)
+        (filesWithDVs.size, filesWithDVs.map(_.deletionVector.cardinality).sum)
+      }
+
+      withSQLConf(VeloxDeltaConfig.ENABLE_NATIVE_WRITE.key -> nativeWriteEnabled.toString) {
+        executeDelete(s"delta.`$path`", "id IN (0, 2, 6)")
+        assertRows(1, 3, 4, 5, 7, 8, 9, 10, 11)
+        assert(activeDeletionVectorSummary() === ((2, 3L)))
+        summaries += latestActionSummary(log, path)
+
+        executeDelete(s"delta.`$path`", "id IN (2, 3, 6, 7, 8)")
+        assertRows(1, 4, 5, 9, 10, 11)
+        assert(activeDeletionVectorSummary() === ((2, 6L)))
+        summaries += latestActionSummary(log, path)
+
+        executeDelete(s"delta.`$path`", "id IN (1, 4, 5)")
+        assertRows(9, 10, 11)
+        assert(partitions === Seq(1))
+        assert(activeDeletionVectorSummary() === ((1, 3L)))
+        summaries += latestActionSummary(log, path)
+      }
+
+      val (activeDvFiles, activeDvCardinality) = activeDeletionVectorSummary()
+      result = Some(RepeatedDeleteScenarioResult(
+        finalRows = rows,
+        finalPartitions = partitions,
+        activeDvFiles = activeDvFiles,
+        activeDvCardinality = activeDvCardinality,
+        actionSummaries = summaries.result()))
+    }
+    result.get
+  }
+
+  test("persistent DV DELETE action shape matches native write disabled path") {
+    val sparkResult = runRepeatedDeleteScenario(nativeWriteEnabled = false)
+    val nativeResult = runRepeatedDeleteScenario(nativeWriteEnabled = true)
+    assert(nativeResult === sparkResult)
+    assert(
+      nativeResult.actionSummaries === Seq(
+        LatestDeleteActionSummary(
+          addFiles = 2,
+          removeFiles = 2,
+          addFilesWithDvs = 2,
+          addedDvCardinality = 3,
+          addFilesWithStats = 2,
+          addFilesWithPhysicalRecords = 2,
+          metrics = Map(
+            "numDeletedRows" -> 3L,
+            "numRemovedFiles" -> 0L,
+            "numDeletionVectorsAdded" -> 2L,
+            "numDeletionVectorsUpdated" -> 0L,
+            "numDeletionVectorsRemoved" -> 0L)),
+        LatestDeleteActionSummary(
+          addFiles = 2,
+          removeFiles = 2,
+          addFilesWithDvs = 2,
+          addedDvCardinality = 6,
+          addFilesWithStats = 2,
+          addFilesWithPhysicalRecords = 2,
+          metrics = Map(
+            "numDeletedRows" -> 3L,
+            "numRemovedFiles" -> 0L,
+            "numDeletionVectorsAdded" -> 0L,
+            "numDeletionVectorsUpdated" -> 2L,
+            "numDeletionVectorsRemoved" -> 0L)),
+        LatestDeleteActionSummary(
+          addFiles = 0,
+          removeFiles = 1,
+          addFilesWithDvs = 0,
+          addedDvCardinality = 0,
+          addFilesWithStats = 0,
+          addFilesWithPhysicalRecords = 0,
+          metrics = Map(
+            "numDeletedRows" -> 3L,
+            "numRemovedFiles" -> 1L,
+            "numDeletionVectorsAdded" -> 0L,
+            "numDeletionVectorsUpdated" -> 0L,
+            "numDeletionVectorsRemoved" -> 1L))))
   }
 
   test("repeated DELETE produces, updates, and removes persistent deletion vectors") {

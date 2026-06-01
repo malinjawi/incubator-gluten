@@ -314,6 +314,36 @@ class DeltaNativeWriteSuite extends DeltaSQLCommandTest {
     }
   }
 
+  test("persistent DV DELETE should not be offloaded when native write is disabled") {
+    withNativeWriteOffloadConf {
+      withTempDir {
+        dir =>
+          val path = dir.getCanonicalPath
+          Seq((1, "a"), (2, "b"), (3, "c")).toDF("id", "value").write.format("delta").save(path)
+          spark.sql(
+            s"ALTER TABLE delta.`$path` SET TBLPROPERTIES ('delta.enableDeletionVectors' = true)")
+
+          val deltaLog = DeltaLog.forTable(spark, path)
+          withSQLConf(
+            DeltaSQLConf.DELETE_USE_PERSISTENT_DELETION_VECTORS.key -> "true",
+            VeloxDeltaConfig.ENABLE_NATIVE_WRITE.key -> "false") {
+            val deleteDf = sql(s"DELETE FROM delta.`$path` WHERE id = 1")
+            assertNoGlutenDeleteCommand(
+              deleteDf.queryExecution.executedPlan,
+              "persistent DV DELETE with native write disabled")
+            deleteDf.collect()
+          }
+
+          assert(spark.read.format("delta").load(path).collect().toSet == Set(
+            Row(2, "b"),
+            Row(3, "c")))
+          assert(
+            files(deltaLog).count(_.deletionVector != null) == 1,
+            "Persistent DV DELETE should still create a Delta deletion vector via the Spark path")
+      }
+    }
+  }
+
   test("DELETE command route is limited to persistent DV row-condition deletes") {
     withNativeWriteOffloadConf {
       withTempDir {
