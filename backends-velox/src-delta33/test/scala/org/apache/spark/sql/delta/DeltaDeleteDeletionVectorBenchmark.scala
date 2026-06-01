@@ -367,6 +367,7 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
           mode.label,
           shape,
           measuredPredicate,
+          conf.rowCount,
           expectedStats.deletedRows,
           result)
     }
@@ -591,19 +592,30 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
       label: String,
       shape: DeleteShape,
       measuredPredicate: String,
+      rowCount: Long,
       expectedDeletedRows: Long,
       result: DeleteResult): Unit = {
     if (iteration == 0) {
+      val deleteDensityPct = percent(expectedDeletedRows, rowCount)
+      val dvCardinalityPct = percent(result.dvCardinality, rowCount)
+      val touchedFilePct = percent(result.filesWithDvs, result.activeFiles)
+      val payloadBytesPerDeletedRow = ratio(result.dvPayloadBytes, expectedDeletedRows)
+      val payloadBytesPerDvRow = ratio(result.dvPayloadBytes, result.dvCardinality)
       writeOutputLine(
         s"$label result: activeFiles=${result.activeFiles}, " +
           s"deleteShape=${shape.label}, " +
           s"deleteLayout=${shape.layout}, " +
           s"deletePredicate=$measuredPredicate, " +
           s"expectedDeletedRows=$expectedDeletedRows, " +
+          s"deleteDensityPct=$deleteDensityPct, " +
           s"touchedFiles=${result.filesWithDvs}, " +
+          s"touchedFilePct=$touchedFilePct, " +
           s"filesWithDvs=${result.filesWithDvs}, " +
           s"dvCardinality=${result.dvCardinality}, " +
+          s"dvCardinalityPct=$dvCardinalityPct, " +
           s"dvPayloadBytes=${result.dvPayloadBytes}, " +
+          s"payloadBytesPerDeletedRow=$payloadBytesPerDeletedRow, " +
+          s"payloadBytesPerDvRow=$payloadBytesPerDvRow, " +
           s"finalRows=${result.finalRows}, " +
           s"finalIdSum=${result.finalIdSum}, " +
           s"deleteMs=${result.deleteMs}, " +
@@ -618,6 +630,22 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
           s"sparkBitmapAggregatePlans=${result.planSummary.sparkBitmapAggregatePlans}, " +
           s"dmlRowIndexFallbackScans=${result.planSummary.dmlRowIndexFallbackScans}, " +
           s"fallbackReasons=${result.planSummary.fallbackReasons.mkString("[", "; ", "]")}")
+    }
+  }
+
+  private def ratio(numerator: Long, denominator: Long): String = {
+    if (denominator == 0L) {
+      "n/a"
+    } else {
+      f"${numerator.toDouble / denominator.toDouble}%.4f"
+    }
+  }
+
+  private def percent(numerator: Long, denominator: Long): String = {
+    if (denominator == 0L) {
+      "n/a"
+    } else {
+      f"${numerator.toDouble * 100.0 / denominator.toDouble}%.4f"
     }
   }
 
