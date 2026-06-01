@@ -16,14 +16,19 @@
  */
 package org.apache.spark.sql.delta
 
-import org.apache.gluten.execution.{DeltaScanTransformer, FilterExecTransformerBase, ProjectExecTransformerBase}
+import org.apache.gluten.config.{GlutenConfig, VeloxDeltaConfig}
+import org.apache.gluten.execution.{DeltaScanTransformer, FilterExecTransformerBase, HashAggregateExecTransformer, ProjectExecTransformerBase}
 import org.apache.gluten.extension.DeltaDeletionVectorDmlUtils
 import org.apache.gluten.extension.columnar.FallbackTags
 
-import org.apache.spark.sql.QueryTest
+import org.apache.spark.sql.{QueryTest, Row}
+import org.apache.spark.sql.delta.commands.GlutenDeleteCommand
 import org.apache.spark.sql.delta.sources.DeltaSQLConf
 import org.apache.spark.sql.delta.test.{DeltaSQLCommandTest, DeltaSQLTestUtils}
 import org.apache.spark.sql.execution.{FileSourceScanExec, FilterExec, ProjectExec, SparkPlan}
+import org.apache.spark.sql.execution.command.ExecutedCommandExec
+import org.apache.spark.sql.execution.datasources.v2.GlutenDeltaLeafRunnableCommand
+import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.tags.ExtendedSQLTest
 import org.apache.spark.util.SparkVersionUtil
@@ -31,19 +36,27 @@ import org.apache.spark.util.SparkVersionUtil
 import org.apache.hadoop.fs.Path
 
 import java.io.File
+import java.util.Locale
 
 @ExtendedSQLTest
 class DeltaDeletionVectorHandoffSuite
   extends QueryTest
   with SharedSparkSession
   with DeltaSQLTestUtils
-  with DeltaSQLCommandTest {
+  with DeltaSQLCommandTest
+  with DeletionVectorsTestUtils {
 
   import testImplicits._
 
   private val DmlFallbackReason = "fallback Delta DV DML row-index scan"
   private val DmlRowIndexColumnNames =
     Seq("__delta_internal_row_index", "_tmp_metadata_row_index", "rowIndexCol")
+  private val EnableNativeDmlRowIndexScan =
+    "spark.gluten.sql.delta.enableNativeDmlRowIndexScan"
+
+  private lazy val isMac = sys.props
+    .get("os.name")
+    .exists(_.toLowerCase(Locale.ROOT).contains("mac"))
 
   private def containsDmlFallbackScan(plan: SparkPlan): Boolean = {
     plan.exists {
@@ -126,6 +139,84 @@ class DeltaDeletionVectorHandoffSuite
     val log = DeltaLog.forTable(spark, new Path(path))
     log.update().allFiles.collect().flatMap(
       file => Option(file.deletionVector).map(_.cardinality)).sum
+  }
+
+  private def captureNativeDeletePlans(path: String, predicate: String): Seq[SparkPlan] = {
+    val confs = Seq(
+      SQLConf.ANSI_ENABLED.key -> "false",
+      GlutenConfig.GLUTEN_ANSI_FALLBACK_ENABLED.key -> "false",
+      DeltaSQLConf.DELTA_COLLECT_STATS.key -> "false",
+      VeloxDeltaConfig.ENABLE_NATIVE_WRITE.key -> "true",
+      EnableNativeDmlRowIndexScan -> "true",
+      DeltaSQLConf.DELETE_USE_PERSISTENT_DELETION_VECTORS.key -> "true",
+      DeltaSQLConf.DELETION_VECTORS_USE_METADATA_ROW_INDEX.key -> "true",
+      DeltaConfigs.ENABLE_DELETION_VECTORS_CREATION.defaultTablePropertyKey -> "true"
+    ) ++
+      (if (isMac) {
+         Seq(GlutenConfig.NATIVE_VALIDATION_ENABLED.key -> "false")
+       } else {
+         Seq.empty
+       })
+
+    var executedPlans: Seq[SparkPlan] = Seq.empty
+    withSQLConf(confs: _*) {
+      executedPlans = DeltaTestUtils.withAllPlansCaptured(spark) {
+        spark.sql(s"DELETE FROM delta.`$path` WHERE $predicate").collect()
+      }.map(_.executedPlan)
+    }
+    executedPlans
+  }
+
+  private def assertNativeBitmapDeletePlans(plans: Seq[SparkPlan], context: String): Unit = {
+    val planText = plans.map(_.treeString).mkString("\n---\n")
+    assert(plans.exists(hasGlutenDeleteCommand), planText)
+    assert(plans.exists(hasDeltaScanTransformer), planText)
+    assert(plans.exists(hasNativeBitmapAggregate), planText)
+    assert(!plans.exists(hasSparkBitmapAggregate), planText)
+    assert(!plans.exists(containsDmlFallbackScan), planText)
+  }
+
+  private def hasGlutenDeleteCommand(plan: SparkPlan): Boolean = {
+    val commandClassMatch = plan
+      .collectFirst {
+        case ExecutedCommandExec(GlutenDeltaLeafRunnableCommand(_: GlutenDeleteCommand)) => true
+      }
+      .getOrElse(false)
+    commandClassMatch ||
+    plan.exists(_.nodeName.contains("GlutenDeleteCommand")) ||
+    plan.treeString.contains("GlutenDeleteCommand")
+  }
+
+  private def hasDeltaScanTransformer(plan: SparkPlan): Boolean =
+    plan.collect { case _: DeltaScanTransformer => true }.nonEmpty
+
+  private def hasNativeBitmapAggregate(plan: SparkPlan): Boolean =
+    containsBitmapAggregator(plan) &&
+      plan.collect { case _: HashAggregateExecTransformer => true }.nonEmpty
+
+  private def hasSparkBitmapAggregate(plan: SparkPlan): Boolean =
+    containsBitmapAggregator(plan) &&
+      plan.collect { case _: HashAggregateExecTransformer => true }.isEmpty
+
+  private def containsBitmapAggregator(plan: SparkPlan): Boolean = {
+    val planText = plan.treeString.toLowerCase(Locale.ROOT)
+    planText.contains("bitmapaggregator") || planText.contains("bitmap_aggregator")
+  }
+
+  private def assertDeleteMetrics(path: String, expected: (String, Long)*): Unit = {
+    val metrics = io.delta.tables.DeltaTable
+      .forPath(path)
+      .history()
+      .select("operationMetrics")
+      .take(1)
+      .head
+      .getMap(0)
+      .asInstanceOf[Map[String, String]]
+      .map { case (key, value) => key -> value.toLong }
+    expected.foreach {
+      case (key, value) =>
+        assert(metrics.getOrElse(key, -1L) === value, s"Unexpected metric $key: $metrics")
+    }
   }
 
   test("Spark 3.5 Delta DV scan handoff should filter deleted rows") {
@@ -223,6 +314,54 @@ class DeltaDeletionVectorHandoffSuite
         assert(activeDvCardinality(path) === 4L)
 
         assertReadPlanAfterDmlFallback(path, useMetadataRowIndex = true)
+    }
+  }
+
+  test("Delta DELETE DV native bitmap construction should create and update persistent DVs") {
+    withTempDir {
+      tempDir =>
+        val path = tempDir.getCanonicalPath
+        spark.range(0, 10, 1, numPartitions = 1).toDF("id").write.format("delta").save(path)
+        val log = DeltaLog.forTable(spark, path)
+
+        def assertRows(expected: Long*): Unit = {
+          checkAnswer(
+            spark.sql(s"SELECT id FROM delta.`$path` ORDER BY id"),
+            expected.map(id => Row(id)))
+        }
+
+        def assertActiveDeletionVectors(expectedFiles: Int, expectedCardinality: Long): Unit = {
+          val filesWithDVs = getFilesWithDeletionVectors(log)
+          assert(filesWithDVs.size === expectedFiles)
+          assert(filesWithDVs.map(_.deletionVector.cardinality).sum === expectedCardinality)
+          assertDeletionVectorsExist(log, filesWithDVs)
+        }
+
+        spark.sql(
+          s"ALTER TABLE delta.`$path` SET TBLPROPERTIES " +
+            "('delta.enableDeletionVectors' = true)")
+
+        val createPlans = captureNativeDeletePlans(path, "id % 3 = 0")
+        assertRows(1, 2, 4, 5, 7, 8)
+        assertActiveDeletionVectors(expectedFiles = 1, expectedCardinality = 4)
+        assertDeleteMetrics(
+          path,
+          "numDeletedRows" -> 4L,
+          "numDeletionVectorsAdded" -> 1L,
+          "numDeletionVectorsUpdated" -> 0L,
+          "numDeletionVectorsRemoved" -> 0L)
+        assertNativeBitmapDeletePlans(createPlans, "create-DV DELETE")
+
+        val updatePlans = captureNativeDeletePlans(path, "id IN (0, 4, 5, 7)")
+        assertRows(1, 2, 8)
+        assertActiveDeletionVectors(expectedFiles = 1, expectedCardinality = 7)
+        assertDeleteMetrics(
+          path,
+          "numDeletedRows" -> 3L,
+          "numDeletionVectorsAdded" -> 0L,
+          "numDeletionVectorsUpdated" -> 1L,
+          "numDeletionVectorsRemoved" -> 0L)
+        assertNativeBitmapDeletePlans(updatePlans, "update-existing-DV DELETE")
     }
   }
 }
