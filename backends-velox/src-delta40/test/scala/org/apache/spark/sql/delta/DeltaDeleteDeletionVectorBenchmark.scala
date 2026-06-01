@@ -50,7 +50,7 @@ import scala.util.Try
  *
  * Delete modes: create, update, all. Execution modes: spark, gluten-jvm-bitmap,
  * gluten-native-bitmap, gluten, all. Delete shapes: sparse1, mod10, dense50, uniformhot,
- * fileskewhot.
+ * fileskewhot, allshapes.
  */
 object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
   private val EnableNativeDmlRowIndexScan =
@@ -114,52 +114,55 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
 
   override def runBenchmarkSuite(mainArgs: Array[String]): Unit = {
     val conf = parseArgs(mainArgs)
-    val shape = deleteShape(conf.deleteShape, conf.files)
+    val shapes = deleteShapes(conf.deleteShape, conf.files)
     executionModes(conf.executionMode).foreach {
       mode =>
         sparkSession = createSparkSession(conf, mode)
         benchmarkRoot = Utils.createTempDir(
           namePrefix = s"delta-delete-dv-benchmark-${mode.label}")
         try {
-          conf.deleteMode match {
-            case "create" =>
-              runDeleteBenchmark(
-                name = "Delta DELETE creates deletion vectors",
-                conf = conf,
-                mode = mode,
-                existingDv = false,
-                shape = shape,
-                measuredPredicate = shape.createPredicate
-              )
-            case "update" =>
-              runDeleteBenchmark(
-                name = "Delta DELETE updates existing deletion vectors",
-                conf = conf,
-                mode = mode,
-                existingDv = true,
-                shape = shape,
-                measuredPredicate = shape.updateMeasuredPredicate
-              )
-            case "all" =>
-              runDeleteBenchmark(
-                name = "Delta DELETE creates deletion vectors",
-                conf = conf,
-                mode = mode,
-                existingDv = false,
-                shape = shape,
-                measuredPredicate = shape.createPredicate
-              )
-              runDeleteBenchmark(
-                name = "Delta DELETE updates existing deletion vectors",
-                conf = conf,
-                mode = mode,
-                existingDv = true,
-                shape = shape,
-                measuredPredicate = shape.updateMeasuredPredicate
-              )
-            case other =>
-              throw new IllegalArgumentException(
-                s"Unknown delete mode '$other'. Expected create, update, or all.")
+          shapes.foreach {
+            shape =>
+              conf.deleteMode match {
+                case "create" =>
+                  runDeleteBenchmark(
+                    name = "Delta DELETE creates deletion vectors",
+                    conf = conf,
+                    mode = mode,
+                    existingDv = false,
+                    shape = shape,
+                    measuredPredicate = shape.createPredicate
+                  )
+                case "update" =>
+                  runDeleteBenchmark(
+                    name = "Delta DELETE updates existing deletion vectors",
+                    conf = conf,
+                    mode = mode,
+                    existingDv = true,
+                    shape = shape,
+                    measuredPredicate = shape.updateMeasuredPredicate
+                  )
+                case "all" =>
+                  runDeleteBenchmark(
+                    name = "Delta DELETE creates deletion vectors",
+                    conf = conf,
+                    mode = mode,
+                    existingDv = false,
+                    shape = shape,
+                    measuredPredicate = shape.createPredicate
+                  )
+                  runDeleteBenchmark(
+                    name = "Delta DELETE updates existing deletion vectors",
+                    conf = conf,
+                    mode = mode,
+                    existingDv = true,
+                    shape = shape,
+                    measuredPredicate = shape.updateMeasuredPredicate
+                  )
+                case other =>
+                  throw new IllegalArgumentException(
+                    s"Unknown delete mode '$other'. Expected create, update, or all.")
+              }
           }
         } finally {
           stopSpark()
@@ -192,6 +195,15 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
         args.lift(4).map(_.toLowerCase(Locale.ROOT)).getOrElse(defaults.executionMode),
       deleteShape = args.lift(5).map(_.toLowerCase(Locale.ROOT)).getOrElse(defaults.deleteShape)
     )
+  }
+
+  private def deleteShapes(shape: String, files: Int): Seq[DeleteShape] = {
+    shape match {
+      case "allshapes" | "all-shapes" | "matrix" =>
+        Seq("sparse1", "mod10", "dense50", "uniformhot", "fileskewhot")
+          .map(deleteShape(_, files))
+      case other => Seq(deleteShape(other, files))
+    }
   }
 
   private def deleteShape(shape: String, files: Int): DeleteShape = {
@@ -242,7 +254,7 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
       case other =>
         throw new IllegalArgumentException(
           s"Unknown delete shape '$other'. Expected sparse1, mod10, dense50, " +
-            "uniformhot, or fileskewhot.")
+            "uniformhot, fileskewhot, or allshapes.")
     }
   }
 
