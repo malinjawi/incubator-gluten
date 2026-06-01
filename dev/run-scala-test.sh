@@ -113,6 +113,45 @@ log_timing() {
   echo -e "${CYAN}[TIME]${NC} ${label}: ${MAGENTA}${formatted}${NC}"
 }
 
+hash_text() {
+  local input=$1
+  if command -v md5sum >/dev/null 2>&1; then
+    printf "%s" "$input" | md5sum | cut -d' ' -f1
+  elif command -v md5 >/dev/null 2>&1; then
+    printf "%s" "$input" | md5 -q
+  elif command -v shasum >/dev/null 2>&1; then
+    printf "%s" "$input" | shasum -a 256 | cut -d' ' -f1
+  else
+    log_error "Cannot hash build cache key: expected md5sum, md5, or shasum"
+    exit 1
+  fi
+}
+
+file_uri() {
+  local path=$1
+  local encoded
+
+  encoded=${path//%/%25}
+  encoded=${encoded// /%20}
+  encoded=${encoded//#/%23}
+  encoded=${encoded//\?/%3F}
+  encoded=${encoded//\[/%5B}
+  encoded=${encoded//\]/%5D}
+
+  echo "file://${encoded}"
+}
+
+print_shell_command() {
+  local cmd=$1
+  shift
+
+  printf "%q" "$cmd"
+  for arg in "$@"; do
+    printf " %q" "$arg"
+  done
+  echo
+}
+
 # Print timing summary table. Args: include_step4 (true/false)
 print_timing_summary() {
   [[ "$ENABLE_PROFILER" != "true" ]] && return
@@ -442,7 +481,7 @@ log_info "Detected Scala version: ${SCALA_VERSION}"
 
 CACHE_DIR="${GLUTEN_HOME}/.run-scala-test-cache"
 mkdir -p "$CACHE_DIR"
-CACHE_KEY=$(echo "${PROFILES}__${MODULE}" | md5sum | cut -d' ' -f1)
+CACHE_KEY=$(hash_text "${PROFILES}__${MODULE}")
 BUILD_SENTINEL="${CACHE_DIR}/sentinel_${CACHE_KEY}"
 CLASSPATH_CACHE="${CACHE_DIR}/classpath_${CACHE_KEY}.txt"
 JVM_ARGS_CACHE="${CACHE_DIR}/jvm_args_${CACHE_KEY}.txt"
@@ -653,7 +692,7 @@ for _item in "${_CP_ITEMS[@]}"; do
   echo "$_item" >> "${PATHING_MANIFEST_DIR}/META-INF/classpath.txt"
   # Ensure directories end with / (required by Class-Path spec for directories)
   [[ -d "$_item" && "$_item" != */ ]] && _item="${_item}/"
-  CP_URIS="${CP_URIS} file://${_item}"
+  CP_URIS="${CP_URIS} $(file_uri "${_item}")"
 done
 CP_URIS="${CP_URIS# }"
 
@@ -708,7 +747,7 @@ done
 if [[ "$EXPORT_ONLY" == "true" ]]; then
   echo ""
   echo -e "${YELLOW}# Run the test with:${NC}"
-  echo "${JAVA_CMD} ${JAVA_ARGS[*]}"
+  print_shell_command "${JAVA_CMD}" "${JAVA_ARGS[@]}"
   echo ""
   print_timing_summary false
   exit 0
