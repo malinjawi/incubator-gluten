@@ -48,6 +48,11 @@ namespace gluten::delta {
 class RoaringBitmapArray {
  public:
   static constexpr uint32_t kPortableSerializationFormatMagicNumber = 1681511377;
+  // Matches Delta JVM RoaringBitmapArray.MAX_REPRESENTABLE_VALUE.
+  static constexpr uint32_t kMaxHighKey = 0x7ffffffe;
+  static constexpr uint32_t kMaxLowKeyForMaxHighKey = 0x80000000;
+  static constexpr uint64_t kMaxRepresentableValue =
+      (static_cast<uint64_t>(kMaxHighKey) << 32) | kMaxLowKeyForMaxHighKey;
 
   void addSafe(uint64_t value);
   bool containsSafe(uint64_t value) const;

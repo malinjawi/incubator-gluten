@@ -26,6 +26,7 @@ add_test(
 
 add_executable(
   velox_delta_read_test DeltaConnectorTest.cpp
+                        DeltaBitmapAggregatorTest.cpp
                         DeltaDeletionVectorReaderTest.cpp DeltaSplitTest.cpp)
 
 target_link_libraries(velox_delta_read_test velox roaring

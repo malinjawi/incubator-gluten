@@ -89,10 +89,22 @@ uint64_t composeFromHighLowBytes(uint32_t high, uint32_t low) {
 } // namespace
 
 void RoaringBitmapArray::addSafe(uint64_t value) {
+  VELOX_CHECK_LE(
+      value,
+      kMaxRepresentableValue,
+      "Delta RoaringBitmapArray row index {} exceeds max representable value {}",
+      value,
+      kMaxRepresentableValue);
   bitmaps_[highBytes(value)].add(lowBytes(value));
 }
 
 bool RoaringBitmapArray::containsSafe(uint64_t value) const {
+  VELOX_CHECK_LE(
+      value,
+      kMaxRepresentableValue,
+      "Delta RoaringBitmapArray row index {} exceeds max representable value {}",
+      value,
+      kMaxRepresentableValue);
   auto it = bitmaps_.find(highBytes(value));
   if (it == bitmaps_.end()) {
     return false;
@@ -170,10 +182,17 @@ std::string RoaringBitmapArray::serializeToString(bool optimize) const {
 
 void RoaringBitmapArray::deserialize(const char* buffer, size_t size) {
   VELOX_CHECK_NOT_NULL(buffer, "RoaringBitmapArray input buffer is null");
-  VELOX_CHECK_GE(size, sizeof(uint32_t) + sizeof(uint64_t), "RoaringBitmapArray payload is too small: {}", size);
+  VELOX_CHECK_GE(
+      size,
+      sizeof(uint32_t) + sizeof(uint64_t),
+      "RoaringBitmapArray payload is too small: {}",
+      size);
   const auto magic = readUint32LittleEndian(buffer);
   VELOX_CHECK_EQ(
-      magic, kPortableSerializationFormatMagicNumber, "Unexpected RoaringBitmapArray magic number {}", magic);
+      magic,
+      kPortableSerializationFormatMagicNumber,
+      "Unexpected RoaringBitmapArray magic number {}",
+      magic);
 
   bitmaps_.clear();
   const char* cursor = buffer + sizeof(uint32_t);
@@ -185,8 +204,16 @@ void RoaringBitmapArray::deserialize(const char* buffer, size_t size) {
   uint32_t previousKey = 0;
   bool hasPreviousKey = false;
   for (uint64_t i = 0; i < bitmapCount; ++i) {
-    VELOX_CHECK_GE(remaining, sizeof(uint32_t), "RoaringBitmapArray payload ended before bitmap key");
+    VELOX_CHECK_GE(
+        remaining,
+        sizeof(uint32_t),
+        "RoaringBitmapArray payload ended before bitmap key");
     const auto key = readUint32LittleEndian(cursor);
+    VELOX_CHECK_LE(
+        key,
+        kMaxHighKey,
+        "RoaringBitmapArray bitmap key {} exceeds Delta's max high key",
+        key);
     cursor += sizeof(uint32_t);
     remaining -= sizeof(uint32_t);
 
@@ -196,10 +223,18 @@ void RoaringBitmapArray::deserialize(const char* buffer, size_t size) {
     hasPreviousKey = true;
     previousKey = key;
 
-    const auto bitmapSize = roaring::Roaring::serializedSizeInBytesSafe(cursor, remaining);
+    const auto bitmapSize =
+        roaring::api::roaring_bitmap_portable_deserialize_size(cursor, remaining);
     VELOX_CHECK_GT(bitmapSize, 0, "Invalid serialized roaring bitmap in RoaringBitmapArray");
-    VELOX_CHECK_LE(bitmapSize, remaining, "Serialized roaring bitmap exceeds remaining payload size");
-    bitmaps_.emplace(key, roaring::Roaring::readSafe(cursor, remaining));
+    VELOX_CHECK_LE(
+        bitmapSize,
+        remaining,
+        "Serialized roaring bitmap exceeds remaining payload size");
+    auto bitmap = roaring::Roaring::readSafe(cursor, remaining);
+    VELOX_CHECK(
+        key != kMaxHighKey || bitmap.isEmpty() || bitmap.maximum() <= kMaxLowKeyForMaxHighKey,
+        "RoaringBitmapArray bitmap for max high key exceeds Delta's max representable value");
+    bitmaps_.emplace(key, std::move(bitmap));
     cursor += bitmapSize;
     remaining -= bitmapSize;
   }
