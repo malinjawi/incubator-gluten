@@ -48,14 +48,10 @@ class DeltaBitmapAggregatorTest : public HiveConnectorTestBase {
       int64_t expectedCardinality,
       std::optional<int64_t> expectedLast) {
     const auto bitmapResult = results->childAt(column)->as<facebook::velox::RowVector>();
-    EXPECT_EQ(
-        bitmapResult->childAt(0)->asFlatVector<int64_t>()->valueAt(row),
-        expectedCardinality);
+    EXPECT_EQ(bitmapResult->childAt(0)->asFlatVector<int64_t>()->valueAt(row), expectedCardinality);
     if (expectedLast.has_value()) {
       EXPECT_FALSE(bitmapResult->childAt(1)->isNullAt(row));
-      EXPECT_EQ(
-          bitmapResult->childAt(1)->asFlatVector<int64_t>()->valueAt(row),
-          expectedLast.value());
+      EXPECT_EQ(bitmapResult->childAt(1)->asFlatVector<int64_t>()->valueAt(row), expectedLast.value());
     } else {
       EXPECT_TRUE(bitmapResult->childAt(1)->isNullAt(row));
     }
@@ -69,14 +65,10 @@ class DeltaBitmapAggregatorTest : public HiveConnectorTestBase {
 
 TEST_F(DeltaBitmapAggregatorTest, SingleAggregationIgnoresNullsAndDuplicates) {
   const auto input = makeRowVector(
-      {"row_index"},
-      {makeNullableFlatVector<int64_t>(
-          {1, 7, 7, std::nullopt, static_cast<int64_t>(1ULL << 33)})});
+      {"row_index"}, {makeNullableFlatVector<int64_t>({1, 7, 7, std::nullopt, static_cast<int64_t>(1ULL << 33)})});
 
-  const auto plan = PlanBuilder(pool())
-                        .values({input})
-                        .singleAggregation({}, {"bitmapaggregator(row_index) AS dv"})
-                        .planNode();
+  const auto plan =
+      PlanBuilder(pool()).values({input}).singleAggregation({}, {"bitmapaggregator(row_index) AS dv"}).planNode();
   const auto results = AssertQueryBuilder(plan).copyResults(pool());
   ASSERT_EQ(results->size(), 1);
 
@@ -104,8 +96,7 @@ TEST_F(DeltaBitmapAggregatorTest, PartialFinalAggregationMergesPayloadsByGroup) 
   for (facebook::velox::vector_size_t row = 0; row < results->size(); ++row) {
     const auto fileId = results->childAt(0)->asFlatVector<int64_t>()->valueAt(row);
     if (fileId == 10) {
-      const auto bitmap =
-          extractBitmap(results, row, 1, 2, static_cast<int64_t>(1ULL << 32));
+      const auto bitmap = extractBitmap(results, row, 1, 2, static_cast<int64_t>(1ULL << 32));
       EXPECT_TRUE(bitmap.containsSafe(1));
       EXPECT_TRUE(bitmap.containsSafe(1ULL << 32));
     } else {
@@ -118,13 +109,9 @@ TEST_F(DeltaBitmapAggregatorTest, PartialFinalAggregationMergesPayloadsByGroup) 
 }
 
 TEST_F(DeltaBitmapAggregatorTest, AllNullInputProducesEmptyBitmap) {
-  const auto input = makeRowVector(
-      {"row_index"},
-      {makeNullableFlatVector<int64_t>({std::nullopt})});
-  const auto plan = PlanBuilder(pool())
-                        .values({input})
-                        .singleAggregation({}, {"bitmapaggregator(row_index) AS dv"})
-                        .planNode();
+  const auto input = makeRowVector({"row_index"}, {makeNullableFlatVector<int64_t>({std::nullopt})});
+  const auto plan =
+      PlanBuilder(pool()).values({input}).singleAggregation({}, {"bitmapaggregator(row_index) AS dv"}).planNode();
   const auto results = AssertQueryBuilder(plan).copyResults(pool());
   ASSERT_EQ(results->size(), 1);
 
@@ -134,28 +121,19 @@ TEST_F(DeltaBitmapAggregatorTest, AllNullInputProducesEmptyBitmap) {
 
 TEST_F(DeltaBitmapAggregatorTest, RejectsNegativeRowIndexes) {
   const auto input = makeRowVector({"row_index"}, {makeFlatVector<int64_t>({-1})});
-  const auto plan = PlanBuilder(pool())
-                        .values({input})
-                        .singleAggregation({}, {"bitmapaggregator(row_index) AS dv"})
-                        .planNode();
+  const auto plan =
+      PlanBuilder(pool()).values({input}).singleAggregation({}, {"bitmapaggregator(row_index) AS dv"}).planNode();
 
-  VELOX_ASSERT_THROW(
-      AssertQueryBuilder(plan).copyResults(pool()),
-      "Delta bitmap row index cannot be negative");
+  VELOX_ASSERT_THROW(AssertQueryBuilder(plan).copyResults(pool()), "Delta bitmap row index cannot be negative");
 }
 
 TEST_F(DeltaBitmapAggregatorTest, RejectsRowIndexesAboveDeltaMax) {
-  const auto tooLarge =
-      static_cast<int64_t>(RoaringBitmapArray::kMaxRepresentableValue + 1);
+  const auto tooLarge = static_cast<int64_t>(RoaringBitmapArray::kMaxRepresentableValue + 1);
   const auto input = makeRowVector({"row_index"}, {makeFlatVector<int64_t>({tooLarge})});
-  const auto plan = PlanBuilder(pool())
-                        .values({input})
-                        .singleAggregation({}, {"bitmapaggregator(row_index) AS dv"})
-                        .planNode();
+  const auto plan =
+      PlanBuilder(pool()).values({input}).singleAggregation({}, {"bitmapaggregator(row_index) AS dv"}).planNode();
 
-  VELOX_ASSERT_THROW(
-      AssertQueryBuilder(plan).copyResults(pool()),
-      "exceeds max representable value");
+  VELOX_ASSERT_THROW(AssertQueryBuilder(plan).copyResults(pool()), "exceeds max representable value");
 }
 
 } // namespace

@@ -45,9 +45,7 @@ class DeltaBitmapAggregatorFunction {
     bitmap.addSafe(static_cast<uint64_t>(value));
   }
 
-  static bool toIntermediate(
-      exec::out_type<IntermediateType>& out,
-      exec::optional_arg_type<int64_t> value) {
+  static bool toIntermediate(exec::out_type<IntermediateType>& out, exec::optional_arg_type<int64_t> value) {
     delta::RoaringBitmapArray bitmap;
     if (value.has_value()) {
       addRowIndex(bitmap, value.value());
@@ -60,13 +58,9 @@ class DeltaBitmapAggregatorFunction {
   struct AccumulatorType {
     static constexpr bool use_external_memory_ = true;
 
-    explicit AccumulatorType(
-        HashStringAllocator* /* allocator */,
-        DeltaBitmapAggregatorFunction* /* fn */) {}
+    explicit AccumulatorType(HashStringAllocator* /* allocator */, DeltaBitmapAggregatorFunction* /* fn */) {}
 
-    bool addInput(
-        HashStringAllocator* /* allocator */,
-        exec::optional_arg_type<int64_t> value) {
+    bool addInput(HashStringAllocator* /* allocator */, exec::optional_arg_type<int64_t> value) {
       if (!value.has_value()) {
         return false;
       }
@@ -74,9 +68,7 @@ class DeltaBitmapAggregatorFunction {
       return true;
     }
 
-    bool combine(
-        HashStringAllocator* /* allocator */,
-        exec::optional_arg_type<IntermediateType> other) {
+    bool combine(HashStringAllocator* /* allocator */, exec::optional_arg_type<IntermediateType> other) {
       if (!other.has_value()) {
         return false;
       }
@@ -87,9 +79,7 @@ class DeltaBitmapAggregatorFunction {
       return true;
     }
 
-    bool writeIntermediateResult(
-        bool /* nonNullGroup */,
-        exec::out_type<IntermediateType>& out) {
+    bool writeIntermediateResult(bool /* nonNullGroup */, exec::out_type<IntermediateType>& out) {
       const auto serialized = bitmap.serializeToString();
       out.copy_from(StringView(serialized.data(), serialized.size()));
       return true;
@@ -98,11 +88,10 @@ class DeltaBitmapAggregatorFunction {
     bool writeFinalResult(bool /* nonNullGroup */, exec::out_type<OutputType>& out) {
       const auto serialized = bitmap.serializeToString(true);
       const auto last = bitmap.last();
-      out.copy_from(
-          std::make_tuple(
-              static_cast<int64_t>(bitmap.cardinality()),
-              last.has_value() ? std::optional<int64_t>(static_cast<int64_t>(*last)) : std::nullopt,
-              StringView(serialized.data(), serialized.size())));
+      out.copy_from(std::make_tuple(
+          static_cast<int64_t>(bitmap.cardinality()),
+          last.has_value() ? std::optional<int64_t>(static_cast<int64_t>(*last)) : std::nullopt,
+          StringView(serialized.data(), serialized.size())));
       return true;
     }
 
@@ -112,10 +101,7 @@ class DeltaBitmapAggregatorFunction {
 
 } // namespace
 
-void registerDeltaBitmapAggregator(
-    const std::string& prefix,
-    bool withCompanionFunctions,
-    bool overwrite) {
+void registerDeltaBitmapAggregator(const std::string& prefix, bool withCompanionFunctions, bool overwrite) {
   std::vector<std::shared_ptr<exec::AggregateFunctionSignature>> signatures{
       exec::AggregateFunctionSignatureBuilder()
           .argumentType("bigint")
@@ -131,9 +117,7 @@ void registerDeltaBitmapAggregator(
          const TypePtr& resultType,
          const core::QueryConfig& /* config */) -> std::unique_ptr<exec::Aggregate> {
         VELOX_CHECK_EQ(argTypes.size(), 1, "bitmapaggregator takes one argument");
-        VELOX_CHECK_EQ(
-            argTypes[0]->kind(),
-            exec::isRawInput(step) ? TypeKind::BIGINT : TypeKind::VARBINARY);
+        VELOX_CHECK_EQ(argTypes[0]->kind(), exec::isRawInput(step) ? TypeKind::BIGINT : TypeKind::VARBINARY);
         return std::make_unique<exec::SimpleAggregateAdapter<DeltaBitmapAggregatorFunction>>(
             step, argTypes, resultType);
       },

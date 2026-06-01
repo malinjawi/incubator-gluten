@@ -84,9 +84,7 @@ RowIndexSummary summarizeRowIndexes(const std::vector<uint64_t>& rows) {
 
   const auto rowSpan = *maxIt - *minIt + 1;
   return RowIndexSummary{
-      rowSpan,
-      buckets.size(),
-      static_cast<double>(rows.size()) * 100.0 / static_cast<double>(rowSpan)};
+      rowSpan, buckets.size(), static_cast<double>(rows.size()) * 100.0 / static_cast<double>(rowSpan)};
 }
 
 std::string buildPayload(const std::vector<uint64_t>& rows, bool optimize) {
@@ -127,8 +125,7 @@ std::vector<uint64_t> makeProbeRows(const std::vector<uint64_t>& rows) {
   }
 
   const auto stride = std::max<size_t>(rows.size() / hitProbeCount, 1);
-  for (size_t i = 0; i < rows.size() && probes.size() < hitProbeCount * 2;
-       i += stride) {
+  for (size_t i = 0; i < rows.size() && probes.size() < hitProbeCount * 2; i += stride) {
     probes.push_back(rows[i]);
     probes.push_back(rows.back() + 4096 + probes.size());
   }
@@ -143,8 +140,7 @@ void setCounters(
     size_t partialCount = 0) {
   state.counters["rows"] = benchmark::Counter(rowCount);
   state.counters["payload_bytes"] = benchmark::Counter(payloadBytes);
-  state.counters["payload_bytes_per_row"] =
-      benchmark::Counter(static_cast<double>(payloadBytes) / rowCount);
+  state.counters["payload_bytes_per_row"] = benchmark::Counter(static_cast<double>(payloadBytes) / rowCount);
   state.counters["row_span"] = benchmark::Counter(summary.rowSpan);
   state.counters["bucket_count"] = benchmark::Counter(summary.bucketCount);
   state.counters["density_pct"] = benchmark::Counter(summary.densityPercent);
@@ -203,10 +199,7 @@ void BM_DeserializeAndProbe(benchmark::State& state, RowIndexPattern pattern) {
   state.counters["hits"] = benchmark::Counter(hits);
 }
 
-void BM_MergePartials(
-    benchmark::State& state,
-    RowIndexPattern pattern,
-    PartialDistribution distribution) {
+void BM_MergePartials(benchmark::State& state, RowIndexPattern pattern, PartialDistribution distribution) {
   const auto rows = makeRowIndexes(state.range(0), pattern);
   const auto summary = summarizeRowIndexes(rows);
   const auto partialCount = static_cast<size_t>(state.range(1));
@@ -272,11 +265,7 @@ BENCHMARK_CAPTURE(
     PartialDistribution::kRoundRobin)
     ->Args({1 << 20, 64})
     ->Unit(benchmark::kMillisecond);
-BENCHMARK_CAPTURE(
-    BM_MergePartials,
-    Sparse_1M_64Partials,
-    RowIndexPattern::kSparse,
-    PartialDistribution::kContiguous)
+BENCHMARK_CAPTURE(BM_MergePartials, Sparse_1M_64Partials, RowIndexPattern::kSparse, PartialDistribution::kContiguous)
     ->Args({1 << 20, 64})
     ->Unit(benchmark::kMillisecond);
 BENCHMARK_CAPTURE(
