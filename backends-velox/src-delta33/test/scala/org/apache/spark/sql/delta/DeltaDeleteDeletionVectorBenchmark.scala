@@ -48,7 +48,8 @@ import scala.util.Try
  *     [rows] [files] [iterations] [deleteMode] [executionMode]
  * }}}
  *
- * Delete modes: create, update, all. Execution modes: spark, gluten, all.
+ * Delete modes: create, update, all. Execution modes: spark, gluten-jvm-bitmap,
+ * gluten-native-bitmap, gluten, all.
  */
 object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
   private val EnableNativeDmlRowIndexScan =
@@ -69,7 +70,8 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
   private case class DeleteConfs(
       glutenEnabled: Boolean,
       nativeWriteEnabled: Boolean,
-      nativeDmlRowIndexScanEnabled: Boolean)
+      nativeDmlRowIndexScanEnabled: Boolean,
+      scanOnly: Boolean)
 
   private case class DeleteResult(
       activeFiles: Long,
@@ -181,21 +183,36 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
       deleteConfs = DeleteConfs(
         glutenEnabled = false,
         nativeWriteEnabled = false,
-        nativeDmlRowIndexScanEnabled = false))
-    val glutenNative = ExecutionMode(
-      label = "gluten-native",
+        nativeDmlRowIndexScanEnabled = false,
+        scanOnly = false)
+    )
+    val glutenJvmBitmap = ExecutionMode(
+      label = "gluten-jvm-bitmap",
       withGlutenPlugin = true,
       deleteConfs = DeleteConfs(
         glutenEnabled = true,
         nativeWriteEnabled = true,
-        nativeDmlRowIndexScanEnabled = true))
+        nativeDmlRowIndexScanEnabled = true,
+        scanOnly = true)
+    )
+    val glutenNativeBitmap = ExecutionMode(
+      label = "gluten-native-bitmap",
+      withGlutenPlugin = true,
+      deleteConfs = DeleteConfs(
+        glutenEnabled = true,
+        nativeWriteEnabled = true,
+        nativeDmlRowIndexScanEnabled = true,
+        scanOnly = false)
+    )
     mode match {
       case "spark" => Seq(sparkOnly)
-      case "gluten" => Seq(glutenNative)
-      case "all" => Seq(sparkOnly, glutenNative)
+      case "gluten-jvm-bitmap" => Seq(glutenJvmBitmap)
+      case "gluten-native-bitmap" | "gluten" => Seq(glutenNativeBitmap)
+      case "all" => Seq(sparkOnly, glutenJvmBitmap, glutenNativeBitmap)
       case other =>
         throw new IllegalArgumentException(
-          s"Unknown execution mode '$other'. Expected spark, gluten, or all.")
+          s"Unknown execution mode '$other'. Expected spark, gluten-jvm-bitmap, " +
+            "gluten-native-bitmap, gluten, or all.")
     }
   }
 
@@ -213,6 +230,7 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
       .set("spark.gluten.enabled", mode.deleteConfs.glutenEnabled.toString)
       .set(VeloxDeltaConfig.ENABLE_NATIVE_WRITE.key, mode.deleteConfs.nativeWriteEnabled.toString)
       .set(EnableNativeDmlRowIndexScan, mode.deleteConfs.nativeDmlRowIndexScanEnabled.toString)
+      .set(GlutenConfig.COLUMNAR_SCAN_ONLY_ENABLED.key, mode.deleteConfs.scanOnly.toString)
       .set(DeltaSQLConf.DELETE_USE_PERSISTENT_DELETION_VECTORS.key, "true")
       .set(
         DeltaConfigs.ENABLE_DELETION_VECTORS_CREATION.defaultTablePropertyKey,
@@ -257,6 +275,7 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
           measuredPredicate,
           mode.deleteConfs)
         validateDeleteResult(result, existingDv, expectedFinalRows, expectedFinalIdSum)
+        validateBitmapPlanShape(result, mode.label)
         printFirstIterationResult(iteration, mode.label, result)
     }
 
@@ -280,7 +299,8 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
             DeleteConfs(
               glutenEnabled = false,
               nativeWriteEnabled = false,
-              nativeDmlRowIndexScanEnabled = false))
+              nativeDmlRowIndexScanEnabled = false,
+              scanOnly = false))
           validateDeleteResult(
             result,
             existingDv = false,
@@ -315,6 +335,7 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
       "spark.gluten.enabled" -> confs.glutenEnabled.toString,
       VeloxDeltaConfig.ENABLE_NATIVE_WRITE.key -> confs.nativeWriteEnabled.toString,
       EnableNativeDmlRowIndexScan -> confs.nativeDmlRowIndexScanEnabled.toString,
+      GlutenConfig.COLUMNAR_SCAN_ONLY_ENABLED.key -> confs.scanOnly.toString,
       DeltaSQLConf.DELETE_USE_PERSISTENT_DELETION_VECTORS.key -> "true",
       DeltaConfigs.ENABLE_DELETION_VECTORS_CREATION.defaultTablePropertyKey -> "true"
     ) {
@@ -425,6 +446,26 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
       require(
         result.dvCardinality > result.filesWithDvs,
         s"Expected existing-DV update to retain non-trivial cardinality, got $result")
+    }
+  }
+
+  private def validateBitmapPlanShape(result: DeleteResult, label: String): Unit = {
+    val summary = result.planSummary
+    label match {
+      case "spark" =>
+        require(summary.nativeBitmapAggregatePlans == 0, s"Unexpected native bitmap plan: $result")
+      case "gluten-jvm-bitmap" =>
+        require(
+          summary.sparkBitmapAggregatePlans > 0,
+          s"Expected Spark bitmap aggregation for $label, got $result")
+        require(
+          summary.nativeBitmapAggregatePlans == 0,
+          s"Expected no native bitmap aggregation for $label, got $result")
+      case "gluten-native-bitmap" =>
+        require(
+          summary.nativeHashAggregateTransformers > 0 && summary.nativeBitmapAggregatePlans > 0,
+          s"Expected native bitmap aggregation for $label, got $result")
+      case _ =>
     }
   }
 
