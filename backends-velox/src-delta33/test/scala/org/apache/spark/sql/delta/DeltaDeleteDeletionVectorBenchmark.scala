@@ -45,11 +45,11 @@ import scala.util.Try
  * Usage:
  * {{{
  *   org.apache.spark.sql.delta.DeltaDeleteDeletionVectorBenchmark \
- *     [rows] [files] [iterations] [deleteMode] [executionMode]
+ *     [rows] [files] [iterations] [deleteMode] [executionMode] [deleteShape]
  * }}}
  *
  * Delete modes: create, update, all. Execution modes: spark, gluten-jvm-bitmap,
- * gluten-native-bitmap, gluten, all.
+ * gluten-native-bitmap, gluten, all. Delete shapes: sparse1, mod10, dense50.
  */
 object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
   private val EnableNativeDmlRowIndexScan =
@@ -60,7 +60,15 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
       files: Int = 8,
       iterations: Int = 3,
       deleteMode: String = "all",
-      executionMode: String = "spark")
+      executionMode: String = "spark",
+      deleteShape: String = "mod10")
+
+  private case class DeleteShape(
+      label: String,
+      divisor: Int,
+      createMods: Seq[Int],
+      updateSetupMods: Seq[Int],
+      updateMeasuredMods: Seq[Int])
 
   private case class ExecutionMode(
       label: String,
@@ -100,6 +108,7 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
 
   override def runBenchmarkSuite(mainArgs: Array[String]): Unit = {
     val conf = parseArgs(mainArgs)
+    val shape = deleteShape(conf.deleteShape)
     executionModes(conf.executionMode).foreach {
       mode =>
         sparkSession = createSparkSession(conf, mode)
@@ -113,16 +122,19 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
                 conf = conf,
                 mode = mode,
                 existingDv = false,
-                measuredPredicate = "id % 10 = 0",
-                expectedDeletedMods = Seq(0))
+                shape = shape,
+                measuredPredicate = predicate(shape.divisor, shape.createMods),
+                expectedDeletedMods = shape.createMods
+              )
             case "update" =>
               runDeleteBenchmark(
                 name = "Delta DELETE updates existing deletion vectors",
                 conf = conf,
                 mode = mode,
                 existingDv = true,
-                measuredPredicate = "id % 10 = 1",
-                expectedDeletedMods = Seq(9, 1)
+                shape = shape,
+                measuredPredicate = predicate(shape.divisor, shape.updateMeasuredMods),
+                expectedDeletedMods = shape.updateSetupMods ++ shape.updateMeasuredMods
               )
             case "all" =>
               runDeleteBenchmark(
@@ -130,15 +142,18 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
                 conf = conf,
                 mode = mode,
                 existingDv = false,
-                measuredPredicate = "id % 10 = 0",
-                expectedDeletedMods = Seq(0))
+                shape = shape,
+                measuredPredicate = predicate(shape.divisor, shape.createMods),
+                expectedDeletedMods = shape.createMods
+              )
               runDeleteBenchmark(
                 name = "Delta DELETE updates existing deletion vectors",
                 conf = conf,
                 mode = mode,
                 existingDv = true,
-                measuredPredicate = "id % 10 = 1",
-                expectedDeletedMods = Seq(9, 1)
+                shape = shape,
+                measuredPredicate = predicate(shape.divisor, shape.updateMeasuredMods),
+                expectedDeletedMods = shape.updateSetupMods ++ shape.updateMeasuredMods
               )
             case other =>
               throw new IllegalArgumentException(
@@ -172,8 +187,38 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
       iterations = args.lift(2).map(_.toInt).getOrElse(defaults.iterations),
       deleteMode = args.lift(3).map(_.toLowerCase(Locale.ROOT)).getOrElse(defaults.deleteMode),
       executionMode =
-        args.lift(4).map(_.toLowerCase(Locale.ROOT)).getOrElse(defaults.executionMode)
+        args.lift(4).map(_.toLowerCase(Locale.ROOT)).getOrElse(defaults.executionMode),
+      deleteShape = args.lift(5).map(_.toLowerCase(Locale.ROOT)).getOrElse(defaults.deleteShape)
     )
+  }
+
+  private def deleteShape(shape: String): DeleteShape = {
+    shape match {
+      case "sparse1" =>
+        DeleteShape(
+          label = "sparse1",
+          divisor = 100,
+          createMods = Seq(0),
+          updateSetupMods = Seq(99),
+          updateMeasuredMods = Seq(1))
+      case "mod10" =>
+        DeleteShape(
+          label = "mod10",
+          divisor = 10,
+          createMods = Seq(0),
+          updateSetupMods = Seq(9),
+          updateMeasuredMods = Seq(1))
+      case "dense50" =>
+        DeleteShape(
+          label = "dense50",
+          divisor = 4,
+          createMods = Seq(0, 2),
+          updateSetupMods = Seq(3),
+          updateMeasuredMods = Seq(0, 2))
+      case other =>
+        throw new IllegalArgumentException(
+          s"Unknown delete shape '$other'. Expected sparse1, mod10, or dense50.")
+    }
   }
 
   private def executionModes(mode: String): Seq[ExecutionMode] = {
@@ -253,13 +298,19 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
       conf: BenchmarkConf,
       mode: ExecutionMode,
       existingDv: Boolean,
+      shape: DeleteShape,
       measuredPredicate: String,
       expectedDeletedMods: Seq[Int]): Unit = {
-    val paths = prepareTables(s"$name-${mode.label}", conf, existingDv)
-    val expectedFinalRows = expectedRemainingRows(conf.rowCount, expectedDeletedMods)
-    val expectedFinalIdSum = expectedRemainingIdSum(conf.rowCount, expectedDeletedMods)
+    val paths = prepareTables(s"$name-${mode.label}-${shape.label}", conf, existingDv, shape)
+    val expectedDeletedRows =
+      countRowsWithMods(conf.rowCount, shape.divisor, expectedDeletedMods)
+    val expectedFinalRows =
+      expectedRemainingRows(conf.rowCount, shape.divisor, expectedDeletedMods)
+    val expectedFinalIdSum =
+      expectedRemainingIdSum(conf.rowCount, shape.divisor, expectedDeletedMods)
     val benchmark = new Benchmark(
-      name = s"$name ${mode.label} (${conf.rowCount} rows, ${conf.files} files)",
+      name =
+        s"$name ${mode.label} ${shape.label} (${conf.rowCount} rows, ${conf.files} files)",
       valuesPerIteration = conf.rowCount,
       minNumIters = 1,
       warmupTime = Duration.Zero,
@@ -276,7 +327,7 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
           mode.deleteConfs)
         validateDeleteResult(result, existingDv, expectedFinalRows, expectedFinalIdSum)
         validateBitmapPlanShape(result, mode.label)
-        printFirstIterationResult(iteration, mode.label, result)
+        printFirstIterationResult(iteration, mode.label, shape, expectedDeletedRows, result)
     }
 
     benchmark.run()
@@ -285,7 +336,8 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
   private def prepareTables(
       prefix: String,
       conf: BenchmarkConf,
-      existingDv: Boolean): IndexedSeq[String] = {
+      existingDv: Boolean,
+      shape: DeleteShape): IndexedSeq[String] = {
     (0 until conf.iterations).map {
       iteration =>
         val path = new File(
@@ -295,17 +347,20 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
         if (existingDv) {
           val result = runDelete(
             path,
-            "id % 10 = 9",
+            predicate(shape.divisor, shape.updateSetupMods),
             DeleteConfs(
               glutenEnabled = false,
               nativeWriteEnabled = false,
               nativeDmlRowIndexScanEnabled = false,
-              scanOnly = false))
+              scanOnly = false)
+          )
           validateDeleteResult(
             result,
             existingDv = false,
-            expectedFinalRows = expectedRemainingRows(conf.rowCount, Seq(9)),
-            expectedFinalIdSum = expectedRemainingIdSum(conf.rowCount, Seq(9))
+            expectedFinalRows =
+              expectedRemainingRows(conf.rowCount, shape.divisor, shape.updateSetupMods),
+            expectedFinalIdSum =
+              expectedRemainingIdSum(conf.rowCount, shape.divisor, shape.updateSetupMods)
           )
         }
         path
@@ -472,10 +527,15 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
   private def printFirstIterationResult(
       iteration: Int,
       label: String,
+      shape: DeleteShape,
+      expectedDeletedRows: Long,
       result: DeleteResult): Unit = {
     if (iteration == 0) {
       writeOutputLine(
         s"$label result: activeFiles=${result.activeFiles}, " +
+          s"deleteShape=${shape.label}, " +
+          s"deleteDivisor=${shape.divisor}, " +
+          s"expectedDeletedRows=$expectedDeletedRows, " +
           s"filesWithDvs=${result.filesWithDvs}, " +
           s"dvCardinality=${result.dvCardinality}, " +
           s"dvPayloadBytes=${result.dvPayloadBytes}, " +
@@ -521,30 +581,50 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
     }
   }
 
-  private def expectedRemainingRows(rowCount: Long, deletedMods: Seq[Int]): Long =
-    rowCount - deletedMods.distinct.map(countRowsWithMod(rowCount, _)).sum
+  private def expectedRemainingRows(
+      rowCount: Long,
+      divisor: Int,
+      deletedMods: Seq[Int]): Long =
+    rowCount - countRowsWithMods(rowCount, divisor, deletedMods)
 
-  private def expectedRemainingIdSum(rowCount: Long, deletedMods: Seq[Int]): BigInt =
-    sumRange(rowCount) - deletedMods.distinct.map(sumRowsWithMod(rowCount, _)).sum
+  private def expectedRemainingIdSum(
+      rowCount: Long,
+      divisor: Int,
+      deletedMods: Seq[Int]): BigInt =
+    sumRange(rowCount) - deletedMods.distinct.map(sumRowsWithMod(rowCount, divisor, _)).sum
 
   private def sumRange(rowCount: Long): BigInt =
     BigInt(rowCount) * BigInt(rowCount - 1L) / 2
 
-  private def sumRowsWithMod(rowCount: Long, mod: Int): BigInt = {
-    val count = countRowsWithMod(rowCount, mod)
+  private def sumRowsWithMod(rowCount: Long, divisor: Int, mod: Int): BigInt = {
+    val count = countRowsWithMod(rowCount, divisor, mod)
     if (count == 0L) {
       BigInt(0)
     } else {
-      BigInt(count) * (BigInt(2L * mod) + BigInt(10L) * BigInt(count - 1L)) / 2
+      BigInt(count) * (BigInt(2L * mod) + BigInt(divisor.toLong) * BigInt(count - 1L)) / 2
     }
   }
 
-  private def countRowsWithMod(rowCount: Long, mod: Int): Long = {
-    require(mod >= 0 && mod < 10, s"Expected modulo in [0, 10), got $mod")
+  private def countRowsWithMods(rowCount: Long, divisor: Int, mods: Seq[Int]): Long =
+    mods.distinct.map(countRowsWithMod(rowCount, divisor, _)).sum
+
+  private def countRowsWithMod(rowCount: Long, divisor: Int, mod: Int): Long = {
+    require(divisor > 0, s"Expected positive divisor, got $divisor")
+    require(mod >= 0 && mod < divisor, s"Expected modulo in [0, $divisor), got $mod")
     if (rowCount <= mod) {
       0L
     } else {
-      ((rowCount - 1 - mod) / 10) + 1
+      ((rowCount - 1 - mod) / divisor) + 1
+    }
+  }
+
+  private def predicate(divisor: Int, mods: Seq[Int]): String = {
+    val distinctMods = mods.distinct.sorted
+    require(distinctMods.nonEmpty, "Expected at least one delete modulo")
+    if (distinctMods.length == 1) {
+      s"id % $divisor = ${distinctMods.head}"
+    } else {
+      s"id % $divisor IN (${distinctMods.mkString(", ")})"
     }
   }
 
