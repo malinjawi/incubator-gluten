@@ -1297,6 +1297,7 @@ bool SubstraitToVeloxPlanValidator::validate(const ::substrait::AggregateRel& ag
       "collect_list",
       "count",
       "avg",
+      "bitmapaggregator",
       "min",
       "max",
       "min_by",
