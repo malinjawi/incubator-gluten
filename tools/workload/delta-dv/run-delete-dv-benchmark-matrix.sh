@@ -483,7 +483,7 @@ echo "benchmark_exit_code=$BENCHMARK_EXIT_CODE" >> "$LOG_FILE"
 
 awk -v run_id="$RUN_ID" '
   BEGIN {
-    header = "runId,mode,iteration,deleteMode,activeFiles,deleteShape,deleteLayout,deletePredicate,expectedDeletedRows,deleteDensityPct,touchedFiles,touchedFilePct,filesWithDvs,dvCardinality,dvCardinalityPct,dvPayloadBytes,payloadBytesPerDeletedRow,payloadBytesPerDvRow,finalRows,finalIdSum,deleteMs,validationMs,deletePlans,glutenDeleteCommands,deltaScanTransformers,nativeHashAggregateTransformers,bitmapAggregatorMentions,nativeBitmapAggregatePlans,sparkBitmapAggregatePlans,dmlRowIndexFallbackScans"
+    header = "runId,mode,iteration,deleteMode,activeFiles,deleteShape,deleteLayout,deletePredicate,expectedDeletedRows,deleteDensityPct,touchedFiles,touchedFilePct,filesWithDvs,dvCardinality,dvCardinalityPct,dvPayloadBytes,payloadBytesPerDeletedRow,payloadBytesPerDvRow,finalRows,finalIdSum,deleteMs,validationMs,deletePlans,glutenDeleteCommands,deltaScanTransformers,nativeHashAggregateTransformers,bitmapAggregatorMentions,nativeBitmapAggregatePlans,sparkBitmapAggregatePlans,finalNativeBitmapAggregatePlans,finalSparkBitmapAggregatePlans,initialSparkBitmapAggregatePlans,dmlRowIndexFallbackScans"
     print header
   }
   / result: / {
@@ -504,7 +504,7 @@ awk -v run_id="$RUN_ID" '
       }
     }
     printf "%s,%s", run_id, mode
-    n = split("iteration deleteMode activeFiles deleteShape deleteLayout deletePredicate expectedDeletedRows deleteDensityPct touchedFiles touchedFilePct filesWithDvs dvCardinality dvCardinalityPct dvPayloadBytes payloadBytesPerDeletedRow payloadBytesPerDvRow finalRows finalIdSum deleteMs validationMs deletePlans glutenDeleteCommands deltaScanTransformers nativeHashAggregateTransformers bitmapAggregatorMentions nativeBitmapAggregatePlans sparkBitmapAggregatePlans dmlRowIndexFallbackScans", cols, " ")
+    n = split("iteration deleteMode activeFiles deleteShape deleteLayout deletePredicate expectedDeletedRows deleteDensityPct touchedFiles touchedFilePct filesWithDvs dvCardinality dvCardinalityPct dvPayloadBytes payloadBytesPerDeletedRow payloadBytesPerDvRow finalRows finalIdSum deleteMs validationMs deletePlans glutenDeleteCommands deltaScanTransformers nativeHashAggregateTransformers bitmapAggregatorMentions nativeBitmapAggregatePlans sparkBitmapAggregatePlans finalNativeBitmapAggregatePlans finalSparkBitmapAggregatePlans initialSparkBitmapAggregatePlans dmlRowIndexFallbackScans", cols, " ")
     for (j = 1; j <= n; j++) {
       printf ",%s", values[cols[j]]
     }

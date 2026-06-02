@@ -169,11 +169,11 @@ class DeltaDeletionVectorHandoffSuite
 
   private def assertNativeBitmapDeletePlans(plans: Seq[SparkPlan], context: String): Unit = {
     val planText = plans.map(_.treeString).mkString("\n---\n")
-    assert(plans.exists(hasGlutenDeleteCommand), planText)
-    assert(plans.exists(hasDeltaScanTransformer), planText)
-    assert(plans.exists(hasNativeBitmapAggregate), planText)
-    assert(!plans.exists(hasSparkBitmapAggregate), planText)
-    assert(!plans.exists(containsDmlFallbackScan), planText)
+    assert(plans.exists(hasGlutenDeleteCommand), s"$context\n$planText")
+    assert(plans.exists(hasDeltaScanTransformer), s"$context\n$planText")
+    assert(plans.exists(hasNativeBitmapAggregate), s"$context\n$planText")
+    assert(!plans.exists(hasSparkBitmapAggregate), s"$context\n$planText")
+    assert(!plans.exists(containsDmlFallbackScan), s"$context\n$planText")
   }
 
   private def assertNativeDeletePlans(plans: Seq[SparkPlan], context: String): Unit = {
@@ -198,18 +198,25 @@ class DeltaDeletionVectorHandoffSuite
     plan.collect { case _: DeltaScanTransformer => true }.nonEmpty ||
       plan.treeString.contains("FileDeltaScanTransformer")
 
-  private def hasNativeBitmapAggregate(plan: SparkPlan): Boolean =
-    containsBitmapAggregator(plan) &&
-      plan.collect { case _: HashAggregateExecTransformer => true }.nonEmpty
+  private def hasNativeBitmapAggregate(plan: SparkPlan): Boolean = {
+    val planText = plan.treeString.toLowerCase(Locale.ROOT)
+    containsBitmapAggregator(planText) &&
+    (plan.collect { case _: HashAggregateExecTransformer => true }.nonEmpty ||
+      planText.contains("hashaggregatetransformer"))
+  }
 
-  private def hasSparkBitmapAggregate(plan: SparkPlan): Boolean =
-    containsBitmapAggregator(plan) &&
-      plan.collect { case _: HashAggregateExecTransformer => true }.isEmpty
+  private def hasSparkBitmapAggregate(plan: SparkPlan): Boolean = {
+    val planText = plan.treeString.toLowerCase(Locale.ROOT)
+    containsBitmapAggregator(planText) && !planText.contains("hashaggregatetransformer")
+  }
 
   private def containsBitmapAggregator(plan: SparkPlan): Boolean = {
     val planText = plan.treeString.toLowerCase(Locale.ROOT)
-    planText.contains("bitmapaggregator") || planText.contains("bitmap_aggregator")
+    containsBitmapAggregator(planText)
   }
+
+  private def containsBitmapAggregator(planText: String): Boolean =
+    planText.contains("bitmapaggregator") || planText.contains("bitmap_aggregator")
 
   private def assertDeleteMetrics(path: String, expected: (String, Long)*): Unit = {
     val metrics = io.delta.tables.DeltaTable
@@ -429,7 +436,7 @@ class DeltaDeletionVectorHandoffSuite
           "numDeletionVectorsAdded" -> 2L,
           "numDeletionVectorsUpdated" -> 0L,
           "numDeletionVectorsRemoved" -> 0L)
-        assertNativeDeletePlans(createPlans, "partitioned create-DV DELETE")
+        assertNativeBitmapDeletePlans(createPlans, "partitioned create-DV DELETE")
 
         val updatePlans = captureNativeDeletePlans(path, "id IN (3, 7, 8)")
         assertRows(1, 4, 5, 9, 10, 11)
@@ -440,7 +447,7 @@ class DeltaDeletionVectorHandoffSuite
           "numDeletedRows" -> 3L,
           "numRemovedFiles" -> 0L,
           "numDeletionVectorsUpdated" -> 2L)
-        assertNativeDeletePlans(updatePlans, "partitioned update-existing-DV DELETE")
+        assertNativeBitmapDeletePlans(updatePlans, "partitioned update-existing-DV DELETE")
 
         val removePlans = captureNativeDeletePlans(path, "id IN (1, 4, 5)")
         assertRows(9, 10, 11)

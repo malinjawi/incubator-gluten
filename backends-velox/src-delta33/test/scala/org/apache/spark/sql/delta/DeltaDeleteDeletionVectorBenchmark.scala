@@ -108,6 +108,9 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
       bitmapAggregatorMentions: Int,
       nativeBitmapAggregatePlans: Int,
       sparkBitmapAggregatePlans: Int,
+      finalNativeBitmapAggregatePlans: Int,
+      finalSparkBitmapAggregatePlans: Int,
+      initialSparkBitmapAggregatePlans: Int,
       dmlRowIndexFallbackScans: Int,
       fallbackReasons: Seq[String],
       bitmapAggregatePlanDiagnostics: Seq[String],
@@ -510,19 +513,12 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
     val planNodes = executedPlans.flatMap(collectSparkPlanNodes)
     val fileScans = planNodes.collect { case scan: FileSourceScanExec => scan }
     val planTexts = executedPlans.map(_.treeString.toLowerCase(Locale.ROOT))
+    val finalPlanTexts = executedPlans.map(finalPlanText)
+    val initialPlanTexts = executedPlans.flatMap(initialPlanText)
     val bitmapAggregatorMentions = planTexts.map(countBitmapAggregatorMentions).sum
-    val nativeBitmapAggregatePlans = executedPlans.count {
-      plan =>
-        val planText = plan.treeString.toLowerCase(Locale.ROOT)
-        containsBitmapAggregator(planText) &&
-        planText.contains("hashaggregatetransformer")
-    }
-    val sparkBitmapAggregatePlans = executedPlans.count {
-      plan =>
-        val planText = plan.treeString.toLowerCase(Locale.ROOT)
-        containsBitmapAggregator(planText) &&
-        !planText.contains("hashaggregatetransformer")
-    }
+    val finalNativeBitmapAggregatePlans = finalPlanTexts.count(isNativeBitmapAggregatePlan)
+    val finalSparkBitmapAggregatePlans = finalPlanTexts.count(isSparkBitmapAggregatePlan)
+    val initialSparkBitmapAggregatePlans = initialPlanTexts.count(isSparkBitmapAggregatePlan)
     val fallbackReasons =
       planNodes.flatMap(plan => FallbackTags.getOption(plan).map(_.reason())).distinct.sorted
     val dmlFallbackScans = fileScans.count {
@@ -560,8 +556,11 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
       nativeHashAggregateTransformers =
         planNodes.count(_.isInstanceOf[HashAggregateExecTransformer]),
       bitmapAggregatorMentions = bitmapAggregatorMentions,
-      nativeBitmapAggregatePlans = nativeBitmapAggregatePlans,
-      sparkBitmapAggregatePlans = sparkBitmapAggregatePlans,
+      nativeBitmapAggregatePlans = finalNativeBitmapAggregatePlans,
+      sparkBitmapAggregatePlans = finalSparkBitmapAggregatePlans,
+      finalNativeBitmapAggregatePlans = finalNativeBitmapAggregatePlans,
+      finalSparkBitmapAggregatePlans = finalSparkBitmapAggregatePlans,
+      initialSparkBitmapAggregatePlans = initialSparkBitmapAggregatePlans,
       dmlRowIndexFallbackScans = dmlFallbackScans,
       fallbackReasons = fallbackReasons,
       bitmapAggregatePlanDiagnostics = bitmapAggregatePlanDiagnostics,
@@ -569,6 +568,25 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
       bitmapAggregateValidationDiagnostics = bitmapAggregateValidationDiagnostics
     )
   }
+
+  private def finalPlanText(plan: SparkPlan): String = plan match {
+    case adaptive: AdaptiveSparkPlanExec => normalizedPlanText(adaptive.executedPlan)
+    case other => normalizedPlanText(other)
+  }
+
+  private def initialPlanText(plan: SparkPlan): Option[String] = plan match {
+    case adaptive: AdaptiveSparkPlanExec => Some(normalizedPlanText(adaptive.initialPlan))
+    case _ => None
+  }
+
+  private def normalizedPlanText(plan: SparkPlan): String =
+    plan.treeString.toLowerCase(Locale.ROOT)
+
+  private def isNativeBitmapAggregatePlan(planText: String): Boolean =
+    containsBitmapAggregator(planText) && planText.contains("hashaggregatetransformer")
+
+  private def isSparkBitmapAggregatePlan(planText: String): Boolean =
+    containsBitmapAggregator(planText) && !planText.contains("hashaggregatetransformer")
 
   private def validateBitmapAggregateTransformer(aggregate: ObjectHashAggregateExec): String = {
     Try {
@@ -710,6 +728,11 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
         s"bitmapAggregatorMentions=${result.planSummary.bitmapAggregatorMentions}, " +
         s"nativeBitmapAggregatePlans=${result.planSummary.nativeBitmapAggregatePlans}, " +
         s"sparkBitmapAggregatePlans=${result.planSummary.sparkBitmapAggregatePlans}, " +
+        s"finalNativeBitmapAggregatePlans=" +
+        s"${result.planSummary.finalNativeBitmapAggregatePlans}, " +
+        s"finalSparkBitmapAggregatePlans=${result.planSummary.finalSparkBitmapAggregatePlans}, " +
+        s"initialSparkBitmapAggregatePlans=" +
+        s"${result.planSummary.initialSparkBitmapAggregatePlans}, " +
         s"dmlRowIndexFallbackScans=${result.planSummary.dmlRowIndexFallbackScans}, " +
         s"fallbackReasons=${result.planSummary.fallbackReasons.mkString("[", "; ", "]")}")
   }
