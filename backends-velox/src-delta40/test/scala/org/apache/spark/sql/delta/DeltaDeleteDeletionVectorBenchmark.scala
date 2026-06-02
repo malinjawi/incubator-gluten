@@ -17,7 +17,7 @@
 package org.apache.spark.sql.delta
 
 import org.apache.gluten.config.{GlutenConfig, VeloxDeltaConfig}
-import org.apache.gluten.execution.{DeltaScanTransformer, HashAggregateExecTransformer}
+import org.apache.gluten.execution.{DeltaScanTransformer, HashAggregateExecBaseTransformer, HashAggregateExecTransformer}
 import org.apache.gluten.extension.DeltaDeletionVectorDmlUtils
 import org.apache.gluten.extension.columnar.FallbackTags
 
@@ -26,7 +26,9 @@ import org.apache.spark.benchmark.{Benchmark, BenchmarkBase}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.delta.catalog.DeltaCatalog
 import org.apache.spark.sql.delta.sources.DeltaSQLConf
-import org.apache.spark.sql.execution.{FileSourceScanExec, SparkPlan}
+import org.apache.spark.sql.execution.{FileSourceScanExec, GlutenExplainUtils, SparkPlan}
+import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanExec
+import org.apache.spark.sql.execution.aggregate.ObjectHashAggregateExec
 import org.apache.spark.sql.internal.{SQLConf, StaticSQLConf}
 import org.apache.spark.util.Utils
 
@@ -107,7 +109,10 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
       nativeBitmapAggregatePlans: Int,
       sparkBitmapAggregatePlans: Int,
       dmlRowIndexFallbackScans: Int,
-      fallbackReasons: Seq[String])
+      fallbackReasons: Seq[String],
+      bitmapAggregatePlanDiagnostics: Seq[String],
+      bitmapAggregateFallbackDiagnostics: Seq[String],
+      bitmapAggregateValidationDiagnostics: Seq[String])
 
   private var sparkSession: SparkSession = _
   private var benchmarkRoot: File = _
@@ -494,7 +499,7 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
   }
 
   private def summarizePlans(executedPlans: Seq[SparkPlan]): PlanSummary = {
-    val planNodes = executedPlans.flatMap(_.collect { case node: SparkPlan => node })
+    val planNodes = executedPlans.flatMap(collectSparkPlanNodes)
     val fileScans = planNodes.collect { case scan: FileSourceScanExec => scan }
     val planTexts = executedPlans.map(_.treeString.toLowerCase(Locale.ROOT))
     val bitmapAggregatorMentions = planTexts.map(countBitmapAggregatorMentions).sum
@@ -502,13 +507,13 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
       plan =>
         val planText = plan.treeString.toLowerCase(Locale.ROOT)
         containsBitmapAggregator(planText) &&
-        plan.collect { case _: HashAggregateExecTransformer => true }.nonEmpty
+        planText.contains("hashaggregatetransformer")
     }
     val sparkBitmapAggregatePlans = executedPlans.count {
       plan =>
         val planText = plan.treeString.toLowerCase(Locale.ROOT)
         containsBitmapAggregator(planText) &&
-        plan.collect { case _: HashAggregateExecTransformer => true }.isEmpty
+        !planText.contains("hashaggregatetransformer")
     }
     val fallbackReasons =
       planNodes.flatMap(plan => FallbackTags.getOption(plan).map(_.reason())).distinct.sorted
@@ -519,6 +524,22 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
           .getOption(scan)
           .exists(_.reason().contains("fallback Delta DV DML row-index scan"))
     }
+    val bitmapAggregatePlanDiagnostics = executedPlans.zipWithIndex.collect {
+      case (plan, index) if containsBitmapAggregator(plan.treeString.toLowerCase(Locale.ROOT)) =>
+        s"bitmap aggregate plan #$index:\n${plan.treeString}"
+    }
+    val bitmapAggregateFallbackDiagnostics = executedPlans.zipWithIndex.flatMap {
+      case (plan, index) if containsBitmapAggregator(plan.treeString.toLowerCase(Locale.ROOT)) =>
+        collectBitmapAggregateFallbackDiagnostics(plan).map {
+          diagnostic => s"bitmap aggregate fallback #$index: $diagnostic"
+        }
+      case _ => Seq.empty
+    }
+    val bitmapAggregateValidationDiagnostics = planNodes.collect {
+      case aggregate: ObjectHashAggregateExec
+          if containsBitmapAggregator(aggregate.treeString.toLowerCase(Locale.ROOT)) =>
+        validateBitmapAggregateTransformer(aggregate)
+    }.distinct.sorted
     PlanSummary(
       deletePlans = executedPlans.length,
       glutenDeleteCommands = planNodes.count(_.nodeName.contains("GlutenDeleteCommand")),
@@ -529,8 +550,54 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
       nativeBitmapAggregatePlans = nativeBitmapAggregatePlans,
       sparkBitmapAggregatePlans = sparkBitmapAggregatePlans,
       dmlRowIndexFallbackScans = dmlFallbackScans,
-      fallbackReasons = fallbackReasons
+      fallbackReasons = fallbackReasons,
+      bitmapAggregatePlanDiagnostics = bitmapAggregatePlanDiagnostics,
+      bitmapAggregateFallbackDiagnostics = bitmapAggregateFallbackDiagnostics,
+      bitmapAggregateValidationDiagnostics = bitmapAggregateValidationDiagnostics
     )
+  }
+
+  private def validateBitmapAggregateTransformer(aggregate: ObjectHashAggregateExec): String = {
+    Try {
+      val validation = HashAggregateExecBaseTransformer.from(aggregate).doValidate()
+      if (validation.ok()) {
+        s"${aggregate.nodeName} ${aggregate.aggregateExpressions.mkString("[", ", ", "]")} -> passed"
+      } else {
+        s"${aggregate.nodeName} ${aggregate.aggregateExpressions.mkString("[", ", ", "]")} -> " +
+          validation.reason()
+      }
+    }.recover {
+      case e =>
+        s"${aggregate.nodeName} ${aggregate.aggregateExpressions.mkString("[", ", ", "]")} -> " +
+          s"validation threw ${e.getClass.getName}: ${Option(e.getMessage).getOrElse("")}"
+    }.get
+  }
+
+  private def collectSparkPlanNodes(plan: SparkPlan): Seq[SparkPlan] = {
+    val directNodes = plan.collect { case node: SparkPlan => node }
+    directNodes ++ directNodes.collect {
+      case adaptive: AdaptiveSparkPlanExec =>
+        Seq(adaptive.executedPlan, adaptive.initialPlan).flatMap {
+          child =>
+            if (child eq adaptive) {
+              Seq.empty
+            } else {
+              collectSparkPlanNodes(child)
+            }
+        }
+    }.flatten
+  }
+
+  private def collectBitmapAggregateFallbackDiagnostics(plan: SparkPlan): Seq[String] = {
+    Try {
+      val (_, fallbackInfo) = GlutenExplainUtils.processPlan[SparkPlan](plan, _ => ())
+      fallbackInfo.toSeq.collect {
+        case (node, reason)
+            if node.toLowerCase(Locale.ROOT).contains("aggregate") ||
+              reason.toLowerCase(Locale.ROOT).contains("aggregate") =>
+          s"$node -> $reason"
+      }.sorted
+    }.getOrElse(Seq.empty)
   }
 
   private def containsBitmapAggregator(planText: String): Boolean =
