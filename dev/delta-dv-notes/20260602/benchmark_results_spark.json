@@ -1,0 +1,4502 @@
+[
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 1951503000,
+    "read_ns": 1072934000,
+    "delete_ms": 1951.503,
+    "read_ms": 1072.934
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 2116256000,
+    "read_ns": 873810000,
+    "delete_ms": 2116.256,
+    "read_ms": 873.81
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 1925161000,
+    "read_ns": 837122000,
+    "delete_ms": 1925.161,
+    "read_ms": 837.122
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 1928877000,
+    "read_ns": 800775000,
+    "delete_ms": 1928.877,
+    "read_ms": 800.775
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 2340224000,
+    "read_ns": 1023171000,
+    "delete_ms": 2340.224,
+    "read_ms": 1023.171
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 1803703000,
+    "read_ns": 786036000,
+    "delete_ms": 1803.703,
+    "read_ms": 786.036
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 1982924000,
+    "read_ns": 782891000,
+    "delete_ms": 1982.924,
+    "read_ms": 782.891
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 1809052000,
+    "read_ns": 786478000,
+    "delete_ms": 1809.052,
+    "read_ms": 786.478
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 1939097000,
+    "read_ns": 761888000,
+    "delete_ms": 1939.097,
+    "read_ms": 761.888
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 2333748000,
+    "read_ns": 931583000,
+    "delete_ms": 2333.748,
+    "read_ms": 931.583
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 1645319000,
+    "read_ns": 734406000,
+    "delete_ms": 1645.319,
+    "read_ms": 734.406
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 1819324000,
+    "read_ns": 723891000,
+    "delete_ms": 1819.324,
+    "read_ms": 723.891
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 1816909000,
+    "read_ns": 784113000,
+    "delete_ms": 1816.909,
+    "read_ms": 784.113
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 1821122000,
+    "read_ns": 769894000,
+    "delete_ms": 1821.122,
+    "read_ms": 769.894
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 2338046000,
+    "read_ns": 937374000,
+    "delete_ms": 2338.046,
+    "read_ms": 937.374
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 1721795000,
+    "read_ns": 715129000,
+    "delete_ms": 1721.795,
+    "read_ms": 715.129
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 1898001000,
+    "read_ns": 765807000,
+    "delete_ms": 1898.001,
+    "read_ms": 765.807
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 1919323000,
+    "read_ns": 770183000,
+    "delete_ms": 1919.323,
+    "read_ms": 770.183
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 1840246000,
+    "read_ns": 736540000,
+    "delete_ms": 1840.246,
+    "read_ms": 736.54
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 2500634000,
+    "read_ns": 954904000,
+    "delete_ms": 2500.634,
+    "read_ms": 954.904
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 1767605000,
+    "read_ns": 706519000,
+    "delete_ms": 1767.605,
+    "read_ms": 706.519
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 1966321000,
+    "read_ns": 771366000,
+    "delete_ms": 1966.321,
+    "read_ms": 771.366
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 1994261000,
+    "read_ns": 762534000,
+    "delete_ms": 1994.261,
+    "read_ms": 762.534
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 1822203000,
+    "read_ns": 736168000,
+    "delete_ms": 1822.203,
+    "read_ms": 736.168
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 2403914000,
+    "read_ns": 1003473000,
+    "delete_ms": 2403.914,
+    "read_ms": 1003.473
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 1825113000,
+    "read_ns": 758814000,
+    "delete_ms": 1825.113,
+    "read_ms": 758.814
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 1915227000,
+    "read_ns": 776687000,
+    "delete_ms": 1915.227,
+    "read_ms": 776.687
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 2063977000,
+    "read_ns": 763601000,
+    "delete_ms": 2063.977,
+    "read_ms": 763.601
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 1950927000,
+    "read_ns": 717356000,
+    "delete_ms": 1950.927,
+    "read_ms": 717.356
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 2517628000,
+    "read_ns": 995201000,
+    "delete_ms": 2517.628,
+    "read_ms": 995.201
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 1866603000,
+    "read_ns": 788479000,
+    "delete_ms": 1866.603,
+    "read_ms": 788.479
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 1977673000,
+    "read_ns": 745916000,
+    "delete_ms": 1977.673,
+    "read_ms": 745.916
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 2012332000,
+    "read_ns": 769716000,
+    "delete_ms": 2012.332,
+    "read_ms": 769.716
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 2014320000,
+    "read_ns": 761344000,
+    "delete_ms": 2014.32,
+    "read_ms": 761.344
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 2546316000,
+    "read_ns": 1024704000,
+    "delete_ms": 2546.316,
+    "read_ms": 1024.704
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 1949649000,
+    "read_ns": 761829000,
+    "delete_ms": 1949.649,
+    "read_ms": 761.829
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 1900242000,
+    "read_ns": 753733000,
+    "delete_ms": 1900.242,
+    "read_ms": 753.733
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 2032138000,
+    "read_ns": 766867000,
+    "delete_ms": 2032.138,
+    "read_ms": 766.867
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 1997448000,
+    "read_ns": 756207000,
+    "delete_ms": 1997.448,
+    "read_ms": 756.207
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 2435488000,
+    "read_ns": 1034412000,
+    "delete_ms": 2435.488,
+    "read_ms": 1034.412
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 1934203000,
+    "read_ns": 772540000,
+    "delete_ms": 1934.203,
+    "read_ms": 772.54
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 1863241000,
+    "read_ns": 691129000,
+    "delete_ms": 1863.241,
+    "read_ms": 691.129
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 1907934000,
+    "read_ns": 716503000,
+    "delete_ms": 1907.934,
+    "read_ms": 716.503
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 2304133000,
+    "read_ns": 752832000,
+    "delete_ms": 2304.133,
+    "read_ms": 752.832
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 2425787000,
+    "read_ns": 962864000,
+    "delete_ms": 2425.787,
+    "read_ms": 962.864
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 1746797000,
+    "read_ns": 820310000,
+    "delete_ms": 1746.797,
+    "read_ms": 820.31
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 1922598000,
+    "read_ns": 806419000,
+    "delete_ms": 1922.598,
+    "read_ms": 806.419
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 1921342000,
+    "read_ns": 761477000,
+    "delete_ms": 1921.342,
+    "read_ms": 761.477
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 1923418000,
+    "read_ns": 730493000,
+    "delete_ms": 1923.418,
+    "read_ms": 730.493
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 2367036000,
+    "read_ns": 936996000,
+    "delete_ms": 2367.036,
+    "read_ms": 936.996
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 1816032000,
+    "read_ns": 796173000,
+    "delete_ms": 1816.032,
+    "read_ms": 796.173
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 1974463000,
+    "read_ns": 821201000,
+    "delete_ms": 1974.463,
+    "read_ms": 821.201
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 1986233000,
+    "read_ns": 792872000,
+    "delete_ms": 1986.233,
+    "read_ms": 792.872
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 1900029000,
+    "read_ns": 840475000,
+    "delete_ms": 1900.029,
+    "read_ms": 840.475
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 2426589000,
+    "read_ns": 986515000,
+    "delete_ms": 2426.589,
+    "read_ms": 986.515
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 1938997000,
+    "read_ns": 842542000,
+    "delete_ms": 1938.997,
+    "read_ms": 842.542
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 2037124000,
+    "read_ns": 808978000,
+    "delete_ms": 2037.124,
+    "read_ms": 808.978
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 1875903000,
+    "read_ns": 808847000,
+    "delete_ms": 1875.903,
+    "read_ms": 808.847
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 2030205000,
+    "read_ns": 763532000,
+    "delete_ms": 2030.205,
+    "read_ms": 763.532
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 2382792000,
+    "read_ns": 954927000,
+    "delete_ms": 2382.792,
+    "read_ms": 954.927
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 1862387000,
+    "read_ns": 755278000,
+    "delete_ms": 1862.387,
+    "read_ms": 755.278
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 1944260000,
+    "read_ns": 803812000,
+    "delete_ms": 1944.26,
+    "read_ms": 803.812
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 1892650000,
+    "read_ns": 722663000,
+    "delete_ms": 1892.65,
+    "read_ms": 722.663
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 2132073000,
+    "read_ns": 825963000,
+    "delete_ms": 2132.073,
+    "read_ms": 825.963
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 2416912000,
+    "read_ns": 984134000,
+    "delete_ms": 2416.912,
+    "read_ms": 984.134
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 1883077000,
+    "read_ns": 754854000,
+    "delete_ms": 1883.077,
+    "read_ms": 754.854
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 2029194000,
+    "read_ns": 750728000,
+    "delete_ms": 2029.194,
+    "read_ms": 750.728
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 1901185000,
+    "read_ns": 740495000,
+    "delete_ms": 1901.185,
+    "read_ms": 740.495
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 1962847000,
+    "read_ns": 759986000,
+    "delete_ms": 1962.847,
+    "read_ms": 759.986
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 2570278000,
+    "read_ns": 993533000,
+    "delete_ms": 2570.278,
+    "read_ms": 993.533
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 1911443000,
+    "read_ns": 846086000,
+    "delete_ms": 1911.443,
+    "read_ms": 846.086
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 2024687000,
+    "read_ns": 785353000,
+    "delete_ms": 2024.687,
+    "read_ms": 785.353
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 1925923000,
+    "read_ns": 798432000,
+    "delete_ms": 1925.923,
+    "read_ms": 798.432
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 2013095000,
+    "read_ns": 853606000,
+    "delete_ms": 2013.095,
+    "read_ms": 853.606
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 2510431000,
+    "read_ns": 995268000,
+    "delete_ms": 2510.431,
+    "read_ms": 995.268
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 2023986000,
+    "read_ns": 825821000,
+    "delete_ms": 2023.986,
+    "read_ms": 825.821
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 2053492000,
+    "read_ns": 797783000,
+    "delete_ms": 2053.492,
+    "read_ms": 797.783
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 1965366000,
+    "read_ns": 882337000,
+    "delete_ms": 1965.366,
+    "read_ms": 882.337
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 1976963000,
+    "read_ns": 789838000,
+    "delete_ms": 1976.963,
+    "read_ms": 789.838
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 2641708000,
+    "read_ns": 995178000,
+    "delete_ms": 2641.708,
+    "read_ms": 995.178
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 2025635000,
+    "read_ns": 742651000,
+    "delete_ms": 2025.635,
+    "read_ms": 742.651
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 2077230000,
+    "read_ns": 748673000,
+    "delete_ms": 2077.23,
+    "read_ms": 748.673
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 1933557000,
+    "read_ns": 760104000,
+    "delete_ms": 1933.557,
+    "read_ms": 760.104
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 2044519000,
+    "read_ns": 863467000,
+    "delete_ms": 2044.519,
+    "read_ms": 863.467
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 2656381000,
+    "read_ns": 1115205000,
+    "delete_ms": 2656.381,
+    "read_ms": 1115.205
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 1909260000,
+    "read_ns": 802879000,
+    "delete_ms": 1909.26,
+    "read_ms": 802.879
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 2062048000,
+    "read_ns": 788064000,
+    "delete_ms": 2062.048,
+    "read_ms": 788.064
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 1985247000,
+    "read_ns": 778128000,
+    "delete_ms": 1985.247,
+    "read_ms": 778.128
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 2057818000,
+    "read_ns": 814902000,
+    "delete_ms": 2057.818,
+    "read_ms": 814.902
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 2567526000,
+    "read_ns": 1049521000,
+    "delete_ms": 2567.526,
+    "read_ms": 1049.521
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 1738156000,
+    "read_ns": 897956000,
+    "delete_ms": 1738.156,
+    "read_ms": 897.956
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 2459714000,
+    "read_ns": 1202008000,
+    "delete_ms": 2459.714,
+    "read_ms": 1202.008
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 1853750000,
+    "read_ns": 767434000,
+    "delete_ms": 1853.75,
+    "read_ms": 767.434
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 1864476000,
+    "read_ns": 866159000,
+    "delete_ms": 1864.476,
+    "read_ms": 866.159
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 2595265000,
+    "read_ns": 1058267000,
+    "delete_ms": 2595.265,
+    "read_ms": 1058.267
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 1763020000,
+    "read_ns": 768392000,
+    "delete_ms": 1763.02,
+    "read_ms": 768.392
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 1960721000,
+    "read_ns": 798658000,
+    "delete_ms": 1960.721,
+    "read_ms": 798.658
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 1966822000,
+    "read_ns": 713941000,
+    "delete_ms": 1966.822,
+    "read_ms": 713.941
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 1828180000,
+    "read_ns": 770369000,
+    "delete_ms": 1828.18,
+    "read_ms": 770.369
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 2447269000,
+    "read_ns": 1025300000,
+    "delete_ms": 2447.269,
+    "read_ms": 1025.3
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 1885514000,
+    "read_ns": 792146000,
+    "delete_ms": 1885.514,
+    "read_ms": 792.146
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 2126507000,
+    "read_ns": 815749000,
+    "delete_ms": 2126.507,
+    "read_ms": 815.749
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 1954332000,
+    "read_ns": 717849000,
+    "delete_ms": 1954.332,
+    "read_ms": 717.849
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 2043863000,
+    "read_ns": 782447000,
+    "delete_ms": 2043.863,
+    "read_ms": 782.447
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 2530927000,
+    "read_ns": 986931000,
+    "delete_ms": 2530.927,
+    "read_ms": 986.931
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 1982766000,
+    "read_ns": 792280000,
+    "delete_ms": 1982.766,
+    "read_ms": 792.28
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 1993479000,
+    "read_ns": 814615000,
+    "delete_ms": 1993.479,
+    "read_ms": 814.615
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 1912981000,
+    "read_ns": 733443000,
+    "delete_ms": 1912.981,
+    "read_ms": 733.443
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 2083685000,
+    "read_ns": 827150000,
+    "delete_ms": 2083.685,
+    "read_ms": 827.15
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 2605217000,
+    "read_ns": 1046827000,
+    "delete_ms": 2605.217,
+    "read_ms": 1046.827
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 1781088000,
+    "read_ns": 823183000,
+    "delete_ms": 1781.088,
+    "read_ms": 823.183
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 2091240000,
+    "read_ns": 823635000,
+    "delete_ms": 2091.24,
+    "read_ms": 823.635
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 1976618000,
+    "read_ns": 712052000,
+    "delete_ms": 1976.618,
+    "read_ms": 712.052
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 1991781000,
+    "read_ns": 770773000,
+    "delete_ms": 1991.781,
+    "read_ms": 770.773
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 2613427000,
+    "read_ns": 1037281000,
+    "delete_ms": 2613.427,
+    "read_ms": 1037.281
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 1860390000,
+    "read_ns": 800036000,
+    "delete_ms": 1860.39,
+    "read_ms": 800.036
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 2072106000,
+    "read_ns": 783739000,
+    "delete_ms": 2072.106,
+    "read_ms": 783.739
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 1952604000,
+    "read_ns": 706857000,
+    "delete_ms": 1952.604,
+    "read_ms": 706.857
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 1946964000,
+    "read_ns": 751630000,
+    "delete_ms": 1946.964,
+    "read_ms": 751.63
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 2739657000,
+    "read_ns": 1040277000,
+    "delete_ms": 2739.657,
+    "read_ms": 1040.277
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 1758395000,
+    "read_ns": 818245000,
+    "delete_ms": 1758.395,
+    "read_ms": 818.245
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 2015928000,
+    "read_ns": 775768000,
+    "delete_ms": 2015.928,
+    "read_ms": 775.768
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 1993849000,
+    "read_ns": 782665000,
+    "delete_ms": 1993.849,
+    "read_ms": 782.665
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 2049744000,
+    "read_ns": 819833000,
+    "delete_ms": 2049.744,
+    "read_ms": 819.833
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 2479733000,
+    "read_ns": 1054985000,
+    "delete_ms": 2479.733,
+    "read_ms": 1054.985
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 1787869000,
+    "read_ns": 730175000,
+    "delete_ms": 1787.869,
+    "read_ms": 730.175
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 2095495000,
+    "read_ns": 797470000,
+    "delete_ms": 2095.495,
+    "read_ms": 797.47
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 2011943000,
+    "read_ns": 788787000,
+    "delete_ms": 2011.943,
+    "read_ms": 788.787
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 2007103000,
+    "read_ns": 777050000,
+    "delete_ms": 2007.103,
+    "read_ms": 777.05
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 2625469000,
+    "read_ns": 1020580000,
+    "delete_ms": 2625.469,
+    "read_ms": 1020.58
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 1853926000,
+    "read_ns": 775165000,
+    "delete_ms": 1853.926,
+    "read_ms": 775.165
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 2036753000,
+    "read_ns": 802194000,
+    "delete_ms": 2036.753,
+    "read_ms": 802.194
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 2062848000,
+    "read_ns": 807916000,
+    "delete_ms": 2062.848,
+    "read_ms": 807.916
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 1921249000,
+    "read_ns": 817527000,
+    "delete_ms": 1921.249,
+    "read_ms": 817.527
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 2601678000,
+    "read_ns": 1024558000,
+    "delete_ms": 2601.678,
+    "read_ms": 1024.558
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 1676317000,
+    "read_ns": 851945000,
+    "delete_ms": 1676.317,
+    "read_ms": 851.945
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 1855359000,
+    "read_ns": 826444000,
+    "delete_ms": 1855.359,
+    "read_ms": 826.444
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 1824551000,
+    "read_ns": 777946000,
+    "delete_ms": 1824.551,
+    "read_ms": 777.946
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 1805585000,
+    "read_ns": 868140000,
+    "delete_ms": 1805.585,
+    "read_ms": 868.14
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 2466405000,
+    "read_ns": 1036726000,
+    "delete_ms": 2466.405,
+    "read_ms": 1036.726
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 1864533000,
+    "read_ns": 772127000,
+    "delete_ms": 1864.533,
+    "read_ms": 772.127
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 2003340000,
+    "read_ns": 842755000,
+    "delete_ms": 2003.34,
+    "read_ms": 842.755
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 2037384000,
+    "read_ns": 852196000,
+    "delete_ms": 2037.384,
+    "read_ms": 852.196
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 1858242000,
+    "read_ns": 825780000,
+    "delete_ms": 1858.242,
+    "read_ms": 825.78
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 2576747000,
+    "read_ns": 1072893000,
+    "delete_ms": 2576.747,
+    "read_ms": 1072.893
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 1930580000,
+    "read_ns": 792277000,
+    "delete_ms": 1930.58,
+    "read_ms": 792.277
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 2026531000,
+    "read_ns": 833088000,
+    "delete_ms": 2026.531,
+    "read_ms": 833.088
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 1963056000,
+    "read_ns": 812038000,
+    "delete_ms": 1963.056,
+    "read_ms": 812.038
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 1975070000,
+    "read_ns": 780342000,
+    "delete_ms": 1975.07,
+    "read_ms": 780.342
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 2522067000,
+    "read_ns": 1008798000,
+    "delete_ms": 2522.067,
+    "read_ms": 1008.798
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 1870517000,
+    "read_ns": 763903000,
+    "delete_ms": 1870.517,
+    "read_ms": 763.903
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 2021075000,
+    "read_ns": 821060000,
+    "delete_ms": 2021.075,
+    "read_ms": 821.06
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 1885321000,
+    "read_ns": 774896000,
+    "delete_ms": 1885.321,
+    "read_ms": 774.896
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 1914395000,
+    "read_ns": 718321000,
+    "delete_ms": 1914.395,
+    "read_ms": 718.321
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 2479561000,
+    "read_ns": 1097294000,
+    "delete_ms": 2479.561,
+    "read_ms": 1097.294
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 2014509000,
+    "read_ns": 793191000,
+    "delete_ms": 2014.509,
+    "read_ms": 793.191
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 1959529000,
+    "read_ns": 756344000,
+    "delete_ms": 1959.529,
+    "read_ms": 756.344
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 2009370000,
+    "read_ns": 859275000,
+    "delete_ms": 2009.37,
+    "read_ms": 859.275
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 2071522000,
+    "read_ns": 784339000,
+    "delete_ms": 2071.522,
+    "read_ms": 784.339
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 2509053000,
+    "read_ns": 1042484000,
+    "delete_ms": 2509.053,
+    "read_ms": 1042.484
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 1868823000,
+    "read_ns": 761102000,
+    "delete_ms": 1868.823,
+    "read_ms": 761.102
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 1878000000,
+    "read_ns": 776517000,
+    "delete_ms": 1878.0,
+    "read_ms": 776.517
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 2102958000,
+    "read_ns": 818117000,
+    "delete_ms": 2102.958,
+    "read_ms": 818.117
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 1839483000,
+    "read_ns": 714824000,
+    "delete_ms": 1839.483,
+    "read_ms": 714.824
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 2407266000,
+    "read_ns": 1162798000,
+    "delete_ms": 2407.266,
+    "read_ms": 1162.798
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 2052510000,
+    "read_ns": 805106000,
+    "delete_ms": 2052.51,
+    "read_ms": 805.106
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 1977743000,
+    "read_ns": 831196000,
+    "delete_ms": 1977.743,
+    "read_ms": 831.196
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 1931451000,
+    "read_ns": 784182000,
+    "delete_ms": 1931.451,
+    "read_ms": 784.182
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 2011142000,
+    "read_ns": 994818000,
+    "delete_ms": 2011.142,
+    "read_ms": 994.818
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 2600403000,
+    "read_ns": 996574000,
+    "delete_ms": 2600.403,
+    "read_ms": 996.574
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 2039132000,
+    "read_ns": 769890000,
+    "delete_ms": 2039.132,
+    "read_ms": 769.89
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 2049811000,
+    "read_ns": 807156000,
+    "delete_ms": 2049.811,
+    "read_ms": 807.156
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 2133597000,
+    "read_ns": 800412000,
+    "delete_ms": 2133.597,
+    "read_ms": 800.412
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 1982032000,
+    "read_ns": 799564000,
+    "delete_ms": 1982.032,
+    "read_ms": 799.564
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 2525064000,
+    "read_ns": 1038916000,
+    "delete_ms": 2525.064,
+    "read_ms": 1038.916
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 2149030000,
+    "read_ns": 762734000,
+    "delete_ms": 2149.03,
+    "read_ms": 762.734
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 2160863000,
+    "read_ns": 859256000,
+    "delete_ms": 2160.863,
+    "read_ms": 859.256
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 2125760000,
+    "read_ns": 849214000,
+    "delete_ms": 2125.76,
+    "read_ms": 849.214
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 1989023000,
+    "read_ns": 799298000,
+    "delete_ms": 1989.023,
+    "read_ms": 799.298
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 2555990000,
+    "read_ns": 1101240000,
+    "delete_ms": 2555.99,
+    "read_ms": 1101.24
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 1838442000,
+    "read_ns": 756013000,
+    "delete_ms": 1838.442,
+    "read_ms": 756.013
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 2104778000,
+    "read_ns": 828685000,
+    "delete_ms": 2104.778,
+    "read_ms": 828.685
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 1945385000,
+    "read_ns": 836329000,
+    "delete_ms": 1945.385,
+    "read_ms": 836.329
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 1905942000,
+    "read_ns": 867729000,
+    "delete_ms": 1905.942,
+    "read_ms": 867.729
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 2501129000,
+    "read_ns": 1100990000,
+    "delete_ms": 2501.129,
+    "read_ms": 1100.99
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 1925142000,
+    "read_ns": 794419000,
+    "delete_ms": 1925.142,
+    "read_ms": 794.419
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 1920342000,
+    "read_ns": 806152000,
+    "delete_ms": 1920.342,
+    "read_ms": 806.152
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 2228378000,
+    "read_ns": 796081000,
+    "delete_ms": 2228.378,
+    "read_ms": 796.081
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 1919716000,
+    "read_ns": 820213000,
+    "delete_ms": 1919.716,
+    "read_ms": 820.213
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 2613785000,
+    "read_ns": 1112370000,
+    "delete_ms": 2613.785,
+    "read_ms": 1112.37
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 1917350000,
+    "read_ns": 770429000,
+    "delete_ms": 1917.35,
+    "read_ms": 770.429
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 2119883000,
+    "read_ns": 1024381000,
+    "delete_ms": 2119.883,
+    "read_ms": 1024.381
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 2122298000,
+    "read_ns": 776382000,
+    "delete_ms": 2122.298,
+    "read_ms": 776.382
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 2012716000,
+    "read_ns": 807179000,
+    "delete_ms": 2012.716,
+    "read_ms": 807.179
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 2594449000,
+    "read_ns": 1051715000,
+    "delete_ms": 2594.449,
+    "read_ms": 1051.715
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 2298884000,
+    "read_ns": 834454000,
+    "delete_ms": 2298.884,
+    "read_ms": 834.454
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 2328970000,
+    "read_ns": 802294000,
+    "delete_ms": 2328.97,
+    "read_ms": 802.294
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 2007201000,
+    "read_ns": 748835000,
+    "delete_ms": 2007.201,
+    "read_ms": 748.835
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 2120227000,
+    "read_ns": 745427000,
+    "delete_ms": 2120.227,
+    "read_ms": 745.427
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 2645722000,
+    "read_ns": 1013437000,
+    "delete_ms": 2645.722,
+    "read_ms": 1013.437
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 1894159000,
+    "read_ns": 792499000,
+    "delete_ms": 1894.159,
+    "read_ms": 792.499
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 2140890000,
+    "read_ns": 818936000,
+    "delete_ms": 2140.89,
+    "read_ms": 818.936
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 2020294000,
+    "read_ns": 727255000,
+    "delete_ms": 2020.294,
+    "read_ms": 727.255
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 2168291000,
+    "read_ns": 792878000,
+    "delete_ms": 2168.291,
+    "read_ms": 792.878
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 2683360000,
+    "read_ns": 1009481000,
+    "delete_ms": 2683.36,
+    "read_ms": 1009.481
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 2000568000,
+    "read_ns": 843489000,
+    "delete_ms": 2000.568,
+    "read_ms": 843.489
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 2126635000,
+    "read_ns": 829901000,
+    "delete_ms": 2126.635,
+    "read_ms": 829.901
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 2091992000,
+    "read_ns": 783038000,
+    "delete_ms": 2091.992,
+    "read_ms": 783.038
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 2163018000,
+    "read_ns": 788205000,
+    "delete_ms": 2163.018,
+    "read_ms": 788.205
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 2663846000,
+    "read_ns": 992238000,
+    "delete_ms": 2663.846,
+    "read_ms": 992.238
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 2174010000,
+    "read_ns": 764574000,
+    "delete_ms": 2174.01,
+    "read_ms": 764.574
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 2054988000,
+    "read_ns": 827990000,
+    "delete_ms": 2054.988,
+    "read_ms": 827.99
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 1941284000,
+    "read_ns": 801121000,
+    "delete_ms": 1941.284,
+    "read_ms": 801.121
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 2175533000,
+    "read_ns": 857375000,
+    "delete_ms": 2175.533,
+    "read_ms": 857.375
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 2709180000,
+    "read_ns": 1006458000,
+    "delete_ms": 2709.18,
+    "read_ms": 1006.458
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 2071144000,
+    "read_ns": 821976000,
+    "delete_ms": 2071.144,
+    "read_ms": 821.976
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 2206400000,
+    "read_ns": 800051000,
+    "delete_ms": 2206.4,
+    "read_ms": 800.051
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 2077048000,
+    "read_ns": 787742000,
+    "delete_ms": 2077.048,
+    "read_ms": 787.742
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 2072846000,
+    "read_ns": 793725000,
+    "delete_ms": 2072.846,
+    "read_ms": 793.725
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 2674930000,
+    "read_ns": 975283000,
+    "delete_ms": 2674.93,
+    "read_ms": 975.283
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 2084022000,
+    "read_ns": 769008000,
+    "delete_ms": 2084.022,
+    "read_ms": 769.008
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 2190128000,
+    "read_ns": 823598000,
+    "delete_ms": 2190.128,
+    "read_ms": 823.598
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 2157336000,
+    "read_ns": 785570000,
+    "delete_ms": 2157.336,
+    "read_ms": 785.57
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 2250255000,
+    "read_ns": 769508000,
+    "delete_ms": 2250.255,
+    "read_ms": 769.508
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 2619440000,
+    "read_ns": 1003619000,
+    "delete_ms": 2619.44,
+    "read_ms": 1003.619
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 1773948000,
+    "read_ns": 843505000,
+    "delete_ms": 1773.948,
+    "read_ms": 843.505
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 1915326000,
+    "read_ns": 830783000,
+    "delete_ms": 1915.326,
+    "read_ms": 830.783
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 1887502000,
+    "read_ns": 833566000,
+    "delete_ms": 1887.502,
+    "read_ms": 833.566
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 2006347000,
+    "read_ns": 824263000,
+    "delete_ms": 2006.347,
+    "read_ms": 824.263
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 2350290000,
+    "read_ns": 1048887000,
+    "delete_ms": 2350.29,
+    "read_ms": 1048.887
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 1802522000,
+    "read_ns": 840595000,
+    "delete_ms": 1802.522,
+    "read_ms": 840.595
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 1979094000,
+    "read_ns": 832313000,
+    "delete_ms": 1979.094,
+    "read_ms": 832.313
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 1946095000,
+    "read_ns": 848746000,
+    "delete_ms": 1946.095,
+    "read_ms": 848.746
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 1921701000,
+    "read_ns": 804528000,
+    "delete_ms": 1921.701,
+    "read_ms": 804.528
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 2529694000,
+    "read_ns": 1029197000,
+    "delete_ms": 2529.694,
+    "read_ms": 1029.197
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 1874526000,
+    "read_ns": 801132000,
+    "delete_ms": 1874.526,
+    "read_ms": 801.132
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 2073251000,
+    "read_ns": 795765000,
+    "delete_ms": 2073.251,
+    "read_ms": 795.765
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 1969972000,
+    "read_ns": 803801000,
+    "delete_ms": 1969.972,
+    "read_ms": 803.801
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 1955355000,
+    "read_ns": 846181000,
+    "delete_ms": 1955.355,
+    "read_ms": 846.181
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 2410506000,
+    "read_ns": 1073604000,
+    "delete_ms": 2410.506,
+    "read_ms": 1073.604
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 1903794000,
+    "read_ns": 823187000,
+    "delete_ms": 1903.794,
+    "read_ms": 823.187
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 1979367000,
+    "read_ns": 802724000,
+    "delete_ms": 1979.367,
+    "read_ms": 802.724
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 1898282000,
+    "read_ns": 806702000,
+    "delete_ms": 1898.282,
+    "read_ms": 806.702
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 2088160000,
+    "read_ns": 802767000,
+    "delete_ms": 2088.16,
+    "read_ms": 802.767
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 2685668000,
+    "read_ns": 1082950000,
+    "delete_ms": 2685.668,
+    "read_ms": 1082.95
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 1945937000,
+    "read_ns": 837253000,
+    "delete_ms": 1945.937,
+    "read_ms": 837.253
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 2118887000,
+    "read_ns": 885462000,
+    "delete_ms": 2118.887,
+    "read_ms": 885.462
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 2077776000,
+    "read_ns": 944343000,
+    "delete_ms": 2077.776,
+    "read_ms": 944.343
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 2119591000,
+    "read_ns": 837181000,
+    "delete_ms": 2119.591,
+    "read_ms": 837.181
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 2742414000,
+    "read_ns": 1068726000,
+    "delete_ms": 2742.414,
+    "read_ms": 1068.726
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 1958415000,
+    "read_ns": 819676000,
+    "delete_ms": 1958.415,
+    "read_ms": 819.676
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 2094912000,
+    "read_ns": 873718000,
+    "delete_ms": 2094.912,
+    "read_ms": 873.718
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 2203344000,
+    "read_ns": 794641000,
+    "delete_ms": 2203.344,
+    "read_ms": 794.641
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 2128433000,
+    "read_ns": 822208000,
+    "delete_ms": 2128.433,
+    "read_ms": 822.208
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 2876534000,
+    "read_ns": 1082960000,
+    "delete_ms": 2876.534,
+    "read_ms": 1082.96
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 1941368000,
+    "read_ns": 843502000,
+    "delete_ms": 1941.368,
+    "read_ms": 843.502
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 2137297000,
+    "read_ns": 949775000,
+    "delete_ms": 2137.297,
+    "read_ms": 949.775
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 2024243000,
+    "read_ns": 818701000,
+    "delete_ms": 2024.243,
+    "read_ms": 818.701
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 2337748000,
+    "read_ns": 956588000,
+    "delete_ms": 2337.748,
+    "read_ms": 956.588
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 2795533000,
+    "read_ns": 1551173000,
+    "delete_ms": 2795.533,
+    "read_ms": 1551.173
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 2012041000,
+    "read_ns": 820737000,
+    "delete_ms": 2012.041,
+    "read_ms": 820.737
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 2386845000,
+    "read_ns": 845725000,
+    "delete_ms": 2386.845,
+    "read_ms": 845.725
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 2075290000,
+    "read_ns": 820483000,
+    "delete_ms": 2075.29,
+    "read_ms": 820.483
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 2475012000,
+    "read_ns": 834219000,
+    "delete_ms": 2475.012,
+    "read_ms": 834.219
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 2768133000,
+    "read_ns": 1277605000,
+    "delete_ms": 2768.133,
+    "read_ms": 1277.605
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 2093074000,
+    "read_ns": 815984000,
+    "delete_ms": 2093.074,
+    "read_ms": 815.984
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 2244910000,
+    "read_ns": 834998000,
+    "delete_ms": 2244.91,
+    "read_ms": 834.998
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 2349695000,
+    "read_ns": 826825000,
+    "delete_ms": 2349.695,
+    "read_ms": 826.825
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 2474992000,
+    "read_ns": 913941000,
+    "delete_ms": 2474.992,
+    "read_ms": 913.941
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 2814785000,
+    "read_ns": 1107767000,
+    "delete_ms": 2814.785,
+    "read_ms": 1107.767
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 1756307000,
+    "read_ns": 817628000,
+    "delete_ms": 1756.307,
+    "read_ms": 817.628
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 1908181000,
+    "read_ns": 812913000,
+    "delete_ms": 1908.181,
+    "read_ms": 812.913
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 2137378000,
+    "read_ns": 864218000,
+    "delete_ms": 2137.378,
+    "read_ms": 864.218
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 2060623000,
+    "read_ns": 836167000,
+    "delete_ms": 2060.623,
+    "read_ms": 836.167
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 2494913000,
+    "read_ns": 1069531000,
+    "delete_ms": 2494.913,
+    "read_ms": 1069.531
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 1826247000,
+    "read_ns": 856274000,
+    "delete_ms": 1826.247,
+    "read_ms": 856.274
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 1923219000,
+    "read_ns": 823226000,
+    "delete_ms": 1923.219,
+    "read_ms": 823.226
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 2101463000,
+    "read_ns": 837092000,
+    "delete_ms": 2101.463,
+    "read_ms": 837.092
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 2092701000,
+    "read_ns": 808173000,
+    "delete_ms": 2092.701,
+    "read_ms": 808.173
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 2709518000,
+    "read_ns": 1056557000,
+    "delete_ms": 2709.518,
+    "read_ms": 1056.557
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 1798432000,
+    "read_ns": 860444000,
+    "delete_ms": 1798.432,
+    "read_ms": 860.444
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 1875864000,
+    "read_ns": 842916000,
+    "delete_ms": 1875.864,
+    "read_ms": 842.916
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 2097815000,
+    "read_ns": 845396000,
+    "delete_ms": 2097.815,
+    "read_ms": 845.396
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 1987743000,
+    "read_ns": 808498000,
+    "delete_ms": 1987.743,
+    "read_ms": 808.498
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 2706745000,
+    "read_ns": 1130831000,
+    "delete_ms": 2706.745,
+    "read_ms": 1130.831
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 1992090000,
+    "read_ns": 822909000,
+    "delete_ms": 1992.09,
+    "read_ms": 822.909
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 2203150000,
+    "read_ns": 842331000,
+    "delete_ms": 2203.15,
+    "read_ms": 842.331
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 2240063000,
+    "read_ns": 827492000,
+    "delete_ms": 2240.063,
+    "read_ms": 827.492
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 2078201000,
+    "read_ns": 826505000,
+    "delete_ms": 2078.201,
+    "read_ms": 826.505
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 2852210000,
+    "read_ns": 1103720000,
+    "delete_ms": 2852.21,
+    "read_ms": 1103.72
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 1913778000,
+    "read_ns": 762312000,
+    "delete_ms": 1913.778,
+    "read_ms": 762.312
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 2255926000,
+    "read_ns": 823254000,
+    "delete_ms": 2255.926,
+    "read_ms": 823.254
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 2259396000,
+    "read_ns": 822849000,
+    "delete_ms": 2259.396,
+    "read_ms": 822.849
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 2192194000,
+    "read_ns": 810360000,
+    "delete_ms": 2192.194,
+    "read_ms": 810.36
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 2741775000,
+    "read_ns": 1061275000,
+    "delete_ms": 2741.775,
+    "read_ms": 1061.275
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 1988004000,
+    "read_ns": 854349000,
+    "delete_ms": 1988.004,
+    "read_ms": 854.349
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 2195219000,
+    "read_ns": 819805000,
+    "delete_ms": 2195.219,
+    "read_ms": 819.805
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 2154468000,
+    "read_ns": 749533000,
+    "delete_ms": 2154.468,
+    "read_ms": 749.533
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 2167586000,
+    "read_ns": 828855000,
+    "delete_ms": 2167.586,
+    "read_ms": 828.855
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 2729582000,
+    "read_ns": 1045853000,
+    "delete_ms": 2729.582,
+    "read_ms": 1045.853
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 2088447000,
+    "read_ns": 826067000,
+    "delete_ms": 2088.447,
+    "read_ms": 826.067
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 2115999000,
+    "read_ns": 822504000,
+    "delete_ms": 2115.999,
+    "read_ms": 822.504
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 1964751000,
+    "read_ns": 805937000,
+    "delete_ms": 1964.751,
+    "read_ms": 805.937
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 2240717000,
+    "read_ns": 827506000,
+    "delete_ms": 2240.717,
+    "read_ms": 827.506
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 2706900000,
+    "read_ns": 1009980000,
+    "delete_ms": 2706.9,
+    "read_ms": 1009.98
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 2067998000,
+    "read_ns": 811379000,
+    "delete_ms": 2067.998,
+    "read_ms": 811.379
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 2342732000,
+    "read_ns": 844281000,
+    "delete_ms": 2342.732,
+    "read_ms": 844.281
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 2324870000,
+    "read_ns": 829147000,
+    "delete_ms": 2324.87,
+    "read_ms": 829.147
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 2238270000,
+    "read_ns": 803518000,
+    "delete_ms": 2238.27,
+    "read_ms": 803.518
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 2729014000,
+    "read_ns": 1061841000,
+    "delete_ms": 2729.014,
+    "read_ms": 1061.841
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 2185232000,
+    "read_ns": 809142000,
+    "delete_ms": 2185.232,
+    "read_ms": 809.142
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 2159560000,
+    "read_ns": 763866000,
+    "delete_ms": 2159.56,
+    "read_ms": 763.866
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 2230685000,
+    "read_ns": 822628000,
+    "delete_ms": 2230.685,
+    "read_ms": 822.628
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 2255385000,
+    "read_ns": 802723000,
+    "delete_ms": 2255.385,
+    "read_ms": 802.723
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 2820420000,
+    "read_ns": 1011535000,
+    "delete_ms": 2820.42,
+    "read_ms": 1011.535
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 1773244000,
+    "read_ns": 827522000,
+    "delete_ms": 1773.244,
+    "read_ms": 827.522
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 1798885000,
+    "read_ns": 810733000,
+    "delete_ms": 1798.885,
+    "read_ms": 810.733
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 1909808000,
+    "read_ns": 826959000,
+    "delete_ms": 1909.808,
+    "read_ms": 826.959
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 1975043000,
+    "read_ns": 792449000,
+    "delete_ms": 1975.043,
+    "read_ms": 792.449
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 2522509000,
+    "read_ns": 1078785000,
+    "delete_ms": 2522.509,
+    "read_ms": 1078.785
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 1858194000,
+    "read_ns": 814914000,
+    "delete_ms": 1858.194,
+    "read_ms": 814.914
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 1940594000,
+    "read_ns": 804559000,
+    "delete_ms": 1940.594,
+    "read_ms": 804.559
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 1982312000,
+    "read_ns": 835204000,
+    "delete_ms": 1982.312,
+    "read_ms": 835.204
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 1989460000,
+    "read_ns": 781885000,
+    "delete_ms": 1989.46,
+    "read_ms": 781.885
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 2595556000,
+    "read_ns": 1093674000,
+    "delete_ms": 2595.556,
+    "read_ms": 1093.674
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 1938420000,
+    "read_ns": 836135000,
+    "delete_ms": 1938.42,
+    "read_ms": 836.135
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 2047766000,
+    "read_ns": 833569000,
+    "delete_ms": 2047.766,
+    "read_ms": 833.569
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 2119224000,
+    "read_ns": 796035000,
+    "delete_ms": 2119.224,
+    "read_ms": 796.035
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 2027886000,
+    "read_ns": 813559000,
+    "delete_ms": 2027.886,
+    "read_ms": 813.559
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 2679843000,
+    "read_ns": 1072589000,
+    "delete_ms": 2679.843,
+    "read_ms": 1072.589
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 2024699000,
+    "read_ns": 764434000,
+    "delete_ms": 2024.699,
+    "read_ms": 764.434
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 2254632000,
+    "read_ns": 870333000,
+    "delete_ms": 2254.632,
+    "read_ms": 870.333
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 2210955000,
+    "read_ns": 833795000,
+    "delete_ms": 2210.955,
+    "read_ms": 833.795
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 2065742000,
+    "read_ns": 821668000,
+    "delete_ms": 2065.742,
+    "read_ms": 821.668
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 2718089000,
+    "read_ns": 1062752000,
+    "delete_ms": 2718.089,
+    "read_ms": 1062.752
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 1883216000,
+    "read_ns": 749883000,
+    "delete_ms": 1883.216,
+    "read_ms": 749.883
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 2175334000,
+    "read_ns": 846742000,
+    "delete_ms": 2175.334,
+    "read_ms": 846.742
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 2128983000,
+    "read_ns": 898763000,
+    "delete_ms": 2128.983,
+    "read_ms": 898.763
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 2123282000,
+    "read_ns": 807723000,
+    "delete_ms": 2123.282,
+    "read_ms": 807.723
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 2723407000,
+    "read_ns": 1000433000,
+    "delete_ms": 2723.407,
+    "read_ms": 1000.433
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 1944853000,
+    "read_ns": 794731000,
+    "delete_ms": 1944.853,
+    "read_ms": 794.731
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 2026463000,
+    "read_ns": 795000000,
+    "delete_ms": 2026.463,
+    "read_ms": 795.0
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 2196116000,
+    "read_ns": 753050000,
+    "delete_ms": 2196.116,
+    "read_ms": 753.05
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 2162716000,
+    "read_ns": 805800000,
+    "delete_ms": 2162.716,
+    "read_ms": 805.8
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 2877198000,
+    "read_ns": 1011542000,
+    "delete_ms": 2877.198,
+    "read_ms": 1011.542
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 2035941000,
+    "read_ns": 810251000,
+    "delete_ms": 2035.941,
+    "read_ms": 810.251
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 2171922000,
+    "read_ns": 823420000,
+    "delete_ms": 2171.922,
+    "read_ms": 823.42
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 2112412000,
+    "read_ns": 811904000,
+    "delete_ms": 2112.412,
+    "read_ms": 811.904
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 2237217000,
+    "read_ns": 808752000,
+    "delete_ms": 2237.217,
+    "read_ms": 808.752
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 2678521000,
+    "read_ns": 979736000,
+    "delete_ms": 2678.521,
+    "read_ms": 979.736
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 2072654000,
+    "read_ns": 811146000,
+    "delete_ms": 2072.654,
+    "read_ms": 811.146
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 2275182000,
+    "read_ns": 803391000,
+    "delete_ms": 2275.182,
+    "read_ms": 803.391
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 2218881000,
+    "read_ns": 816131000,
+    "delete_ms": 2218.881,
+    "read_ms": 816.131
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 2215327000,
+    "read_ns": 808923000,
+    "delete_ms": 2215.327,
+    "read_ms": 808.923
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 2676846000,
+    "read_ns": 1045126000,
+    "delete_ms": 2676.846,
+    "read_ms": 1045.126
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 2243408000,
+    "read_ns": 813797000,
+    "delete_ms": 2243.408,
+    "read_ms": 813.797
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 2219775000,
+    "read_ns": 752636000,
+    "delete_ms": 2219.775,
+    "read_ms": 752.636
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 2285397000,
+    "read_ns": 816518000,
+    "delete_ms": 2285.397,
+    "read_ms": 816.518
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 2178099000,
+    "read_ns": 830375000,
+    "delete_ms": 2178.099,
+    "read_ms": 830.375
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 2714132000,
+    "read_ns": 1055886000,
+    "delete_ms": 2714.132,
+    "read_ms": 1055.886
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 1835297000,
+    "read_ns": 833068000,
+    "delete_ms": 1835.297,
+    "read_ms": 833.068
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 1880599000,
+    "read_ns": 817919000,
+    "delete_ms": 1880.599,
+    "read_ms": 817.919
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 1983716000,
+    "read_ns": 886985000,
+    "delete_ms": 1983.716,
+    "read_ms": 886.985
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 2039677000,
+    "read_ns": 800161000,
+    "delete_ms": 2039.677,
+    "read_ms": 800.161
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 2640645000,
+    "read_ns": 1086874000,
+    "delete_ms": 2640.645,
+    "read_ms": 1086.874
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 2035413000,
+    "read_ns": 884329000,
+    "delete_ms": 2035.413,
+    "read_ms": 884.329
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 2102034000,
+    "read_ns": 830156000,
+    "delete_ms": 2102.034,
+    "read_ms": 830.156
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 2143896000,
+    "read_ns": 899772000,
+    "delete_ms": 2143.896,
+    "read_ms": 899.772
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 1966736000,
+    "read_ns": 817806000,
+    "delete_ms": 1966.736,
+    "read_ms": 817.806
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 2807141000,
+    "read_ns": 1062708000,
+    "delete_ms": 2807.141,
+    "read_ms": 1062.708
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 1863181000,
+    "read_ns": 761524000,
+    "delete_ms": 1863.181,
+    "read_ms": 761.524
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 2131898000,
+    "read_ns": 807526000,
+    "delete_ms": 2131.898,
+    "read_ms": 807.526
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 2168689000,
+    "read_ns": 845296000,
+    "delete_ms": 2168.689,
+    "read_ms": 845.296
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 1982767000,
+    "read_ns": 842497000,
+    "delete_ms": 1982.767,
+    "read_ms": 842.497
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 2587147000,
+    "read_ns": 1019662000,
+    "delete_ms": 2587.147,
+    "read_ms": 1019.662
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 1903646000,
+    "read_ns": 786569000,
+    "delete_ms": 1903.646,
+    "read_ms": 786.569
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 2180103000,
+    "read_ns": 825277000,
+    "delete_ms": 2180.103,
+    "read_ms": 825.277
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 2218757000,
+    "read_ns": 792453000,
+    "delete_ms": 2218.757,
+    "read_ms": 792.453
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 2197953000,
+    "read_ns": 793054000,
+    "delete_ms": 2197.953,
+    "read_ms": 793.054
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 2649341000,
+    "read_ns": 1039088000,
+    "delete_ms": 2649.341,
+    "read_ms": 1039.088
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 1960385000,
+    "read_ns": 835159000,
+    "delete_ms": 1960.385,
+    "read_ms": 835.159
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 2239000000,
+    "read_ns": 823284000,
+    "delete_ms": 2239.0,
+    "read_ms": 823.284
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 2234408000,
+    "read_ns": 771514000,
+    "delete_ms": 2234.408,
+    "read_ms": 771.514
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 2309432000,
+    "read_ns": 829805000,
+    "delete_ms": 2309.432,
+    "read_ms": 829.805
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 2886598000,
+    "read_ns": 1054581000,
+    "delete_ms": 2886.598,
+    "read_ms": 1054.581
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 2237971000,
+    "read_ns": 857027000,
+    "delete_ms": 2237.971,
+    "read_ms": 857.027
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 2328767000,
+    "read_ns": 827347000,
+    "delete_ms": 2328.767,
+    "read_ms": 827.347
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 2191033000,
+    "read_ns": 788511000,
+    "delete_ms": 2191.033,
+    "read_ms": 788.511
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 2369528000,
+    "read_ns": 825898000,
+    "delete_ms": 2369.528,
+    "read_ms": 825.898
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 2902822000,
+    "read_ns": 1010649000,
+    "delete_ms": 2902.822,
+    "read_ms": 1010.649
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 2136891000,
+    "read_ns": 806997000,
+    "delete_ms": 2136.891,
+    "read_ms": 806.997
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 2260643000,
+    "read_ns": 785117000,
+    "delete_ms": 2260.643,
+    "read_ms": 785.117
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 2143258000,
+    "read_ns": 795249000,
+    "delete_ms": 2143.258,
+    "read_ms": 795.249
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 2244327000,
+    "read_ns": 780194000,
+    "delete_ms": 2244.327,
+    "read_ms": 780.194
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 2741885000,
+    "read_ns": 1005992000,
+    "delete_ms": 2741.885,
+    "read_ms": 1005.992
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 2114658000,
+    "read_ns": 796872000,
+    "delete_ms": 2114.658,
+    "read_ms": 796.872
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 2257072000,
+    "read_ns": 755275000,
+    "delete_ms": 2257.072,
+    "read_ms": 755.275
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 2129059000,
+    "read_ns": 784110000,
+    "delete_ms": 2129.059,
+    "read_ms": 784.11
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 2085467000,
+    "read_ns": 780362000,
+    "delete_ms": 2085.467,
+    "read_ms": 780.362
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 2847490000,
+    "read_ns": 985583000,
+    "delete_ms": 2847.49,
+    "read_ms": 985.583
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 2158433000,
+    "read_ns": 794290000,
+    "delete_ms": 2158.433,
+    "read_ms": 794.29
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 2326908000,
+    "read_ns": 769345000,
+    "delete_ms": 2326.908,
+    "read_ms": 769.345
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 2306707000,
+    "read_ns": 822781000,
+    "delete_ms": 2306.707,
+    "read_ms": 822.781
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 2346931000,
+    "read_ns": 808906000,
+    "delete_ms": 2346.931,
+    "read_ms": 808.906
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 2854614000,
+    "read_ns": 987049000,
+    "delete_ms": 2854.614,
+    "read_ms": 987.049
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 1903234000,
+    "read_ns": 859747000,
+    "delete_ms": 1903.234,
+    "read_ms": 859.747
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 1912445000,
+    "read_ns": 862917000,
+    "delete_ms": 1912.445,
+    "read_ms": 862.917
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 1,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 1898141000,
+    "read_ns": 845094000,
+    "delete_ms": 1898.141,
+    "read_ms": 845.094
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 2028480000,
+    "read_ns": 829661000,
+    "delete_ms": 2028.48,
+    "read_ms": 829.661
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2817684000,
+    "read_ns": 1047442000,
+    "delete_ms": 2817.684,
+    "read_ms": 1047.442
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 3,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 1862808000,
+    "read_ns": 829493000,
+    "delete_ms": 1862.808,
+    "read_ms": 829.493
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 2198532000,
+    "read_ns": 837091000,
+    "delete_ms": 2198.532,
+    "read_ms": 837.091
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2196159000,
+    "read_ns": 822944000,
+    "delete_ms": 2196.159,
+    "read_ms": 822.944
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 5,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 2173470000,
+    "read_ns": 909300000,
+    "delete_ms": 2173.47,
+    "read_ms": 909.3
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 2662756000,
+    "read_ns": 1077459000,
+    "delete_ms": 2662.756,
+    "read_ms": 1077.459
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2057802000,
+    "read_ns": 868257000,
+    "delete_ms": 2057.802,
+    "read_ms": 868.257
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 7,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 2121075000,
+    "read_ns": 759863000,
+    "delete_ms": 2121.075,
+    "read_ms": 759.863
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 2278190000,
+    "read_ns": 865488000,
+    "delete_ms": 2278.19,
+    "read_ms": 865.488
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2260146000,
+    "read_ns": 834087000,
+    "delete_ms": 2260.146,
+    "read_ms": 834.087
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 9,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 2826038000,
+    "read_ns": 1069355000,
+    "delete_ms": 2826.038,
+    "read_ms": 1069.355
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 2123830000,
+    "read_ns": 867569000,
+    "delete_ms": 2123.83,
+    "read_ms": 867.569
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2244867000,
+    "read_ns": 851840000,
+    "delete_ms": 2244.867,
+    "read_ms": 851.84
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 11,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 2284397000,
+    "read_ns": 866222000,
+    "delete_ms": 2284.397,
+    "read_ms": 866.222
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 2220252000,
+    "read_ns": 831167000,
+    "delete_ms": 2220.252,
+    "read_ms": 831.167
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2836091000,
+    "read_ns": 1083402000,
+    "delete_ms": 2836.091,
+    "read_ms": 1083.402
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 13,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 2076531000,
+    "read_ns": 821798000,
+    "delete_ms": 2076.531,
+    "read_ms": 821.798
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 2323101000,
+    "read_ns": 850207000,
+    "delete_ms": 2323.101,
+    "read_ms": 850.207
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2311449000,
+    "read_ns": 843459000,
+    "delete_ms": 2311.449,
+    "read_ms": 843.459
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 15,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 2259861000,
+    "read_ns": 836024000,
+    "delete_ms": 2259.861,
+    "read_ms": 836.024
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 2972457000,
+    "read_ns": 1065684000,
+    "delete_ms": 2972.457,
+    "read_ms": 1065.684
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2015634000,
+    "read_ns": 836843000,
+    "delete_ms": 2015.634,
+    "read_ms": 836.843
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 17,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 2128922000,
+    "read_ns": 862690000,
+    "delete_ms": 2128.922,
+    "read_ms": 862.69
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 2253322000,
+    "read_ns": 800655000,
+    "delete_ms": 2253.322,
+    "read_ms": 800.655
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2307893000,
+    "read_ns": 876465000,
+    "delete_ms": 2307.893,
+    "read_ms": 876.465
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 19,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 2712366000,
+    "read_ns": 1047180000,
+    "delete_ms": 2712.366,
+    "read_ms": 1047.18
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 2220982000,
+    "read_ns": 883470000,
+    "delete_ms": 2220.982,
+    "read_ms": 883.47
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2237350000,
+    "read_ns": 867653000,
+    "delete_ms": 2237.35,
+    "read_ms": 867.653
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 21,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 2232848000,
+    "read_ns": 854737000,
+    "delete_ms": 2232.848,
+    "read_ms": 854.737
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 2458475000,
+    "read_ns": 882277000,
+    "delete_ms": 2458.475,
+    "read_ms": 882.277
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2962742000,
+    "read_ns": 1127936000,
+    "delete_ms": 2962.742,
+    "read_ms": 1127.936
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 23,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 2274942000,
+    "read_ns": 895831000,
+    "delete_ms": 2274.942,
+    "read_ms": 895.831
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 2373347000,
+    "read_ns": 905431000,
+    "delete_ms": 2373.347,
+    "read_ms": 905.431
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2365942000,
+    "read_ns": 910131000,
+    "delete_ms": 2365.942,
+    "read_ms": 910.131
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 25,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 2242365000,
+    "read_ns": 827774000,
+    "delete_ms": 2242.365,
+    "read_ms": 827.774
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 3119390000,
+    "read_ns": 1123075000,
+    "delete_ms": 3119.39,
+    "read_ms": 1123.075
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2268530000,
+    "read_ns": 810792000,
+    "delete_ms": 2268.53,
+    "read_ms": 810.792
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 27,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 2514012000,
+    "read_ns": 858877000,
+    "delete_ms": 2514.012,
+    "read_ms": 858.877
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 2530488000,
+    "read_ns": 868503000,
+    "delete_ms": 2530.488,
+    "read_ms": 868.503
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2519129000,
+    "read_ns": 856193000,
+    "delete_ms": 2519.129,
+    "read_ms": 856.193
+  },
+  {
+    "mode": "Spark",
+    "percent_deleted": 29,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 3088720000,
+    "read_ns": 1074096000,
+    "delete_ms": 3088.72,
+    "read_ms": 1074.096
+  }
+]

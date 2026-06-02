@@ -1,0 +1,4502 @@
+[
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 1422712000,
+    "read_ns": 757961000,
+    "delete_ms": 1422.712,
+    "read_ms": 757.961
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 1791174000,
+    "read_ns": 728622000,
+    "delete_ms": 1791.174,
+    "read_ms": 728.622
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 1769667000,
+    "read_ns": 727143000,
+    "delete_ms": 1769.667,
+    "read_ms": 727.143
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 1666321000,
+    "read_ns": 692960000,
+    "delete_ms": 1666.321,
+    "read_ms": 692.96
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 2354288000,
+    "read_ns": 979388000,
+    "delete_ms": 2354.288,
+    "read_ms": 979.388
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 1653433000,
+    "read_ns": 734004000,
+    "delete_ms": 1653.433,
+    "read_ms": 734.004
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 1688825000,
+    "read_ns": 685773000,
+    "delete_ms": 1688.825,
+    "read_ms": 685.773
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 1793295000,
+    "read_ns": 746470000,
+    "delete_ms": 1793.295,
+    "read_ms": 746.47
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 1853319000,
+    "read_ns": 744145000,
+    "delete_ms": 1853.319,
+    "read_ms": 744.145
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 2213630000,
+    "read_ns": 916339000,
+    "delete_ms": 2213.63,
+    "read_ms": 916.339
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 1754147000,
+    "read_ns": 726952000,
+    "delete_ms": 1754.147,
+    "read_ms": 726.952
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 1905439000,
+    "read_ns": 752437000,
+    "delete_ms": 1905.439,
+    "read_ms": 752.437
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 1721000000,
+    "read_ns": 719807000,
+    "delete_ms": 1721.0,
+    "read_ms": 719.807
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 1805675000,
+    "read_ns": 767886000,
+    "delete_ms": 1805.675,
+    "read_ms": 767.886
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 2338426000,
+    "read_ns": 994173000,
+    "delete_ms": 2338.426,
+    "read_ms": 994.173
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 1710428000,
+    "read_ns": 749727000,
+    "delete_ms": 1710.428,
+    "read_ms": 749.727
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 1946246000,
+    "read_ns": 755351000,
+    "delete_ms": 1946.246,
+    "read_ms": 755.351
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 1915934000,
+    "read_ns": 725758000,
+    "delete_ms": 1915.934,
+    "read_ms": 725.758
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 1929805000,
+    "read_ns": 738292000,
+    "delete_ms": 1929.805,
+    "read_ms": 738.292
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 2367274000,
+    "read_ns": 968807000,
+    "delete_ms": 2367.274,
+    "read_ms": 968.807
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 1677350000,
+    "read_ns": 682363000,
+    "delete_ms": 1677.35,
+    "read_ms": 682.363
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 1996886000,
+    "read_ns": 746375000,
+    "delete_ms": 1996.886,
+    "read_ms": 746.375
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 1850877000,
+    "read_ns": 734994000,
+    "delete_ms": 1850.877,
+    "read_ms": 734.994
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 1748812000,
+    "read_ns": 703008000,
+    "delete_ms": 1748.812,
+    "read_ms": 703.008
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 2446307000,
+    "read_ns": 976735000,
+    "delete_ms": 2446.307,
+    "read_ms": 976.735
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 1797888000,
+    "read_ns": 743028000,
+    "delete_ms": 1797.888,
+    "read_ms": 743.028
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 1918272000,
+    "read_ns": 742662000,
+    "delete_ms": 1918.272,
+    "read_ms": 742.662
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 1985306000,
+    "read_ns": 750540000,
+    "delete_ms": 1985.306,
+    "read_ms": 750.54
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 1844719000,
+    "read_ns": 698148000,
+    "delete_ms": 1844.719,
+    "read_ms": 698.148
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 2421578000,
+    "read_ns": 960198000,
+    "delete_ms": 2421.578,
+    "read_ms": 960.198
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 1746520000,
+    "read_ns": 741983000,
+    "delete_ms": 1746.52,
+    "read_ms": 741.983
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 1844865000,
+    "read_ns": 687697000,
+    "delete_ms": 1844.865,
+    "read_ms": 687.697
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 1928300000,
+    "read_ns": 763170000,
+    "delete_ms": 1928.3,
+    "read_ms": 763.17
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 1941188000,
+    "read_ns": 748882000,
+    "delete_ms": 1941.188,
+    "read_ms": 748.882
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 2204501000,
+    "read_ns": 985181000,
+    "delete_ms": 2204.501,
+    "read_ms": 985.181
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 1815882000,
+    "read_ns": 738644000,
+    "delete_ms": 1815.882,
+    "read_ms": 738.644
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 1989871000,
+    "read_ns": 765803000,
+    "delete_ms": 1989.871,
+    "read_ms": 765.803
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 1912938000,
+    "read_ns": 760824000,
+    "delete_ms": 1912.938,
+    "read_ms": 760.824
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 1987061000,
+    "read_ns": 741758000,
+    "delete_ms": 1987.061,
+    "read_ms": 741.758
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 2366434000,
+    "read_ns": 923881000,
+    "delete_ms": 2366.434,
+    "read_ms": 923.881
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 1840956000,
+    "read_ns": 743458000,
+    "delete_ms": 1840.956,
+    "read_ms": 743.458
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 1894144000,
+    "read_ns": 735162000,
+    "delete_ms": 1894.144,
+    "read_ms": 735.162
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 1,
+    "run": 0,
+    "delete_ns": 1759974000,
+    "read_ns": 703413000,
+    "delete_ms": 1759.974,
+    "read_ms": 703.413
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 1,
+    "run": 1,
+    "delete_ns": 1932980000,
+    "read_ns": 751054000,
+    "delete_ms": 1932.98,
+    "read_ms": 751.054
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 1,
+    "run": 2,
+    "delete_ns": 2390337000,
+    "read_ns": 948016000,
+    "delete_ms": 2390.337,
+    "read_ms": 948.016
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 1570786000,
+    "read_ns": 708648000,
+    "delete_ms": 1570.786,
+    "read_ms": 708.648
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 1843295000,
+    "read_ns": 742573000,
+    "delete_ms": 1843.295,
+    "read_ms": 742.573
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 1779527000,
+    "read_ns": 722569000,
+    "delete_ms": 1779.527,
+    "read_ms": 722.569
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 1752826000,
+    "read_ns": 748917000,
+    "delete_ms": 1752.826,
+    "read_ms": 748.917
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 2322110000,
+    "read_ns": 964091000,
+    "delete_ms": 2322.11,
+    "read_ms": 964.091
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 1733229000,
+    "read_ns": 718517000,
+    "delete_ms": 1733.229,
+    "read_ms": 718.517
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 1979196000,
+    "read_ns": 728311000,
+    "delete_ms": 1979.196,
+    "read_ms": 728.311
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 1863996000,
+    "read_ns": 751540000,
+    "delete_ms": 1863.996,
+    "read_ms": 751.54
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 1780340000,
+    "read_ns": 698853000,
+    "delete_ms": 1780.34,
+    "read_ms": 698.853
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 2342954000,
+    "read_ns": 964444000,
+    "delete_ms": 2342.954,
+    "read_ms": 964.444
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 1769336000,
+    "read_ns": 741062000,
+    "delete_ms": 1769.336,
+    "read_ms": 741.062
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 1751436000,
+    "read_ns": 689432000,
+    "delete_ms": 1751.436,
+    "read_ms": 689.432
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 1978314000,
+    "read_ns": 756599000,
+    "delete_ms": 1978.314,
+    "read_ms": 756.599
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 2018018000,
+    "read_ns": 826718000,
+    "delete_ms": 2018.018,
+    "read_ms": 826.718
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 2381304000,
+    "read_ns": 987369000,
+    "delete_ms": 2381.304,
+    "read_ms": 987.369
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 1811639000,
+    "read_ns": 752964000,
+    "delete_ms": 1811.639,
+    "read_ms": 752.964
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 1889737000,
+    "read_ns": 721568000,
+    "delete_ms": 1889.737,
+    "read_ms": 721.568
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 1989771000,
+    "read_ns": 791481000,
+    "delete_ms": 1989.771,
+    "read_ms": 791.481
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 2038227000,
+    "read_ns": 748732000,
+    "delete_ms": 2038.227,
+    "read_ms": 748.732
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 2269566000,
+    "read_ns": 937370000,
+    "delete_ms": 2269.566,
+    "read_ms": 937.37
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 1830174000,
+    "read_ns": 745018000,
+    "delete_ms": 1830.174,
+    "read_ms": 745.018
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 1890266000,
+    "read_ns": 798461000,
+    "delete_ms": 1890.266,
+    "read_ms": 798.461
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 1886653000,
+    "read_ns": 763293000,
+    "delete_ms": 1886.653,
+    "read_ms": 763.293
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 2012883000,
+    "read_ns": 794870000,
+    "delete_ms": 2012.883,
+    "read_ms": 794.87
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 2502075000,
+    "read_ns": 948888000,
+    "delete_ms": 2502.075,
+    "read_ms": 948.888
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 1776138000,
+    "read_ns": 769526000,
+    "delete_ms": 1776.138,
+    "read_ms": 769.526
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 2030121000,
+    "read_ns": 763714000,
+    "delete_ms": 2030.121,
+    "read_ms": 763.714
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 1886270000,
+    "read_ns": 734097000,
+    "delete_ms": 1886.27,
+    "read_ms": 734.097
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 2033958000,
+    "read_ns": 772215000,
+    "delete_ms": 2033.958,
+    "read_ms": 772.215
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 2561369000,
+    "read_ns": 999110000,
+    "delete_ms": 2561.369,
+    "read_ms": 999.11
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 1897358000,
+    "read_ns": 772309000,
+    "delete_ms": 1897.358,
+    "read_ms": 772.309
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 2115973000,
+    "read_ns": 813434000,
+    "delete_ms": 2115.973,
+    "read_ms": 813.434
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 1874402000,
+    "read_ns": 731043000,
+    "delete_ms": 1874.402,
+    "read_ms": 731.043
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 2065752000,
+    "read_ns": 804988000,
+    "delete_ms": 2065.752,
+    "read_ms": 804.988
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 2593731000,
+    "read_ns": 1012002000,
+    "delete_ms": 2593.731,
+    "read_ms": 1012.002
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 1870010000,
+    "read_ns": 756159000,
+    "delete_ms": 1870.01,
+    "read_ms": 756.159
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 2047762000,
+    "read_ns": 789714000,
+    "delete_ms": 2047.762,
+    "read_ms": 789.714
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 1917466000,
+    "read_ns": 710231000,
+    "delete_ms": 1917.466,
+    "read_ms": 710.231
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 1965541000,
+    "read_ns": 765326000,
+    "delete_ms": 1965.541,
+    "read_ms": 765.326
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 2518725000,
+    "read_ns": 1002182000,
+    "delete_ms": 2518.725,
+    "read_ms": 1002.182
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 1791388000,
+    "read_ns": 695473000,
+    "delete_ms": 1791.388,
+    "read_ms": 695.473
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 2055385000,
+    "read_ns": 748189000,
+    "delete_ms": 2055.385,
+    "read_ms": 748.189
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 2,
+    "run": 0,
+    "delete_ns": 2068089000,
+    "read_ns": 762168000,
+    "delete_ms": 2068.089,
+    "read_ms": 762.168
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 2,
+    "run": 1,
+    "delete_ns": 1929655000,
+    "read_ns": 793981000,
+    "delete_ms": 1929.655,
+    "read_ms": 793.981
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 2,
+    "run": 2,
+    "delete_ns": 2473403000,
+    "read_ns": 963931000,
+    "delete_ms": 2473.403,
+    "read_ms": 963.931
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 1678998000,
+    "read_ns": 720272000,
+    "delete_ms": 1678.998,
+    "read_ms": 720.272
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 1809634000,
+    "read_ns": 751523000,
+    "delete_ms": 1809.634,
+    "read_ms": 751.523
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 1782232000,
+    "read_ns": 758198000,
+    "delete_ms": 1782.232,
+    "read_ms": 758.198
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 1744918000,
+    "read_ns": 705655000,
+    "delete_ms": 1744.918,
+    "read_ms": 705.655
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 2398756000,
+    "read_ns": 992875000,
+    "delete_ms": 2398.756,
+    "read_ms": 992.875
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 1810155000,
+    "read_ns": 773971000,
+    "delete_ms": 1810.155,
+    "read_ms": 773.971
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 1769805000,
+    "read_ns": 780767000,
+    "delete_ms": 1769.805,
+    "read_ms": 780.767
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 1875219000,
+    "read_ns": 910902000,
+    "delete_ms": 1875.219,
+    "read_ms": 910.902
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 1957203000,
+    "read_ns": 755346000,
+    "delete_ms": 1957.203,
+    "read_ms": 755.346
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 2458429000,
+    "read_ns": 965803000,
+    "delete_ms": 2458.429,
+    "read_ms": 965.803
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 1875940000,
+    "read_ns": 758110000,
+    "delete_ms": 1875.94,
+    "read_ms": 758.11
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 1785776000,
+    "read_ns": 709108000,
+    "delete_ms": 1785.776,
+    "read_ms": 709.108
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 1968382000,
+    "read_ns": 769893000,
+    "delete_ms": 1968.382,
+    "read_ms": 769.893
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 2009733000,
+    "read_ns": 784350000,
+    "delete_ms": 2009.733,
+    "read_ms": 784.35
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 2300435000,
+    "read_ns": 957764000,
+    "delete_ms": 2300.435,
+    "read_ms": 957.764
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 1948189000,
+    "read_ns": 773169000,
+    "delete_ms": 1948.189,
+    "read_ms": 773.169
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 2071327000,
+    "read_ns": 774579000,
+    "delete_ms": 2071.327,
+    "read_ms": 774.579
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 1986990000,
+    "read_ns": 759350000,
+    "delete_ms": 1986.99,
+    "read_ms": 759.35
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 2011893000,
+    "read_ns": 761570000,
+    "delete_ms": 2011.893,
+    "read_ms": 761.57
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 2444238000,
+    "read_ns": 911940000,
+    "delete_ms": 2444.238,
+    "read_ms": 911.94
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 1905392000,
+    "read_ns": 764932000,
+    "delete_ms": 1905.392,
+    "read_ms": 764.932
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 2035277000,
+    "read_ns": 784004000,
+    "delete_ms": 2035.277,
+    "read_ms": 784.004
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 1907851000,
+    "read_ns": 801597000,
+    "delete_ms": 1907.851,
+    "read_ms": 801.597
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 1949310000,
+    "read_ns": 778612000,
+    "delete_ms": 1949.31,
+    "read_ms": 778.612
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 2537731000,
+    "read_ns": 982359000,
+    "delete_ms": 2537.731,
+    "read_ms": 982.359
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 1892519000,
+    "read_ns": 766069000,
+    "delete_ms": 1892.519,
+    "read_ms": 766.069
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 1991592000,
+    "read_ns": 774854000,
+    "delete_ms": 1991.592,
+    "read_ms": 774.854
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 1842685000,
+    "read_ns": 715237000,
+    "delete_ms": 1842.685,
+    "read_ms": 715.237
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 1981136000,
+    "read_ns": 754062000,
+    "delete_ms": 1981.136,
+    "read_ms": 754.062
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 2490884000,
+    "read_ns": 1057404000,
+    "delete_ms": 2490.884,
+    "read_ms": 1057.404
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 1861543000,
+    "read_ns": 773179000,
+    "delete_ms": 1861.543,
+    "read_ms": 773.179
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 1982921000,
+    "read_ns": 753066000,
+    "delete_ms": 1982.921,
+    "read_ms": 753.066
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 1987256000,
+    "read_ns": 704350000,
+    "delete_ms": 1987.256,
+    "read_ms": 704.35
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 1901047000,
+    "read_ns": 752285000,
+    "delete_ms": 1901.047,
+    "read_ms": 752.285
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 2579610000,
+    "read_ns": 955087000,
+    "delete_ms": 2579.61,
+    "read_ms": 955.087
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 1798855000,
+    "read_ns": 721215000,
+    "delete_ms": 1798.855,
+    "read_ms": 721.215
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 2026287000,
+    "read_ns": 763233000,
+    "delete_ms": 2026.287,
+    "read_ms": 763.233
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 2035012000,
+    "read_ns": 764880000,
+    "delete_ms": 2035.012,
+    "read_ms": 764.88
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 2040261000,
+    "read_ns": 764941000,
+    "delete_ms": 2040.261,
+    "read_ms": 764.941
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 2575914000,
+    "read_ns": 970586000,
+    "delete_ms": 2575.914,
+    "read_ms": 970.586
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 1864439000,
+    "read_ns": 711732000,
+    "delete_ms": 1864.439,
+    "read_ms": 711.732
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 1963456000,
+    "read_ns": 738678000,
+    "delete_ms": 1963.456,
+    "read_ms": 738.678
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 3,
+    "run": 0,
+    "delete_ns": 2003478000,
+    "read_ns": 785672000,
+    "delete_ms": 2003.478,
+    "read_ms": 785.672
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 3,
+    "run": 1,
+    "delete_ns": 1933024000,
+    "read_ns": 741435000,
+    "delete_ms": 1933.024,
+    "read_ms": 741.435
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 3,
+    "run": 2,
+    "delete_ns": 2565202000,
+    "read_ns": 1001967000,
+    "delete_ms": 2565.202,
+    "read_ms": 1001.967
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 1750870000,
+    "read_ns": 760728000,
+    "delete_ms": 1750.87,
+    "read_ms": 760.728
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 1939404000,
+    "read_ns": 783485000,
+    "delete_ms": 1939.404,
+    "read_ms": 783.485
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 1823125000,
+    "read_ns": 770944000,
+    "delete_ms": 1823.125,
+    "read_ms": 770.944
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 1787796000,
+    "read_ns": 759042000,
+    "delete_ms": 1787.796,
+    "read_ms": 759.042
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 2467400000,
+    "read_ns": 979199000,
+    "delete_ms": 2467.4,
+    "read_ms": 979.199
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 1790555000,
+    "read_ns": 808381000,
+    "delete_ms": 1790.555,
+    "read_ms": 808.381
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 1914480000,
+    "read_ns": 785969000,
+    "delete_ms": 1914.48,
+    "read_ms": 785.969
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 1939230000,
+    "read_ns": 779484000,
+    "delete_ms": 1939.23,
+    "read_ms": 779.484
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 2067454000,
+    "read_ns": 768613000,
+    "delete_ms": 2067.454,
+    "read_ms": 768.613
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 2648311000,
+    "read_ns": 1028729000,
+    "delete_ms": 2648.311,
+    "read_ms": 1028.729
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 1856937000,
+    "read_ns": 802682000,
+    "delete_ms": 1856.937,
+    "read_ms": 802.682
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 1862547000,
+    "read_ns": 810186000,
+    "delete_ms": 1862.547,
+    "read_ms": 810.186
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 2034565000,
+    "read_ns": 779123000,
+    "delete_ms": 2034.565,
+    "read_ms": 779.123
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 1994202000,
+    "read_ns": 793167000,
+    "delete_ms": 1994.202,
+    "read_ms": 793.167
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 2585211000,
+    "read_ns": 1003250000,
+    "delete_ms": 2585.211,
+    "read_ms": 1003.25
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 1895083000,
+    "read_ns": 795692000,
+    "delete_ms": 1895.083,
+    "read_ms": 795.692
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 1881356000,
+    "read_ns": 726391000,
+    "delete_ms": 1881.356,
+    "read_ms": 726.391
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 2002084000,
+    "read_ns": 776060000,
+    "delete_ms": 2002.084,
+    "read_ms": 776.06
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 1953959000,
+    "read_ns": 747928000,
+    "delete_ms": 1953.959,
+    "read_ms": 747.928
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 2365022000,
+    "read_ns": 971800000,
+    "delete_ms": 2365.022,
+    "read_ms": 971.8
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 1895926000,
+    "read_ns": 757578000,
+    "delete_ms": 1895.926,
+    "read_ms": 757.578
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 2026225000,
+    "read_ns": 714744000,
+    "delete_ms": 2026.225,
+    "read_ms": 714.744
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 1980441000,
+    "read_ns": 767467000,
+    "delete_ms": 1980.441,
+    "read_ms": 767.467
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 2050548000,
+    "read_ns": 773104000,
+    "delete_ms": 2050.548,
+    "read_ms": 773.104
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 2471894000,
+    "read_ns": 995247000,
+    "delete_ms": 2471.894,
+    "read_ms": 995.247
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 1894344000,
+    "read_ns": 761799000,
+    "delete_ms": 1894.344,
+    "read_ms": 761.799
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 1919425000,
+    "read_ns": 722410000,
+    "delete_ms": 1919.425,
+    "read_ms": 722.41
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 2056322000,
+    "read_ns": 802259000,
+    "delete_ms": 2056.322,
+    "read_ms": 802.259
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 2070581000,
+    "read_ns": 814657000,
+    "delete_ms": 2070.581,
+    "read_ms": 814.657
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 2460527000,
+    "read_ns": 928730000,
+    "delete_ms": 2460.527,
+    "read_ms": 928.73
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 1919968000,
+    "read_ns": 763130000,
+    "delete_ms": 1919.968,
+    "read_ms": 763.13
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 1963092000,
+    "read_ns": 750998000,
+    "delete_ms": 1963.092,
+    "read_ms": 750.998
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 2058472000,
+    "read_ns": 771572000,
+    "delete_ms": 2058.472,
+    "read_ms": 771.572
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 2122549000,
+    "read_ns": 771687000,
+    "delete_ms": 2122.549,
+    "read_ms": 771.687
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 2508757000,
+    "read_ns": 941919000,
+    "delete_ms": 2508.757,
+    "read_ms": 941.919
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 1972889000,
+    "read_ns": 783020000,
+    "delete_ms": 1972.889,
+    "read_ms": 783.02
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 2094258000,
+    "read_ns": 770930000,
+    "delete_ms": 2094.258,
+    "read_ms": 770.93
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 1968282000,
+    "read_ns": 762122000,
+    "delete_ms": 1968.282,
+    "read_ms": 762.122
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 2075737000,
+    "read_ns": 772251000,
+    "delete_ms": 2075.737,
+    "read_ms": 772.251
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 2625991000,
+    "read_ns": 1009428000,
+    "delete_ms": 2625.991,
+    "read_ms": 1009.428
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 1903111000,
+    "read_ns": 789916000,
+    "delete_ms": 1903.111,
+    "read_ms": 789.916
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 2011161000,
+    "read_ns": 780219000,
+    "delete_ms": 2011.161,
+    "read_ms": 780.219
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 4,
+    "run": 0,
+    "delete_ns": 1911894000,
+    "read_ns": 709799000,
+    "delete_ms": 1911.894,
+    "read_ms": 709.799
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 4,
+    "run": 1,
+    "delete_ns": 2012968000,
+    "read_ns": 778536000,
+    "delete_ms": 2012.968,
+    "read_ms": 778.536
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 4,
+    "run": 2,
+    "delete_ns": 2678547000,
+    "read_ns": 986707000,
+    "delete_ms": 2678.547,
+    "read_ms": 986.707
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 1795074000,
+    "read_ns": 800915000,
+    "delete_ms": 1795.074,
+    "read_ms": 800.915
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 1964856000,
+    "read_ns": 814588000,
+    "delete_ms": 1964.856,
+    "read_ms": 814.588
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 1880659000,
+    "read_ns": 711915000,
+    "delete_ms": 1880.659,
+    "read_ms": 711.915
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 1951656000,
+    "read_ns": 764606000,
+    "delete_ms": 1951.656,
+    "read_ms": 764.606
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 2524743000,
+    "read_ns": 1021790000,
+    "delete_ms": 2524.743,
+    "read_ms": 1021.79
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 1787889000,
+    "read_ns": 776041000,
+    "delete_ms": 1787.889,
+    "read_ms": 776.041
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 1992175000,
+    "read_ns": 774013000,
+    "delete_ms": 1992.175,
+    "read_ms": 774.013
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 1983618000,
+    "read_ns": 722144000,
+    "delete_ms": 1983.618,
+    "read_ms": 722.144
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 2054795000,
+    "read_ns": 749939000,
+    "delete_ms": 2054.795,
+    "read_ms": 749.939
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 2516507000,
+    "read_ns": 991831000,
+    "delete_ms": 2516.507,
+    "read_ms": 991.831
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 1856824000,
+    "read_ns": 769822000,
+    "delete_ms": 1856.824,
+    "read_ms": 769.822
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 1936170000,
+    "read_ns": 787467000,
+    "delete_ms": 1936.17,
+    "read_ms": 787.467
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 1994044000,
+    "read_ns": 731158000,
+    "delete_ms": 1994.044,
+    "read_ms": 731.158
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 1970711000,
+    "read_ns": 786451000,
+    "delete_ms": 1970.711,
+    "read_ms": 786.451
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 2509012000,
+    "read_ns": 1015561000,
+    "delete_ms": 2509.012,
+    "read_ms": 1015.561
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 1860066000,
+    "read_ns": 787160000,
+    "delete_ms": 1860.066,
+    "read_ms": 787.16
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 2071392000,
+    "read_ns": 781149000,
+    "delete_ms": 2071.392,
+    "read_ms": 781.149
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 2004934000,
+    "read_ns": 761228000,
+    "delete_ms": 2004.934,
+    "read_ms": 761.228
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 1996022000,
+    "read_ns": 776714000,
+    "delete_ms": 1996.022,
+    "read_ms": 776.714
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 2624616000,
+    "read_ns": 1066976000,
+    "delete_ms": 2624.616,
+    "read_ms": 1066.976
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 1914012000,
+    "read_ns": 782193000,
+    "delete_ms": 1914.012,
+    "read_ms": 782.193
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 2105939000,
+    "read_ns": 765353000,
+    "delete_ms": 2105.939,
+    "read_ms": 765.353
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 2168194000,
+    "read_ns": 786340000,
+    "delete_ms": 2168.194,
+    "read_ms": 786.34
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 2017484000,
+    "read_ns": 793340000,
+    "delete_ms": 2017.484,
+    "read_ms": 793.34
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 2788635000,
+    "read_ns": 1042928000,
+    "delete_ms": 2788.635,
+    "read_ms": 1042.928
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 1841775000,
+    "read_ns": 753612000,
+    "delete_ms": 1841.775,
+    "read_ms": 753.612
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 2212387000,
+    "read_ns": 855407000,
+    "delete_ms": 2212.387,
+    "read_ms": 855.407
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 2247376000,
+    "read_ns": 758592000,
+    "delete_ms": 2247.376,
+    "read_ms": 758.592
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 2160356000,
+    "read_ns": 764346000,
+    "delete_ms": 2160.356,
+    "read_ms": 764.346
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 2732564000,
+    "read_ns": 992727000,
+    "delete_ms": 2732.564,
+    "read_ms": 992.727
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 2045498000,
+    "read_ns": 745242000,
+    "delete_ms": 2045.498,
+    "read_ms": 745.242
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 2046807000,
+    "read_ns": 739056000,
+    "delete_ms": 2046.807,
+    "read_ms": 739.056
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 2110534000,
+    "read_ns": 850660000,
+    "delete_ms": 2110.534,
+    "read_ms": 850.66
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 2236608000,
+    "read_ns": 759010000,
+    "delete_ms": 2236.608,
+    "read_ms": 759.01
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 2714551000,
+    "read_ns": 1027260000,
+    "delete_ms": 2714.551,
+    "read_ms": 1027.26
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 2117995000,
+    "read_ns": 773426000,
+    "delete_ms": 2117.995,
+    "read_ms": 773.426
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 2130600000,
+    "read_ns": 765303000,
+    "delete_ms": 2130.6,
+    "read_ms": 765.303
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 2038999000,
+    "read_ns": 753239000,
+    "delete_ms": 2038.999,
+    "read_ms": 753.239
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 2125919000,
+    "read_ns": 783897000,
+    "delete_ms": 2125.919,
+    "read_ms": 783.897
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 2751724000,
+    "read_ns": 977865000,
+    "delete_ms": 2751.724,
+    "read_ms": 977.865
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 2011147000,
+    "read_ns": 738476000,
+    "delete_ms": 2011.147,
+    "read_ms": 738.476
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 2258065000,
+    "read_ns": 782587000,
+    "delete_ms": 2258.065,
+    "read_ms": 782.587
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 5,
+    "run": 0,
+    "delete_ns": 2155637000,
+    "read_ns": 850388000,
+    "delete_ms": 2155.637,
+    "read_ms": 850.388
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 5,
+    "run": 1,
+    "delete_ns": 2062164000,
+    "read_ns": 769447000,
+    "delete_ms": 2062.164,
+    "read_ms": 769.447
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 5,
+    "run": 2,
+    "delete_ns": 2807716000,
+    "read_ns": 990418000,
+    "delete_ms": 2807.716,
+    "read_ms": 990.418
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 1786309000,
+    "read_ns": 773443000,
+    "delete_ms": 1786.309,
+    "read_ms": 773.443
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 1972596000,
+    "read_ns": 785846000,
+    "delete_ms": 1972.596,
+    "read_ms": 785.846
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 1752151000,
+    "read_ns": 726018000,
+    "delete_ms": 1752.151,
+    "read_ms": 726.018
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 2026536000,
+    "read_ns": 858712000,
+    "delete_ms": 2026.536,
+    "read_ms": 858.712
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 2458781000,
+    "read_ns": 1033745000,
+    "delete_ms": 2458.781,
+    "read_ms": 1033.745
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 1868184000,
+    "read_ns": 800183000,
+    "delete_ms": 1868.184,
+    "read_ms": 800.183
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 2074016000,
+    "read_ns": 955981000,
+    "delete_ms": 2074.016,
+    "read_ms": 955.981
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 2080409000,
+    "read_ns": 797326000,
+    "delete_ms": 2080.409,
+    "read_ms": 797.326
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 1985223000,
+    "read_ns": 837991000,
+    "delete_ms": 1985.223,
+    "read_ms": 837.991
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 2522000000,
+    "read_ns": 966700000,
+    "delete_ms": 2522.0,
+    "read_ms": 966.7
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 2000844000,
+    "read_ns": 787587000,
+    "delete_ms": 2000.844,
+    "read_ms": 787.587
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 1903942000,
+    "read_ns": 747804000,
+    "delete_ms": 1903.942,
+    "read_ms": 747.804
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 2156737000,
+    "read_ns": 866501000,
+    "delete_ms": 2156.737,
+    "read_ms": 866.501
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 2066402000,
+    "read_ns": 856911000,
+    "delete_ms": 2066.402,
+    "read_ms": 856.911
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 2574181000,
+    "read_ns": 1003225000,
+    "delete_ms": 2574.181,
+    "read_ms": 1003.225
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 2013053000,
+    "read_ns": 808185000,
+    "delete_ms": 2013.053,
+    "read_ms": 808.185
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 2153588000,
+    "read_ns": 799258000,
+    "delete_ms": 2153.588,
+    "read_ms": 799.258
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 2060156000,
+    "read_ns": 777221000,
+    "delete_ms": 2060.156,
+    "read_ms": 777.221
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 1991493000,
+    "read_ns": 786191000,
+    "delete_ms": 1991.493,
+    "read_ms": 786.191
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 2534061000,
+    "read_ns": 1009927000,
+    "delete_ms": 2534.061,
+    "read_ms": 1009.927
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 2020211000,
+    "read_ns": 815434000,
+    "delete_ms": 2020.211,
+    "read_ms": 815.434
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 2094194000,
+    "read_ns": 807788000,
+    "delete_ms": 2094.194,
+    "read_ms": 807.788
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 2130386000,
+    "read_ns": 819331000,
+    "delete_ms": 2130.386,
+    "read_ms": 819.331
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 2170950000,
+    "read_ns": 818021000,
+    "delete_ms": 2170.95,
+    "read_ms": 818.021
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 2570278000,
+    "read_ns": 941086000,
+    "delete_ms": 2570.278,
+    "read_ms": 941.086
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 2067390000,
+    "read_ns": 810853000,
+    "delete_ms": 2067.39,
+    "read_ms": 810.853
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 2164427000,
+    "read_ns": 800670000,
+    "delete_ms": 2164.427,
+    "read_ms": 800.67
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 2150583000,
+    "read_ns": 851478000,
+    "delete_ms": 2150.583,
+    "read_ms": 851.478
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 2113939000,
+    "read_ns": 774885000,
+    "delete_ms": 2113.939,
+    "read_ms": 774.885
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 2743582000,
+    "read_ns": 1020617000,
+    "delete_ms": 2743.582,
+    "read_ms": 1020.617
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 2054340000,
+    "read_ns": 764424000,
+    "delete_ms": 2054.34,
+    "read_ms": 764.424
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 2030884000,
+    "read_ns": 756800000,
+    "delete_ms": 2030.884,
+    "read_ms": 756.8
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 2035259000,
+    "read_ns": 738736000,
+    "delete_ms": 2035.259,
+    "read_ms": 738.736
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 2082495000,
+    "read_ns": 812997000,
+    "delete_ms": 2082.495,
+    "read_ms": 812.997
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 2718866000,
+    "read_ns": 1026610000,
+    "delete_ms": 2718.866,
+    "read_ms": 1026.61
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 2142808000,
+    "read_ns": 840980000,
+    "delete_ms": 2142.808,
+    "read_ms": 840.98
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 2155120000,
+    "read_ns": 791992000,
+    "delete_ms": 2155.12,
+    "read_ms": 791.992
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 2276857000,
+    "read_ns": 809689000,
+    "delete_ms": 2276.857,
+    "read_ms": 809.689
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 2308113000,
+    "read_ns": 812439000,
+    "delete_ms": 2308.113,
+    "read_ms": 812.439
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 2934869000,
+    "read_ns": 992170000,
+    "delete_ms": 2934.869,
+    "read_ms": 992.17
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 2194570000,
+    "read_ns": 848553000,
+    "delete_ms": 2194.57,
+    "read_ms": 848.553
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 2146386000,
+    "read_ns": 787813000,
+    "delete_ms": 2146.386,
+    "read_ms": 787.813
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 6,
+    "run": 0,
+    "delete_ns": 2298062000,
+    "read_ns": 809525000,
+    "delete_ms": 2298.062,
+    "read_ms": 809.525
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 6,
+    "run": 1,
+    "delete_ns": 2259768000,
+    "read_ns": 788496000,
+    "delete_ms": 2259.768,
+    "read_ms": 788.496
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 6,
+    "run": 2,
+    "delete_ns": 2934975000,
+    "read_ns": 1032421000,
+    "delete_ms": 2934.975,
+    "read_ms": 1032.421
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 1861389000,
+    "read_ns": 799779000,
+    "delete_ms": 1861.389,
+    "read_ms": 799.779
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 1830927000,
+    "read_ns": 810904000,
+    "delete_ms": 1830.927,
+    "read_ms": 810.904
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 2210646000,
+    "read_ns": 797342000,
+    "delete_ms": 2210.646,
+    "read_ms": 797.342
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 2078891000,
+    "read_ns": 762412000,
+    "delete_ms": 2078.891,
+    "read_ms": 762.412
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 2423767000,
+    "read_ns": 1007169000,
+    "delete_ms": 2423.767,
+    "read_ms": 1007.169
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 1779191000,
+    "read_ns": 791195000,
+    "delete_ms": 1779.191,
+    "read_ms": 791.195
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 1872223000,
+    "read_ns": 757764000,
+    "delete_ms": 1872.223,
+    "read_ms": 757.764
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 2073425000,
+    "read_ns": 816186000,
+    "delete_ms": 2073.425,
+    "read_ms": 816.186
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 1822877000,
+    "read_ns": 775206000,
+    "delete_ms": 1822.877,
+    "read_ms": 775.206
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 2676963000,
+    "read_ns": 1004711000,
+    "delete_ms": 2676.963,
+    "read_ms": 1004.711
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 1826163000,
+    "read_ns": 781463000,
+    "delete_ms": 1826.163,
+    "read_ms": 781.463
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 1843565000,
+    "read_ns": 768971000,
+    "delete_ms": 1843.565,
+    "read_ms": 768.971
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 1973507000,
+    "read_ns": 747384000,
+    "delete_ms": 1973.507,
+    "read_ms": 747.384
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 2241344000,
+    "read_ns": 761318000,
+    "delete_ms": 2241.344,
+    "read_ms": 761.318
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 2431965000,
+    "read_ns": 992915000,
+    "delete_ms": 2431.965,
+    "read_ms": 992.915
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 1993970000,
+    "read_ns": 782223000,
+    "delete_ms": 1993.97,
+    "read_ms": 782.223
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 2041131000,
+    "read_ns": 849145000,
+    "delete_ms": 2041.131,
+    "read_ms": 849.145
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 2057716000,
+    "read_ns": 791013000,
+    "delete_ms": 2057.716,
+    "read_ms": 791.013
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 1964079000,
+    "read_ns": 758196000,
+    "delete_ms": 1964.079,
+    "read_ms": 758.196
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 2736189000,
+    "read_ns": 1037096000,
+    "delete_ms": 2736.189,
+    "read_ms": 1037.096
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 1953473000,
+    "read_ns": 741438000,
+    "delete_ms": 1953.473,
+    "read_ms": 741.438
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 2168639000,
+    "read_ns": 790445000,
+    "delete_ms": 2168.639,
+    "read_ms": 790.445
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 2152455000,
+    "read_ns": 793265000,
+    "delete_ms": 2152.455,
+    "read_ms": 793.265
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 2057753000,
+    "read_ns": 804574000,
+    "delete_ms": 2057.753,
+    "read_ms": 804.574
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 3119850000,
+    "read_ns": 1061643000,
+    "delete_ms": 3119.85,
+    "read_ms": 1061.643
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 2023651000,
+    "read_ns": 772162000,
+    "delete_ms": 2023.651,
+    "read_ms": 772.162
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 2099775000,
+    "read_ns": 785114000,
+    "delete_ms": 2099.775,
+    "read_ms": 785.114
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 2226043000,
+    "read_ns": 805406000,
+    "delete_ms": 2226.043,
+    "read_ms": 805.406
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 2161664000,
+    "read_ns": 803519000,
+    "delete_ms": 2161.664,
+    "read_ms": 803.519
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 2776867000,
+    "read_ns": 1023170000,
+    "delete_ms": 2776.867,
+    "read_ms": 1023.17
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 2056788000,
+    "read_ns": 779119000,
+    "delete_ms": 2056.788,
+    "read_ms": 779.119
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 2293343000,
+    "read_ns": 827125000,
+    "delete_ms": 2293.343,
+    "read_ms": 827.125
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 2223949000,
+    "read_ns": 793473000,
+    "delete_ms": 2223.949,
+    "read_ms": 793.473
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 2170890000,
+    "read_ns": 804105000,
+    "delete_ms": 2170.89,
+    "read_ms": 804.105
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 2745976000,
+    "read_ns": 1015499000,
+    "delete_ms": 2745.976,
+    "read_ms": 1015.499
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 1975913000,
+    "read_ns": 788743000,
+    "delete_ms": 1975.913,
+    "read_ms": 788.743
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 2235343000,
+    "read_ns": 797883000,
+    "delete_ms": 2235.343,
+    "read_ms": 797.883
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 1991010000,
+    "read_ns": 777810000,
+    "delete_ms": 1991.01,
+    "read_ms": 777.81
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 2243148000,
+    "read_ns": 803787000,
+    "delete_ms": 2243.148,
+    "read_ms": 803.787
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 2924284000,
+    "read_ns": 1028397000,
+    "delete_ms": 2924.284,
+    "read_ms": 1028.397
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 2087638000,
+    "read_ns": 799117000,
+    "delete_ms": 2087.638,
+    "read_ms": 799.117
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 2291581000,
+    "read_ns": 824655000,
+    "delete_ms": 2291.581,
+    "read_ms": 824.655
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 7,
+    "run": 0,
+    "delete_ns": 2316027000,
+    "read_ns": 830092000,
+    "delete_ms": 2316.027,
+    "read_ms": 830.092
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 7,
+    "run": 1,
+    "delete_ns": 2301926000,
+    "read_ns": 762825000,
+    "delete_ms": 2301.926,
+    "read_ms": 762.825
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 7,
+    "run": 2,
+    "delete_ns": 2735867000,
+    "read_ns": 1007368000,
+    "delete_ms": 2735.867,
+    "read_ms": 1007.368
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 1752476000,
+    "read_ns": 902609000,
+    "delete_ms": 1752.476,
+    "read_ms": 902.609
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 2020365000,
+    "read_ns": 852442000,
+    "delete_ms": 2020.365,
+    "read_ms": 852.442
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 2023042000,
+    "read_ns": 822465000,
+    "delete_ms": 2023.042,
+    "read_ms": 822.465
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 1961003000,
+    "read_ns": 785548000,
+    "delete_ms": 1961.003,
+    "read_ms": 785.548
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 2464079000,
+    "read_ns": 1007860000,
+    "delete_ms": 2464.079,
+    "read_ms": 1007.86
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 1822286000,
+    "read_ns": 804139000,
+    "delete_ms": 1822.286,
+    "read_ms": 804.139
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 2078863000,
+    "read_ns": 801874000,
+    "delete_ms": 2078.863,
+    "read_ms": 801.874
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 1987061000,
+    "read_ns": 785200000,
+    "delete_ms": 1987.061,
+    "read_ms": 785.2
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 1963543000,
+    "read_ns": 784923000,
+    "delete_ms": 1963.543,
+    "read_ms": 784.923
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 2533015000,
+    "read_ns": 1068946000,
+    "delete_ms": 2533.015,
+    "read_ms": 1068.946
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 1970783000,
+    "read_ns": 784094000,
+    "delete_ms": 1970.783,
+    "read_ms": 784.094
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 2164692000,
+    "read_ns": 894822000,
+    "delete_ms": 2164.692,
+    "read_ms": 894.822
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 2110154000,
+    "read_ns": 820001000,
+    "delete_ms": 2110.154,
+    "read_ms": 820.001
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 2247345000,
+    "read_ns": 807794000,
+    "delete_ms": 2247.345,
+    "read_ms": 807.794
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 2697174000,
+    "read_ns": 989902000,
+    "delete_ms": 2697.174,
+    "read_ms": 989.902
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 1908795000,
+    "read_ns": 774173000,
+    "delete_ms": 1908.795,
+    "read_ms": 774.173
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 1901396000,
+    "read_ns": 762985000,
+    "delete_ms": 1901.396,
+    "read_ms": 762.985
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 1964073000,
+    "read_ns": 773527000,
+    "delete_ms": 1964.073,
+    "read_ms": 773.527
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 2086540000,
+    "read_ns": 972231000,
+    "delete_ms": 2086.54,
+    "read_ms": 972.231
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 2887560000,
+    "read_ns": 1263363000,
+    "delete_ms": 2887.56,
+    "read_ms": 1263.363
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 1992365000,
+    "read_ns": 770904000,
+    "delete_ms": 1992.365,
+    "read_ms": 770.904
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 2186729000,
+    "read_ns": 778446000,
+    "delete_ms": 2186.729,
+    "read_ms": 778.446
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 2092054000,
+    "read_ns": 821320000,
+    "delete_ms": 2092.054,
+    "read_ms": 821.32
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 2271221000,
+    "read_ns": 761869000,
+    "delete_ms": 2271.221,
+    "read_ms": 761.869
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 2951194000,
+    "read_ns": 1162670000,
+    "delete_ms": 2951.194,
+    "read_ms": 1162.67
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 1985792000,
+    "read_ns": 777101000,
+    "delete_ms": 1985.792,
+    "read_ms": 777.101
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 2132091000,
+    "read_ns": 765556000,
+    "delete_ms": 2132.091,
+    "read_ms": 765.556
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 2352740000,
+    "read_ns": 796637000,
+    "delete_ms": 2352.74,
+    "read_ms": 796.637
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 2149942000,
+    "read_ns": 796290000,
+    "delete_ms": 2149.942,
+    "read_ms": 796.29
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 2761895000,
+    "read_ns": 1081146000,
+    "delete_ms": 2761.895,
+    "read_ms": 1081.146
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 2247862000,
+    "read_ns": 762804000,
+    "delete_ms": 2247.862,
+    "read_ms": 762.804
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 2201248000,
+    "read_ns": 805555000,
+    "delete_ms": 2201.248,
+    "read_ms": 805.555
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 2148976000,
+    "read_ns": 781794000,
+    "delete_ms": 2148.976,
+    "read_ms": 781.794
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 2177309000,
+    "read_ns": 824601000,
+    "delete_ms": 2177.309,
+    "read_ms": 824.601
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 2829595000,
+    "read_ns": 986815000,
+    "delete_ms": 2829.595,
+    "read_ms": 986.815
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 2136366000,
+    "read_ns": 823677000,
+    "delete_ms": 2136.366,
+    "read_ms": 823.677
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 2301082000,
+    "read_ns": 786351000,
+    "delete_ms": 2301.082,
+    "read_ms": 786.351
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 2295104000,
+    "read_ns": 803731000,
+    "delete_ms": 2295.104,
+    "read_ms": 803.731
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 2203445000,
+    "read_ns": 765748000,
+    "delete_ms": 2203.445,
+    "read_ms": 765.748
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 2952650000,
+    "read_ns": 1018129000,
+    "delete_ms": 2952.65,
+    "read_ms": 1018.129
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 2238198000,
+    "read_ns": 776400000,
+    "delete_ms": 2238.198,
+    "read_ms": 776.4
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 2162437000,
+    "read_ns": 750507000,
+    "delete_ms": 2162.437,
+    "read_ms": 750.507
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 8,
+    "run": 0,
+    "delete_ns": 2230983000,
+    "read_ns": 790088000,
+    "delete_ms": 2230.983,
+    "read_ms": 790.088
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 8,
+    "run": 1,
+    "delete_ns": 2248258000,
+    "read_ns": 800425000,
+    "delete_ms": 2248.258,
+    "read_ms": 800.425
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 8,
+    "run": 2,
+    "delete_ns": 2824301000,
+    "read_ns": 1018701000,
+    "delete_ms": 2824.301,
+    "read_ms": 1018.701
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 1846532000,
+    "read_ns": 805154000,
+    "delete_ms": 1846.532,
+    "read_ms": 805.154
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 1778851000,
+    "read_ns": 786297000,
+    "delete_ms": 1778.851,
+    "read_ms": 786.297
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 1912255000,
+    "read_ns": 804859000,
+    "delete_ms": 1912.255,
+    "read_ms": 804.859
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 2051285000,
+    "read_ns": 823004000,
+    "delete_ms": 2051.285,
+    "read_ms": 823.004
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 2694652000,
+    "read_ns": 1053579000,
+    "delete_ms": 2694.652,
+    "read_ms": 1053.579
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 1969590000,
+    "read_ns": 818048000,
+    "delete_ms": 1969.59,
+    "read_ms": 818.048
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 2189645000,
+    "read_ns": 891450000,
+    "delete_ms": 2189.645,
+    "read_ms": 891.45
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 2127461000,
+    "read_ns": 861763000,
+    "delete_ms": 2127.461,
+    "read_ms": 861.763
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 2034451000,
+    "read_ns": 860119000,
+    "delete_ms": 2034.451,
+    "read_ms": 860.119
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 2754491000,
+    "read_ns": 1104607000,
+    "delete_ms": 2754.491,
+    "read_ms": 1104.607
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 2016708000,
+    "read_ns": 806934000,
+    "delete_ms": 2016.708,
+    "read_ms": 806.934
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 2194839000,
+    "read_ns": 952327000,
+    "delete_ms": 2194.839,
+    "read_ms": 952.327
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 2055728000,
+    "read_ns": 808309000,
+    "delete_ms": 2055.728,
+    "read_ms": 808.309
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 2036430000,
+    "read_ns": 775324000,
+    "delete_ms": 2036.43,
+    "read_ms": 775.324
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 2719857000,
+    "read_ns": 1017379000,
+    "delete_ms": 2719.857,
+    "read_ms": 1017.379
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 2067646000,
+    "read_ns": 830173000,
+    "delete_ms": 2067.646,
+    "read_ms": 830.173
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 2027135000,
+    "read_ns": 803740000,
+    "delete_ms": 2027.135,
+    "read_ms": 803.74
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 2201309000,
+    "read_ns": 782746000,
+    "delete_ms": 2201.309,
+    "read_ms": 782.746
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 2278773000,
+    "read_ns": 849880000,
+    "delete_ms": 2278.773,
+    "read_ms": 849.88
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 2914550000,
+    "read_ns": 1063557000,
+    "delete_ms": 2914.55,
+    "read_ms": 1063.557
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 2030319000,
+    "read_ns": 821062000,
+    "delete_ms": 2030.319,
+    "read_ms": 821.062
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 2205190000,
+    "read_ns": 838925000,
+    "delete_ms": 2205.19,
+    "read_ms": 838.925
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 2130073000,
+    "read_ns": 747800000,
+    "delete_ms": 2130.073,
+    "read_ms": 747.8
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 2231415000,
+    "read_ns": 856525000,
+    "delete_ms": 2231.415,
+    "read_ms": 856.525
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 2741510000,
+    "read_ns": 986428000,
+    "delete_ms": 2741.51,
+    "read_ms": 986.428
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 2145904000,
+    "read_ns": 858359000,
+    "delete_ms": 2145.904,
+    "read_ms": 858.359
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 2264047000,
+    "read_ns": 820326000,
+    "delete_ms": 2264.047,
+    "read_ms": 820.326
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 2330874000,
+    "read_ns": 817455000,
+    "delete_ms": 2330.874,
+    "read_ms": 817.455
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 2367183000,
+    "read_ns": 823824000,
+    "delete_ms": 2367.183,
+    "read_ms": 823.824
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 2853256000,
+    "read_ns": 1056981000,
+    "delete_ms": 2853.256,
+    "read_ms": 1056.981
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 2239495000,
+    "read_ns": 831793000,
+    "delete_ms": 2239.495,
+    "read_ms": 831.793
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 2321657000,
+    "read_ns": 762145000,
+    "delete_ms": 2321.657,
+    "read_ms": 762.145
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 2309169000,
+    "read_ns": 827647000,
+    "delete_ms": 2309.169,
+    "read_ms": 827.647
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 2355039000,
+    "read_ns": 803694000,
+    "delete_ms": 2355.039,
+    "read_ms": 803.694
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 2870680000,
+    "read_ns": 1106481000,
+    "delete_ms": 2870.68,
+    "read_ms": 1106.481
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 2235002000,
+    "read_ns": 850113000,
+    "delete_ms": 2235.002,
+    "read_ms": 850.113
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 2337416000,
+    "read_ns": 862073000,
+    "delete_ms": 2337.416,
+    "read_ms": 862.073
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 2272295000,
+    "read_ns": 845435000,
+    "delete_ms": 2272.295,
+    "read_ms": 845.435
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 2173572000,
+    "read_ns": 788820000,
+    "delete_ms": 2173.572,
+    "read_ms": 788.82
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 3068762000,
+    "read_ns": 1066943000,
+    "delete_ms": 3068.762,
+    "read_ms": 1066.943
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 2163249000,
+    "read_ns": 757663000,
+    "delete_ms": 2163.249,
+    "read_ms": 757.663
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 2411677000,
+    "read_ns": 859124000,
+    "delete_ms": 2411.677,
+    "read_ms": 859.124
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 9,
+    "run": 0,
+    "delete_ns": 2354856000,
+    "read_ns": 795953000,
+    "delete_ms": 2354.856,
+    "read_ms": 795.953
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 9,
+    "run": 1,
+    "delete_ns": 2358687000,
+    "read_ns": 809298000,
+    "delete_ms": 2358.687,
+    "read_ms": 809.298
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 9,
+    "run": 2,
+    "delete_ns": 2978155000,
+    "read_ns": 1026458000,
+    "delete_ms": 2978.155,
+    "read_ms": 1026.458
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 1783390000,
+    "read_ns": 890507000,
+    "delete_ms": 1783.39,
+    "read_ms": 890.507
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 1999376000,
+    "read_ns": 853683000,
+    "delete_ms": 1999.376,
+    "read_ms": 853.683
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 1,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 1862260000,
+    "read_ns": 817594000,
+    "delete_ms": 1862.26,
+    "read_ms": 817.594
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 2055120000,
+    "read_ns": 856264000,
+    "delete_ms": 2055.12,
+    "read_ms": 856.264
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2555341000,
+    "read_ns": 1090457000,
+    "delete_ms": 2555.341,
+    "read_ms": 1090.457
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 3,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 1933719000,
+    "read_ns": 856370000,
+    "delete_ms": 1933.719,
+    "read_ms": 856.37
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 2124502000,
+    "read_ns": 873600000,
+    "delete_ms": 2124.502,
+    "read_ms": 873.6
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 1963349000,
+    "read_ns": 875095000,
+    "delete_ms": 1963.349,
+    "read_ms": 875.095
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 5,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 2125639000,
+    "read_ns": 871388000,
+    "delete_ms": 2125.639,
+    "read_ms": 871.388
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 2764979000,
+    "read_ns": 1070875000,
+    "delete_ms": 2764.979,
+    "read_ms": 1070.875
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2072000000,
+    "read_ns": 832593000,
+    "delete_ms": 2072.0,
+    "read_ms": 832.593
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 7,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 2079464000,
+    "read_ns": 896408000,
+    "delete_ms": 2079.464,
+    "read_ms": 896.408
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 2299026000,
+    "read_ns": 809039000,
+    "delete_ms": 2299.026,
+    "read_ms": 809.039
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2142321000,
+    "read_ns": 809858000,
+    "delete_ms": 2142.321,
+    "read_ms": 809.858
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 9,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 2663704000,
+    "read_ns": 1018184000,
+    "delete_ms": 2663.704,
+    "read_ms": 1018.184
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 2118913000,
+    "read_ns": 835175000,
+    "delete_ms": 2118.913,
+    "read_ms": 835.175
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2218176000,
+    "read_ns": 814806000,
+    "delete_ms": 2218.176,
+    "read_ms": 814.806
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 11,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 2294511000,
+    "read_ns": 845531000,
+    "delete_ms": 2294.511,
+    "read_ms": 845.531
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 2301625000,
+    "read_ns": 834583000,
+    "delete_ms": 2301.625,
+    "read_ms": 834.583
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2879734000,
+    "read_ns": 1108294000,
+    "delete_ms": 2879.734,
+    "read_ms": 1108.294
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 13,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 2195745000,
+    "read_ns": 868959000,
+    "delete_ms": 2195.745,
+    "read_ms": 868.959
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 2209784000,
+    "read_ns": 865811000,
+    "delete_ms": 2209.784,
+    "read_ms": 865.811
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2372428000,
+    "read_ns": 900946000,
+    "delete_ms": 2372.428,
+    "read_ms": 900.946
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 15,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 2284890000,
+    "read_ns": 827164000,
+    "delete_ms": 2284.89,
+    "read_ms": 827.164
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 2809181000,
+    "read_ns": 1063280000,
+    "delete_ms": 2809.181,
+    "read_ms": 1063.28
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2008514000,
+    "read_ns": 837435000,
+    "delete_ms": 2008.514,
+    "read_ms": 837.435
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 17,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 2384162000,
+    "read_ns": 872664000,
+    "delete_ms": 2384.162,
+    "read_ms": 872.664
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 2342484000,
+    "read_ns": 846601000,
+    "delete_ms": 2342.484,
+    "read_ms": 846.601
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2343772000,
+    "read_ns": 1023772000,
+    "delete_ms": 2343.772,
+    "read_ms": 1023.772
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 19,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 3117735000,
+    "read_ns": 1140541000,
+    "delete_ms": 3117.735,
+    "read_ms": 1140.541
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 2226139000,
+    "read_ns": 893748000,
+    "delete_ms": 2226.139,
+    "read_ms": 893.748
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2525422000,
+    "read_ns": 847995000,
+    "delete_ms": 2525.422,
+    "read_ms": 847.995
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 21,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 2504542000,
+    "read_ns": 840142000,
+    "delete_ms": 2504.542,
+    "read_ms": 840.142
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 2462836000,
+    "read_ns": 885897000,
+    "delete_ms": 2462.836,
+    "read_ms": 885.897
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2968810000,
+    "read_ns": 1102282000,
+    "delete_ms": 2968.81,
+    "read_ms": 1102.282
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 23,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 2304383000,
+    "read_ns": 877107000,
+    "delete_ms": 2304.383,
+    "read_ms": 877.107
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 2355940000,
+    "read_ns": 846792000,
+    "delete_ms": 2355.94,
+    "read_ms": 846.792
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2482972000,
+    "read_ns": 898333000,
+    "delete_ms": 2482.972,
+    "read_ms": 898.333
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 25,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 2459751000,
+    "read_ns": 850777000,
+    "delete_ms": 2459.751,
+    "read_ms": 850.777
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 3147189000,
+    "read_ns": 1091577000,
+    "delete_ms": 3147.189,
+    "read_ms": 1091.577
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2293163000,
+    "read_ns": 867268000,
+    "delete_ms": 2293.163,
+    "read_ms": 867.268
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 27,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 2314694000,
+    "read_ns": 917250000,
+    "delete_ms": 2314.694,
+    "read_ms": 917.25
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 10,
+    "run": 0,
+    "delete_ns": 2544889000,
+    "read_ns": 893254000,
+    "delete_ms": 2544.889,
+    "read_ms": 893.254
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 10,
+    "run": 1,
+    "delete_ns": 2595057000,
+    "read_ns": 882999000,
+    "delete_ms": 2595.057,
+    "read_ms": 882.999
+  },
+  {
+    "mode": "Gluten",
+    "percent_deleted": 29,
+    "files_touched": 10,
+    "run": 2,
+    "delete_ns": 3582383000,
+    "read_ns": 1144080000,
+    "delete_ms": 3582.383,
+    "read_ms": 1144.08
+  }
+]
