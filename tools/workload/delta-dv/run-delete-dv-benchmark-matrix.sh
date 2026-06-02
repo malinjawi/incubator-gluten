@@ -55,7 +55,7 @@ Options:
   --iterations N
   --delete-mode create|update|all
   --execution-mode spark|gluten-jvm-bitmap|gluten-native-bitmap|gluten|all
-  --delete-shape sparse1|mod10|dense50|uniformhot|fileskewhot|allshapes
+  --delete-shape sparse1|mod10|dense50|uniformhot|fileskewhot|partitionedmod10|allshapes
   --spark-profile PROFILE
       Maven Spark profile, default spark-3.5.
   --evidence-dir DIR

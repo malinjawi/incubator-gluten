@@ -52,7 +52,7 @@ import scala.util.Try
  *
  * Delete modes: create, update, all. Execution modes: spark, gluten-jvm-bitmap,
  * gluten-native-bitmap, gluten, all. Delete shapes: sparse1, mod10, dense50, uniformhot,
- * fileskewhot, allshapes.
+ * fileskewhot, partitionedmod10, allshapes.
  */
 object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
   private val EnableNativeDmlRowIndexScan =
@@ -71,7 +71,8 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
       layout: String,
       createPredicate: String,
       updateSetupPredicate: String,
-      updateMeasuredPredicate: String)
+      updateMeasuredPredicate: String,
+      partitionByPart: Boolean = false)
 
   private case class ExpectedStats(
       deletedRows: Long,
@@ -259,10 +260,19 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
           updateSetupPredicate = s"$hotFilePredicate AND id % 4 = 3",
           updateMeasuredPredicate = s"$hotFilePredicate AND id % 2 = 0"
         )
+      case "partitionedmod10" | "partitioned" =>
+        DeleteShape(
+          label = "partitionedmod10",
+          layout = "partitioned-by-part-id-modulo",
+          createPredicate = predicate(10, Seq(0)),
+          updateSetupPredicate = predicate(10, Seq(9)),
+          updateMeasuredPredicate = predicate(10, Seq(1)),
+          partitionByPart = true
+        )
       case other =>
         throw new IllegalArgumentException(
           s"Unknown delete shape '$other'. Expected sparse1, mod10, dense50, " +
-            "uniformhot, fileskewhot, or allshapes.")
+            "uniformhot, fileskewhot, partitionedmod10, or allshapes.")
     }
   }
 
@@ -394,7 +404,7 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
         val path = new File(
           benchmarkRoot,
           s"${sanitize(prefix)}-$iteration").getCanonicalPath
-        writeTable(path, conf)
+        writeTable(path, conf, shape)
         if (existingDv) {
           val setupExpected = expectedStatsAfterDelete(path, shape.updateSetupPredicate)
           val result = runDelete(
@@ -417,10 +427,10 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
     }
   }
 
-  private def writeTable(path: String, conf: BenchmarkConf): Unit = {
+  private def writeTable(path: String, conf: BenchmarkConf, shape: DeleteShape): Unit = {
     val fileCount = math.max(conf.files, 1)
     val rowCount = math.max(conf.rowCount, 1L)
-    spark
+    val writer = spark
       .range(0L, conf.rowCount, 1L, fileCount)
       .selectExpr(
         "id",
@@ -433,7 +443,11 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
       .format("delta")
       .option(DeltaConfigs.ENABLE_DELETION_VECTORS_CREATION.key, "true")
       .mode("overwrite")
-      .save(path)
+    if (shape.partitionByPart) {
+      writer.partitionBy("part").save(path)
+    } else {
+      writer.save(path)
+    }
   }
 
   private def runDelete(
