@@ -687,7 +687,7 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
         s"activeFiles=${result.activeFiles}, " +
         s"deleteShape=${shape.label}, " +
         s"deleteLayout=${shape.layout}, " +
-        s"deletePredicate=$measuredPredicate, " +
+        s"deletePredicate=${resultValue(measuredPredicate)}, " +
         s"expectedDeletedRows=$expectedDeletedRows, " +
         s"deleteDensityPct=$deleteDensityPct, " +
         s"touchedFiles=${result.filesWithDvs}, " +
@@ -712,6 +712,10 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
         s"sparkBitmapAggregatePlans=${result.planSummary.sparkBitmapAggregatePlans}, " +
         s"dmlRowIndexFallbackScans=${result.planSummary.dmlRowIndexFallbackScans}, " +
         s"fallbackReasons=${result.planSummary.fallbackReasons.mkString("[", "; ", "]")}")
+  }
+
+  private def resultValue(value: String): String = {
+    value.replace(',', ';')
   }
 
   private def ratio(numerator: Long, denominator: Long): String = {
