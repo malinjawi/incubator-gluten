@@ -121,6 +121,25 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
       finalSparkBitmapAggregatePlans: Int,
       initialSparkBitmapAggregatePlans: Int,
       dmlRowIndexFallbackScans: Int,
+      nativeBitmapAggMetricNodes: Int,
+      rowToVeloxColumnarMetricNodes: Int,
+      veloxColumnarToRowMetricNodes: Int,
+      columnarShuffleMetricNodes: Int,
+      nativeBitmapAggWallMs: Long,
+      nativeBitmapAggOutputRows: Long,
+      nativeBitmapAggOutputBytes: Long,
+      nativeBitmapAggSpilledBytes: Long,
+      rowToVeloxColumnarConvertMs: Long,
+      rowToVeloxColumnarInputRows: Long,
+      rowToVeloxColumnarOutputBatches: Long,
+      veloxColumnarToRowConvertMs: Long,
+      veloxColumnarToRowOutputRows: Long,
+      veloxColumnarToRowInputBatches: Long,
+      columnarShuffleBytesWritten: Long,
+      columnarShuffleRecordsWritten: Long,
+      columnarShuffleWriteTimeNs: Long,
+      columnarShuffleBytesRead: Long,
+      columnarShuffleRecordsRead: Long,
       fallbackReasons: Seq[String],
       bitmapAggregatePlanDiagnostics: Seq[String],
       bitmapAggregateFallbackDiagnostics: Seq[String],
@@ -547,6 +566,14 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
     val finalNativeBitmapAggregatePlans = finalPlanTexts.count(isNativeBitmapAggregatePlan)
     val finalSparkBitmapAggregatePlans = finalPlanTexts.count(isSparkBitmapAggregatePlan)
     val initialSparkBitmapAggregatePlans = initialPlanTexts.count(isSparkBitmapAggregatePlan)
+    val nativeBitmapAggregateNodes = planNodes.filter {
+      plan =>
+        isNativeHashAggregateTransformer(plan) &&
+        containsBitmapAggregator(plan.treeString.toLowerCase(Locale.ROOT))
+    }
+    val rowToVeloxColumnarNodes = planNodes.filter(isRowToVeloxColumnar)
+    val veloxColumnarToRowNodes = planNodes.filter(isVeloxColumnarToRow)
+    val columnarShuffleNodes = planNodes.filter(isColumnarShuffle)
     val fallbackReasons =
       planNodes.flatMap(plan => FallbackTags.getOption(plan).map(_.reason())).distinct.sorted
     val dmlFallbackScans = fileScans.count {
@@ -589,6 +616,28 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
       finalSparkBitmapAggregatePlans = finalSparkBitmapAggregatePlans,
       initialSparkBitmapAggregatePlans = initialSparkBitmapAggregatePlans,
       dmlRowIndexFallbackScans = dmlFallbackScans,
+      nativeBitmapAggMetricNodes = nativeBitmapAggregateNodes.length,
+      rowToVeloxColumnarMetricNodes = rowToVeloxColumnarNodes.length,
+      veloxColumnarToRowMetricNodes = veloxColumnarToRowNodes.length,
+      columnarShuffleMetricNodes = columnarShuffleNodes.length,
+      nativeBitmapAggWallMs =
+        nanosToMillis(sumMetric(nativeBitmapAggregateNodes, "aggWallNanos")),
+      nativeBitmapAggOutputRows = sumMetric(nativeBitmapAggregateNodes, "aggOutputRows"),
+      nativeBitmapAggOutputBytes = sumMetric(nativeBitmapAggregateNodes, "aggOutputBytes"),
+      nativeBitmapAggSpilledBytes = sumMetric(nativeBitmapAggregateNodes, "aggSpilledBytes"),
+      rowToVeloxColumnarConvertMs = sumMetric(rowToVeloxColumnarNodes, "convertTime"),
+      rowToVeloxColumnarInputRows = sumMetric(rowToVeloxColumnarNodes, "numInputRows"),
+      rowToVeloxColumnarOutputBatches = sumMetric(rowToVeloxColumnarNodes, "numOutputBatches"),
+      veloxColumnarToRowConvertMs = sumMetric(veloxColumnarToRowNodes, "convertTime"),
+      veloxColumnarToRowOutputRows = sumMetric(veloxColumnarToRowNodes, "numOutputRows"),
+      veloxColumnarToRowInputBatches = sumMetric(veloxColumnarToRowNodes, "numInputBatches"),
+      columnarShuffleBytesWritten = sumMetric(columnarShuffleNodes, "shuffleBytesWritten"),
+      columnarShuffleRecordsWritten = sumMetric(columnarShuffleNodes, "shuffleRecordsWritten"),
+      columnarShuffleWriteTimeNs = sumMetric(columnarShuffleNodes, "shuffleWriteTime"),
+      columnarShuffleBytesRead =
+        sumMetric(columnarShuffleNodes, "remoteBytesRead") +
+          sumMetric(columnarShuffleNodes, "localBytesRead"),
+      columnarShuffleRecordsRead = sumMetric(columnarShuffleNodes, "recordsRead"),
       fallbackReasons = fallbackReasons,
       bitmapAggregatePlanDiagnostics = bitmapAggregatePlanDiagnostics,
       bitmapAggregateFallbackDiagnostics = bitmapAggregateFallbackDiagnostics,
@@ -618,6 +667,24 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
   private def isNativeHashAggregateTransformer(plan: SparkPlan): Boolean =
     plan.isInstanceOf[HashAggregateExecTransformer] ||
       plan.nodeName.contains("HashAggregateTransformer")
+
+  private def isRowToVeloxColumnar(plan: SparkPlan): Boolean =
+    plan.nodeName.contains("RowToVeloxColumnar")
+
+  private def isVeloxColumnarToRow(plan: SparkPlan): Boolean =
+    plan.nodeName.contains("VeloxColumnarToRow")
+
+  private def isColumnarShuffle(plan: SparkPlan): Boolean =
+    plan.nodeName.contains("ColumnarExchange")
+
+  private def metricValue(plan: SparkPlan, name: String): Long =
+    plan.metrics.get(name).map(_.value).getOrElse(0L)
+
+  private def sumMetric(plans: Seq[SparkPlan], name: String): Long =
+    plans.map(metricValue(_, name)).sum
+
+  private def nanosToMillis(nanos: Long): Long =
+    nanos / 1000L / 1000L
 
   private def validateBitmapAggregateTransformer(aggregate: ObjectHashAggregateExec): String = {
     Try {
@@ -768,6 +835,29 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
         s"initialSparkBitmapAggregatePlans=" +
         s"${result.planSummary.initialSparkBitmapAggregatePlans}, " +
         s"dmlRowIndexFallbackScans=${result.planSummary.dmlRowIndexFallbackScans}, " +
+        s"nativeBitmapAggMetricNodes=${result.planSummary.nativeBitmapAggMetricNodes}, " +
+        s"rowToVeloxColumnarMetricNodes=" +
+        s"${result.planSummary.rowToVeloxColumnarMetricNodes}, " +
+        s"veloxColumnarToRowMetricNodes=" +
+        s"${result.planSummary.veloxColumnarToRowMetricNodes}, " +
+        s"columnarShuffleMetricNodes=${result.planSummary.columnarShuffleMetricNodes}, " +
+        s"nativeBitmapAggWallMs=${result.planSummary.nativeBitmapAggWallMs}, " +
+        s"nativeBitmapAggOutputRows=${result.planSummary.nativeBitmapAggOutputRows}, " +
+        s"nativeBitmapAggOutputBytes=${result.planSummary.nativeBitmapAggOutputBytes}, " +
+        s"nativeBitmapAggSpilledBytes=${result.planSummary.nativeBitmapAggSpilledBytes}, " +
+        s"rowToVeloxColumnarConvertMs=${result.planSummary.rowToVeloxColumnarConvertMs}, " +
+        s"rowToVeloxColumnarInputRows=${result.planSummary.rowToVeloxColumnarInputRows}, " +
+        s"rowToVeloxColumnarOutputBatches=" +
+        s"${result.planSummary.rowToVeloxColumnarOutputBatches}, " +
+        s"veloxColumnarToRowConvertMs=${result.planSummary.veloxColumnarToRowConvertMs}, " +
+        s"veloxColumnarToRowOutputRows=${result.planSummary.veloxColumnarToRowOutputRows}, " +
+        s"veloxColumnarToRowInputBatches=" +
+        s"${result.planSummary.veloxColumnarToRowInputBatches}, " +
+        s"columnarShuffleBytesWritten=${result.planSummary.columnarShuffleBytesWritten}, " +
+        s"columnarShuffleRecordsWritten=${result.planSummary.columnarShuffleRecordsWritten}, " +
+        s"columnarShuffleWriteTimeNs=${result.planSummary.columnarShuffleWriteTimeNs}, " +
+        s"columnarShuffleBytesRead=${result.planSummary.columnarShuffleBytesRead}, " +
+        s"columnarShuffleRecordsRead=${result.planSummary.columnarShuffleRecordsRead}, " +
         s"fallbackReasons=${result.planSummary.fallbackReasons.mkString("[", "; ", "]")}")
   }
 
