@@ -33,6 +33,7 @@ EVIDENCE_DIR="${EVIDENCE_DIR:-$REPO_ROOT/target/delta-dv-evidence}"
 NATIVE_LIBPATH="${NATIVE_LIBPATH:-$REPO_ROOT/cpp/build/releases/libvelox.so}"
 ARROW_C_DATA_SHIM="${ARROW_C_DATA_SHIM:-}"
 SKIP_COMPILE="${SKIP_COMPILE:-0}"
+CLEAN_BUILD="${CLEAN_BUILD:-0}"
 DRY_RUN="${DRY_RUN:-0}"
 JAVA_HOME_OVERRIDE="${JAVA_HOME_OVERRIDE:-}"
 LAUNCHER="${LAUNCHER:-maven-exec}"
@@ -72,6 +73,9 @@ Options:
       prepended to the actual benchmark JVM classpath.
   --skip-compile
       Skip backends-velox test-compile before running.
+  --clean-build
+      Remove benchmark module target directories before compiling. Useful when
+      switching between Scala 2.12 and 2.13 Spark profiles in one worktree.
   --dry-run
       Print commands without executing them.
   --help
@@ -142,6 +146,10 @@ while [[ $# -gt 0 ]]; do
       SKIP_COMPILE=1
       shift
       ;;
+    --clean-build)
+      CLEAN_BUILD=1
+      shift
+      ;;
     --dry-run)
       DRY_RUN=1
       shift
@@ -197,6 +205,10 @@ case "$LAUNCHER" in
     exit 2
     ;;
 esac
+if [[ "$CLEAN_BUILD" == "1" && "$SKIP_COMPILE" == "1" ]]; then
+  echo "--clean-build cannot be combined with --skip-compile." >&2
+  exit 2
+fi
 
 if [[ -z "$SCALA_BINARY_VERSION" ]]; then
   case "$SPARK_PROFILE" in
@@ -210,6 +222,20 @@ if [[ -z "$SCALA_BINARY_VERSION" ]]; then
 fi
 SPARK_SHIM_DIR="spark${SPARK_PROFILE#spark-}"
 SPARK_SHIM_DIR="${SPARK_SHIM_DIR//./}"
+MAVEN_PROFILES=("-Pbackends-velox" "-Pdelta" "-P$SPARK_PROFILE")
+if [[ "$SCALA_BINARY_VERSION" == "2.13" ]]; then
+  MAVEN_PROFILES+=("-Pscala-2.13")
+fi
+BENCHMARK_MODULES=(
+  backends-velox
+  gluten-delta
+  gluten-core
+  gluten-substrait
+  gluten-arrow
+  gluten-ui
+  shims/common
+  "shims/$SPARK_SHIM_DIR"
+)
 
 mkdir -p "$EVIDENCE_DIR"
 
@@ -270,9 +296,11 @@ prepare_no_space_file() {
     return 0
   fi
 
+  local source_abs
+  source_abs="$(cd "$(dirname "$source_path")" && pwd)/$(basename "$source_path")"
   local tmpdir="/tmp/gluten-delta-dv-${prefix}-${USER:-unknown}-$RUN_ID"
   mkdir -p "$tmpdir"
-  ln -sf "$source_path" "$tmpdir/$(basename "$source_path")"
+  ln -sf "$source_abs" "$tmpdir/$(basename "$source_path")"
   echo "$tmpdir/$(basename "$source_path")"
 }
 
@@ -320,7 +348,7 @@ if [[ -n "$EFFECTIVE_ARROW_C_DATA_SHIM" ]]; then
 fi
 export MAVEN_OPTS="$BASE_MAVEN_OPTS"
 
-MVN=("$REPO_ROOT/build/mvn" "-Pbackends-velox" "-Pdelta" "-P$SPARK_PROFILE")
+MVN=("$REPO_ROOT/build/mvn" "${MAVEN_PROFILES[@]}")
 CLASSPATH_FILE="$EVIDENCE_DIR/$RUN_ID.classpath"
 COMPILE_CMD=(
   "${MVN[@]}"
@@ -373,15 +401,7 @@ append_classpath_entry() {
 
 append_target_class_dirs() {
   local module
-  for module in \
-      backends-velox \
-      gluten-delta \
-      gluten-core \
-      gluten-substrait \
-      gluten-arrow \
-      gluten-ui \
-      shims/common \
-      "shims/$SPARK_SHIM_DIR"; do
+  for module in "${BENCHMARK_MODULES[@]}"; do
     append_classpath_entry "$REPO_ROOT/$module/target/scala-$SCALA_BINARY_VERSION/test-classes"
     append_classpath_entry "$REPO_ROOT/$module/target/scala-$SCALA_BINARY_VERSION/classes"
     append_classpath_entry "$REPO_ROOT/$module/target/test-classes"
@@ -407,6 +427,7 @@ print_command() {
   echo "execution_mode=$EXECUTION_MODE"
   echo "delete_shape=$DELETE_SHAPE"
   echo "launcher=$LAUNCHER"
+  echo "clean_build=$CLEAN_BUILD"
   echo "native_libpath=$NATIVE_LIBPATH"
   echo "effective_native_libpath=$EFFECTIVE_NATIVE_LIBPATH"
   echo "arrow_c_data_shim=$ARROW_C_DATA_SHIM"
@@ -426,6 +447,17 @@ if [[ "$DRY_RUN" == "1" ]]; then
 fi
 
 cd "$REPO_ROOT"
+
+if [[ "$CLEAN_BUILD" == "1" ]]; then
+  {
+    echo
+    echo "== clean benchmark targets =="
+    for module in "${BENCHMARK_MODULES[@]}"; do
+      echo "rm -rf $REPO_ROOT/$module/target"
+      rm -rf "$REPO_ROOT/$module/target"
+    done
+  } >> "$LOG_FILE" 2>&1
+fi
 
 if [[ "$LAUNCHER" == "direct-java" ]]; then
   {

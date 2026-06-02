@@ -57,6 +57,14 @@ import scala.util.Try
 object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
   private val EnableNativeDmlRowIndexScan =
     "spark.gluten.sql.delta.enableNativeDmlRowIndexScan"
+  private val SparkSetupConfs: Seq[(String, String)] = Seq(
+    "spark.gluten.enabled" -> "false",
+    VeloxDeltaConfig.ENABLE_NATIVE_WRITE.key -> "false",
+    EnableNativeDmlRowIndexScan -> "false",
+    GlutenConfig.COLUMNAR_SCAN_ONLY_ENABLED.key -> "false",
+    DeltaSQLConf.DELETE_USE_PERSISTENT_DELETION_VECTORS.key -> "true",
+    DeltaConfigs.ENABLE_DELETION_VECTORS_CREATION.defaultTablePropertyKey -> "true"
+  )
 
   private case class BenchmarkConf(
       rowCount: Long = 1000 * 1000,
@@ -428,25 +436,27 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
   }
 
   private def writeTable(path: String, conf: BenchmarkConf, shape: DeleteShape): Unit = {
-    val fileCount = math.max(conf.files, 1)
-    val rowCount = math.max(conf.rowCount, 1L)
-    val writer = spark
-      .range(0L, conf.rowCount, 1L, fileCount)
-      .selectExpr(
-        "id",
-        s"cast(least($fileCount - 1, cast(id * $fileCount / $rowCount as int)) as int) " +
-          "as file_group",
-        s"cast(id % $fileCount as int) as part",
-        "cast(id % 1000 as int) as payload"
-      )
-      .write
-      .format("delta")
-      .option(DeltaConfigs.ENABLE_DELETION_VECTORS_CREATION.key, "true")
-      .mode("overwrite")
-    if (shape.partitionByPart) {
-      writer.partitionBy("part").save(path)
-    } else {
-      writer.save(path)
+    withSparkSetupConfs {
+      val fileCount = math.max(conf.files, 1)
+      val rowCount = math.max(conf.rowCount, 1L)
+      val writer = spark
+        .range(0L, conf.rowCount, 1L, fileCount)
+        .selectExpr(
+          "id",
+          s"cast(least($fileCount - 1, cast(id * $fileCount / $rowCount as int)) as int) " +
+            "as file_group",
+          s"cast(id % $fileCount as int) as part",
+          "cast(id % 1000 as int) as payload"
+        )
+        .write
+        .format("delta")
+        .option(DeltaConfigs.ENABLE_DELETION_VECTORS_CREATION.key, "true")
+        .mode("overwrite")
+      if (shape.partitionByPart) {
+        writer.partitionBy("part").save(path)
+      } else {
+        writer.save(path)
+      }
     }
   }
 
@@ -480,45 +490,49 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
       path: String,
       deleteMs: Long,
       planSummary: PlanSummary): DeleteResult = {
-    val validationStartNs = System.nanoTime()
-    val files = DeltaLog.forTable(spark, path).update().allFiles.collect()
-    val filesWithDvs = files.filter(_.deletionVector != null)
-    val finalStats = spark.read
-      .format("delta")
-      .load(path)
-      .selectExpr(
-        "count(*) as final_rows",
-        "coalesce(sum(cast(id as decimal(38,0))), cast(0 as decimal(38,0))) as final_id_sum")
-      .head()
-    DeleteResult(
-      activeFiles = files.length,
-      filesWithDvs = filesWithDvs.length,
-      dvCardinality = filesWithDvs.map(_.deletionVector.cardinality).sum,
-      dvPayloadBytes = filesWithDvs.map(_.deletionVector.sizeInBytes).sum,
-      finalRows = finalStats.getLong(0),
-      finalIdSum = BigInt(finalStats.getDecimal(1).toBigInteger),
-      deleteMs = deleteMs,
-      validationMs = elapsedMs(validationStartNs),
-      planSummary = planSummary
-    )
+    withSparkSetupConfs {
+      val validationStartNs = System.nanoTime()
+      val files = DeltaLog.forTable(spark, path).update().allFiles.collect()
+      val filesWithDvs = files.filter(_.deletionVector != null)
+      val finalStats = spark.read
+        .format("delta")
+        .load(path)
+        .selectExpr(
+          "count(*) as final_rows",
+          "coalesce(sum(cast(id as decimal(38,0))), cast(0 as decimal(38,0))) as final_id_sum")
+        .head()
+      DeleteResult(
+        activeFiles = files.length,
+        filesWithDvs = filesWithDvs.length,
+        dvCardinality = filesWithDvs.map(_.deletionVector.cardinality).sum,
+        dvPayloadBytes = filesWithDvs.map(_.deletionVector.sizeInBytes).sum,
+        finalRows = finalStats.getLong(0),
+        finalIdSum = BigInt(finalStats.getDecimal(1).toBigInteger),
+        deleteMs = deleteMs,
+        validationMs = elapsedMs(validationStartNs),
+        planSummary = planSummary
+      )
+    }
   }
 
   private def expectedStatsAfterDelete(path: String, predicate: String): ExpectedStats = {
-    val stats = spark.read
-      .format("delta")
-      .load(path)
-      .selectExpr(
-        s"sum(case when $predicate then 1L else 0L end) as deleted_rows",
-        s"sum(case when NOT ($predicate) then 1L else 0L end) as final_rows",
-        s"coalesce(sum(case when NOT ($predicate) then cast(id as decimal(38,0)) " +
-          "else cast(0 as decimal(38,0)) end), cast(0 as decimal(38,0))) as final_id_sum"
+    withSparkSetupConfs {
+      val stats = spark.read
+        .format("delta")
+        .load(path)
+        .selectExpr(
+          s"sum(case when $predicate then 1L else 0L end) as deleted_rows",
+          s"sum(case when NOT ($predicate) then 1L else 0L end) as final_rows",
+          s"coalesce(sum(case when NOT ($predicate) then cast(id as decimal(38,0)) " +
+            "else cast(0 as decimal(38,0)) end), cast(0 as decimal(38,0))) as final_id_sum"
+        )
+        .head()
+      ExpectedStats(
+        deletedRows = Option(stats.get(0)).map(_.asInstanceOf[Number].longValue()).getOrElse(0L),
+        finalRows = Option(stats.get(1)).map(_.asInstanceOf[Number].longValue()).getOrElse(0L),
+        finalIdSum = BigInt(stats.getDecimal(2).toBigInteger)
       )
-      .head()
-    ExpectedStats(
-      deletedRows = Option(stats.get(0)).map(_.asInstanceOf[Number].longValue()).getOrElse(0L),
-      finalRows = Option(stats.get(1)).map(_.asInstanceOf[Number].longValue()).getOrElse(0L),
-      finalIdSum = BigInt(stats.getDecimal(2).toBigInteger)
-    )
+    }
   }
 
   private def summarizePlans(
@@ -567,8 +581,7 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
       deletePlans = executedPlans.length,
       glutenDeleteCommands = planNodes.count(_.nodeName.contains("GlutenDeleteCommand")),
       deltaScanTransformers = planNodes.count(_.isInstanceOf[DeltaScanTransformer]),
-      nativeHashAggregateTransformers =
-        planNodes.count(_.isInstanceOf[HashAggregateExecTransformer]),
+      nativeHashAggregateTransformers = planNodes.count(isNativeHashAggregateTransformer),
       bitmapAggregatorMentions = bitmapAggregatorMentions,
       nativeBitmapAggregatePlans = finalNativeBitmapAggregatePlans,
       sparkBitmapAggregatePlans = finalSparkBitmapAggregatePlans,
@@ -601,6 +614,10 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
 
   private def isSparkBitmapAggregatePlan(planText: String): Boolean =
     containsBitmapAggregator(planText) && !planText.contains("hashaggregatetransformer")
+
+  private def isNativeHashAggregateTransformer(plan: SparkPlan): Boolean =
+    plan.isInstanceOf[HashAggregateExecTransformer] ||
+      plan.nodeName.contains("HashAggregateTransformer")
 
   private def validateBitmapAggregateTransformer(aggregate: ObjectHashAggregateExec): String = {
     Try {
@@ -693,8 +710,11 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
           s"Expected no native bitmap aggregation for $label, got $result")
       case "gluten-native-bitmap" =>
         require(
-          summary.nativeHashAggregateTransformers > 0 && summary.nativeBitmapAggregatePlans > 0,
+          summary.nativeBitmapAggregatePlans > 0,
           s"Expected native bitmap aggregation for $label, got $result")
+        require(
+          summary.sparkBitmapAggregatePlans == 0,
+          s"Expected no Spark bitmap aggregation in final plan for $label, got $result")
       case _ =>
     }
   }
@@ -779,6 +799,10 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
       case None =>
         println(line)
     }
+  }
+
+  private def withSparkSetupConfs[T](f: => T): T = {
+    withConfs(SparkSetupConfs: _*)(f)
   }
 
   private def withConfs[T](confs: (String, String)*)(f: => T): T = {
