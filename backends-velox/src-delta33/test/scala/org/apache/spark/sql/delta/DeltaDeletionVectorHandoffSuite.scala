@@ -176,6 +176,13 @@ class DeltaDeletionVectorHandoffSuite
     assert(!plans.exists(containsDmlFallbackScan), planText)
   }
 
+  private def assertNativeDeletePlans(plans: Seq[SparkPlan], context: String): Unit = {
+    val planText = plans.map(_.treeString).mkString("\n---\n")
+    assert(plans.exists(hasGlutenDeleteCommand), s"$context\n$planText")
+    assert(plans.exists(hasDeltaScanTransformer), s"$context\n$planText")
+    assert(!plans.exists(containsDmlFallbackScan), s"$context\n$planText")
+  }
+
   private def hasGlutenDeleteCommand(plan: SparkPlan): Boolean = {
     val commandClassMatch = plan
       .collectFirst {
@@ -188,7 +195,8 @@ class DeltaDeletionVectorHandoffSuite
   }
 
   private def hasDeltaScanTransformer(plan: SparkPlan): Boolean =
-    plan.collect { case _: DeltaScanTransformer => true }.nonEmpty
+    plan.collect { case _: DeltaScanTransformer => true }.nonEmpty ||
+      plan.treeString.contains("FileDeltaScanTransformer")
 
   private def hasNativeBitmapAggregate(plan: SparkPlan): Boolean =
     containsBitmapAggregator(plan) &&
@@ -362,6 +370,87 @@ class DeltaDeletionVectorHandoffSuite
           "numDeletionVectorsUpdated" -> 1L,
           "numDeletionVectorsRemoved" -> 0L)
         assertNativeBitmapDeletePlans(updatePlans, "update-existing-DV DELETE")
+    }
+  }
+
+  test("Delta DELETE DV native write should update and remove partitioned DVs") {
+    withTempDir {
+      tempDir =>
+        val path = new File(tempDir, "partitioned delta table with spaces").getCanonicalPath
+        spark.range(0, 6, 1, numPartitions = 1)
+          .selectExpr("id", "cast(0 as int) as part")
+          .write
+          .format("delta")
+          .partitionBy("part")
+          .save(path)
+        spark.range(6, 12, 1, numPartitions = 1)
+          .selectExpr("id", "cast(1 as int) as part")
+          .write
+          .format("delta")
+          .partitionBy("part")
+          .mode("append")
+          .save(path)
+        val log = DeltaLog.forTable(spark, path)
+
+        def assertRows(expected: Long*): Unit = {
+          checkAnswer(
+            spark.sql(s"SELECT id FROM delta.`$path` ORDER BY id"),
+            expected.map(id => Row(id)))
+        }
+
+        def assertPartitions(expected: Int*): Unit = {
+          checkAnswer(
+            spark.sql(s"SELECT DISTINCT part FROM delta.`$path` ORDER BY part"),
+            expected.map(part => Row(part)))
+        }
+
+        def assertActiveDeletionVectors(expectedFiles: Int, expectedCardinality: Long): Unit = {
+          val filesWithDVs = getFilesWithDeletionVectors(log)
+          assert(filesWithDVs.size === expectedFiles)
+          assert(filesWithDVs.map(_.deletionVector.cardinality).sum === expectedCardinality)
+          assertDeletionVectorsExist(log, filesWithDVs)
+        }
+
+        spark.sql(
+          s"ALTER TABLE delta.`$path` SET TBLPROPERTIES " +
+            "('delta.enableDeletionVectors' = true)")
+
+        val createPlans = captureNativeDeletePlans(path, "id IN (0, 2, 6)")
+        assertRows(1, 3, 4, 5, 7, 8, 9, 10, 11)
+        assertPartitions(0, 1)
+        assertActiveDeletionVectors(expectedFiles = 2, expectedCardinality = 3)
+        assertDeleteMetrics(
+          path,
+          "numDeletedRows" -> 3L,
+          "numRemovedFiles" -> 0L,
+          "numDeletionVectorsAdded" -> 2L,
+          "numDeletionVectorsUpdated" -> 0L,
+          "numDeletionVectorsRemoved" -> 0L)
+        assertNativeDeletePlans(createPlans, "partitioned create-DV DELETE")
+
+        val updatePlans = captureNativeDeletePlans(path, "id IN (3, 7, 8)")
+        assertRows(1, 4, 5, 9, 10, 11)
+        assertPartitions(0, 1)
+        assertActiveDeletionVectors(expectedFiles = 2, expectedCardinality = 6)
+        assertDeleteMetrics(
+          path,
+          "numDeletedRows" -> 3L,
+          "numRemovedFiles" -> 0L,
+          "numDeletionVectorsUpdated" -> 2L)
+        assertNativeDeletePlans(updatePlans, "partitioned update-existing-DV DELETE")
+
+        val removePlans = captureNativeDeletePlans(path, "id IN (1, 4, 5)")
+        assertRows(9, 10, 11)
+        assertPartitions(1)
+        assertActiveDeletionVectors(expectedFiles = 1, expectedCardinality = 3)
+        assertDeleteMetrics(
+          path,
+          "numDeletedRows" -> 3L,
+          "numRemovedFiles" -> 1L,
+          "numDeletionVectorsAdded" -> 0L,
+          "numDeletionVectorsUpdated" -> 0L,
+          "numDeletionVectorsRemoved" -> 1L)
+        assertNativeDeletePlans(removePlans, "partitioned full-file DELETE")
     }
   }
 }
