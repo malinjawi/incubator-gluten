@@ -23,6 +23,7 @@ import org.apache.spark.paths.SparkPath
 import org.apache.spark.sql.QueryTest
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.delta.{DeltaLog, GlutenDeltaParquetFileFormat}
+import org.apache.spark.sql.delta.actions.AddFile
 import org.apache.spark.sql.delta.catalog.DeltaCatalog
 import org.apache.spark.sql.delta.test.DeltaSQLTestUtils
 import org.apache.spark.sql.execution.datasources.PartitionedFile
@@ -32,6 +33,8 @@ import org.apache.spark.tags.ExtendedSQLTest
 
 import io.delta.sql.DeltaSparkSessionExtension
 import org.apache.hadoop.fs.Path
+
+import java.io.File
 
 @ExtendedSQLTest
 class DeltaDeletionVectorScanInfoSuite
@@ -93,6 +96,70 @@ class DeltaDeletionVectorScanInfoSuite
     }
   }
 
+  test(
+    "extractAll materializes partitioned Delta DV descriptors with escaped paths in split order") {
+    withTempDir {
+      tempDir =>
+        val path = new File(tempDir, "delta table with spaces %2a").getCanonicalPath
+        Seq(
+          (1, "plain"),
+          (2, "plain"),
+          (3, "space value"),
+          (4, "space value"),
+          (5, "percent%value"),
+          (6, "percent%value"))
+          .toDF("id", "part")
+          .coalesce(1)
+          .write
+          .format("delta")
+          .partitionBy("part")
+          .save(path)
+
+        spark.sql(
+          s"ALTER TABLE delta.`$path` SET TBLPROPERTIES ('delta.enableDeletionVectors' = true)")
+        spark.sql(s"DELETE FROM delta.`$path` WHERE id IN (3, 5)")
+
+        val dataFiles = DeltaLog
+          .forTable(spark, new Path(path))
+          .update()
+          .allFiles
+          .collect()
+          .filter(_.deletionVector != null)
+          .sortBy(_.path)
+        assert(dataFiles.size == 2)
+        assert(
+          dataFiles.exists(_.path.contains("part=space%20value")),
+          dataFiles.map(_.path).mkString(", "))
+        assert(
+          dataFiles.exists(_.path.contains("part=percent%2525value")),
+          dataFiles.map(_.path).mkString(", "))
+
+        val partitionedFiles = dataFiles.zipWithIndex.map {
+          case (dataFile, index) =>
+            partitionedFileWithMetadata(
+              path,
+              dataFile.path,
+              dataFile.size,
+              deletionVectorMetadata(
+                dataFile.deletionVector.serializeToBase64(),
+                "split_id" -> index.toString))
+        }
+
+        val scanInfos = DeltaDeletionVectorScanInfo.extractAll(spark, 1, partitionedFiles)
+        val fallbackScanInfos = DeltaDeletionVectorScanInfo.extractAll(spark, 0, partitionedFiles)
+
+        Seq(scanInfos, fallbackScanInfos).foreach {
+          infos =>
+            assert(infos.size == dataFiles.size)
+            infos.zip(dataFiles).zipWithIndex.foreach {
+              case ((scanInfo, dataFile), index) =>
+                assert(scanInfo.normalizedOtherMetadataColumns == Map("split_id" -> index.toString))
+                assertScanInfoMatches(scanInfo, dataFile)
+            }
+        }
+    }
+  }
+
   test("returns keep-all scan info when Delta DV metadata is absent") {
     withTempDir {
       tempDir =>
@@ -150,5 +217,24 @@ class DeltaDeletionVectorScanInfoSuite
       fileSize = fileSize,
       otherConstantMetadataColumnValues = metadata
     )
+  }
+
+  private def assertScanInfoMatches(
+      scanInfo: DeltaDeletionVectorScanInfo.PartitionFileScanInfo,
+      dataFile: AddFile): Unit = {
+    val dvInfo = scanInfo.deletionVectorInfo
+    assert(dvInfo.hasDeletionVector)
+    assert(dvInfo.rowIndexFilterType == RowIndexFilterType.IF_CONTAINED)
+    assert(dvInfo.cardinality == dataFile.deletionVector.cardinality)
+    assert(dvInfo.serializedDeletionVector.nonEmpty)
+  }
+
+  private def deletionVectorMetadata(
+      encodedDescriptor: String,
+      extraMetadata: (String, Object)*): Map[String, Object] = {
+    Map[String, Object](
+      GlutenDeltaParquetFileFormat.FILE_ROW_INDEX_FILTER_ID_ENCODED -> encodedDescriptor,
+      GlutenDeltaParquetFileFormat.FILE_ROW_INDEX_FILTER_TYPE -> "IF_CONTAINED"
+    ) ++ extraMetadata
   }
 }
