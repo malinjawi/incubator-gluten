@@ -53,6 +53,7 @@ import org.apache.spark.util.{SparkDirectoryUtil, SparkResourceUtil, SparkShutdo
 
 import org.apache.commons.lang3.StringUtils
 
+import java.io.File
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -228,8 +229,8 @@ class VeloxListenerApi extends ListenerApi with Logging {
       loader.load(s"$platformLibDir/${System.mapLibraryName(baseLibName)}")
       loader.load(s"$platformLibDir/${System.mapLibraryName(VeloxBackend.BACKEND_NAME)}")
     } else {
-      // Path based load. Ignore all other loaderes.
-      JniLibLoader.loadFromPath(libPath)
+      // Path based load. Ignore all other loaders.
+      loadVeloxLibrariesFromPath(libPath, conf)
     }
 
     // Initial native backend with configurations.
@@ -284,6 +285,32 @@ object VeloxListenerApi {
     }
     val arch = System.getProperty("os.arch")
     s"$osName/$arch"
+  }
+
+  private def loadVeloxLibrariesFromPath(libPath: String, conf: SparkConf): Unit = {
+    val file = new File(libPath)
+    val baseLibName = System.mapLibraryName(conf.get(GlutenConfig.GLUTEN_LIB_NAME))
+    val backendLibName = System.mapLibraryName(VeloxBackend.BACKEND_NAME)
+
+    file.getName match {
+      case `baseLibName` =>
+        JniLibLoader.loadFromPath(file.getAbsolutePath)
+        loadSiblingLibrary(file, backendLibName)
+      case `backendLibName` =>
+        loadSiblingLibrary(file, baseLibName)
+        JniLibLoader.loadFromPath(file.getAbsolutePath)
+      case _ =>
+        JniLibLoader.loadFromPath(file.getAbsolutePath)
+    }
+  }
+
+  private def loadSiblingLibrary(file: File, siblingName: String): Unit = {
+    val sibling = new File(file.getParentFile, siblingName)
+    if (!sibling.isFile) {
+      throw new IllegalArgumentException(
+        s"Required native library ${sibling.getAbsolutePath} does not exist.")
+    }
+    JniLibLoader.loadFromPath(sibling.getAbsolutePath)
   }
 
   private def inLocalMode(conf: SparkConf): Boolean = {
