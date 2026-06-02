@@ -34,6 +34,8 @@ ARROW_C_DATA_SHIM="${ARROW_C_DATA_SHIM:-}"
 SKIP_COMPILE="${SKIP_COMPILE:-0}"
 DRY_RUN="${DRY_RUN:-0}"
 JAVA_HOME_OVERRIDE="${JAVA_HOME_OVERRIDE:-}"
+LAUNCHER="${LAUNCHER:-maven-exec}"
+SCALA_BINARY_VERSION="${SCALA_BINARY_VERSION:-}"
 
 usage() {
   cat <<EOF
@@ -64,6 +66,9 @@ Options:
   --java-home DIR
       Java home for Maven/Spark. Defaults to JAVA_HOME, or Homebrew OpenJDK 17
       on macOS when available.
+  --launcher maven-exec|direct-java
+      Maven exec is the default. Use direct-java when a shim jar must be
+      prepended to the actual benchmark JVM classpath.
   --skip-compile
       Skip backends-velox test-compile before running.
   --dry-run
@@ -122,6 +127,10 @@ while [[ $# -gt 0 ]]; do
       JAVA_HOME_OVERRIDE="$2"
       shift 2
       ;;
+    --launcher)
+      LAUNCHER="$2"
+      shift 2
+      ;;
     --skip-compile)
       SKIP_COMPILE=1
       shift
@@ -172,6 +181,28 @@ case "$TIER" in
     exit 2
     ;;
 esac
+
+case "$LAUNCHER" in
+  maven-exec|direct-java)
+    ;;
+  *)
+    echo "Unknown launcher '$LAUNCHER'. Expected maven-exec or direct-java." >&2
+    exit 2
+    ;;
+esac
+
+if [[ -z "$SCALA_BINARY_VERSION" ]]; then
+  case "$SPARK_PROFILE" in
+    spark-4.*)
+      SCALA_BINARY_VERSION="2.13"
+      ;;
+    *)
+      SCALA_BINARY_VERSION="2.12"
+      ;;
+  esac
+fi
+SPARK_SHIM_DIR="spark${SPARK_PROFILE#spark-}"
+SPARK_SHIM_DIR="${SPARK_SHIM_DIR//./}"
 
 mkdir -p "$EVIDENCE_DIR"
 
@@ -278,6 +309,7 @@ fi
 export MAVEN_OPTS="$BASE_MAVEN_OPTS"
 
 MVN=("$REPO_ROOT/build/mvn" "-Pbackends-velox" "-Pdelta" "-P$SPARK_PROFILE")
+CLASSPATH_FILE="$EVIDENCE_DIR/$RUN_ID.classpath"
 COMPILE_CMD=(
   "${MVN[@]}"
   "-pl" "backends-velox"
@@ -285,6 +317,28 @@ COMPILE_CMD=(
   "-DskipTests"
   "test-compile"
 )
+if [[ "$SKIP_COMPILE" == "1" ]]; then
+  CLASSPATH_CMD=(
+    "${MVN[@]}"
+    "-pl" "backends-velox"
+    "-am"
+    "-DskipTests"
+    "-DincludeScope=test"
+    "-Dmdep.outputFile=$CLASSPATH_FILE"
+    "dependency:build-classpath"
+  )
+else
+  CLASSPATH_CMD=(
+    "${MVN[@]}"
+    "-pl" "backends-velox"
+    "-am"
+    "-DskipTests"
+    "-DincludeScope=test"
+    "-Dmdep.outputFile=$CLASSPATH_FILE"
+    "test-compile"
+    "dependency:build-classpath"
+  )
+fi
 BENCH_CMD=(
   "${MVN[@]}"
   "-pl" "backends-velox"
@@ -295,6 +349,34 @@ BENCH_CMD=(
   "exec:java"
 )
 
+append_classpath_entry() {
+  local entry="$1"
+  [[ -z "$entry" ]] && return 0
+  if [[ -z "${DIRECT_CLASSPATH:-}" ]]; then
+    DIRECT_CLASSPATH="$entry"
+  else
+    DIRECT_CLASSPATH="$DIRECT_CLASSPATH:$entry"
+  fi
+}
+
+append_target_class_dirs() {
+  local module
+  for module in \
+      backends-velox \
+      gluten-delta \
+      gluten-core \
+      gluten-substrait \
+      gluten-arrow \
+      gluten-ui \
+      shims/common \
+      "shims/$SPARK_SHIM_DIR"; do
+    append_classpath_entry "$REPO_ROOT/$module/target/scala-$SCALA_BINARY_VERSION/test-classes"
+    append_classpath_entry "$REPO_ROOT/$module/target/scala-$SCALA_BINARY_VERSION/classes"
+    append_classpath_entry "$REPO_ROOT/$module/target/test-classes"
+    append_classpath_entry "$REPO_ROOT/$module/target/classes"
+  done
+}
+
 print_command() {
   printf '%q ' "$@"
   printf '\n'
@@ -304,12 +386,15 @@ print_command() {
   echo "run_id=$RUN_ID"
   echo "repo_root=$REPO_ROOT"
   echo "spark_profile=$SPARK_PROFILE"
+  echo "scala_binary_version=$SCALA_BINARY_VERSION"
+  echo "spark_shim_dir=$SPARK_SHIM_DIR"
   echo "rows=$ROWS"
   echo "files=$FILES"
   echo "iterations=$ITERATIONS"
   echo "delete_mode=$DELETE_MODE"
   echo "execution_mode=$EXECUTION_MODE"
   echo "delete_shape=$DELETE_SHAPE"
+  echo "launcher=$LAUNCHER"
   echo "native_libpath=$NATIVE_LIBPATH"
   echo "effective_native_libpath=$EFFECTIVE_NATIVE_LIBPATH"
   echo "arrow_c_data_shim=$ARROW_C_DATA_SHIM"
@@ -318,6 +403,8 @@ print_command() {
   echo "java_version=$(java -version 2>&1 | head -1 || true)"
   echo "maven_opts=$MAVEN_OPTS"
   echo "compile_command=$(print_command "${COMPILE_CMD[@]}")"
+  echo "classpath_command=$(print_command "${CLASSPATH_CMD[@]}")"
+  echo "classpath_file=$CLASSPATH_FILE"
   echo "benchmark_command=$(print_command "${BENCH_CMD[@]}")"
 } > "$LOG_FILE"
 
@@ -328,7 +415,13 @@ fi
 
 cd "$REPO_ROOT"
 
-if [[ "$SKIP_COMPILE" != "1" ]]; then
+if [[ "$LAUNCHER" == "direct-java" ]]; then
+  {
+    echo
+    echo "== classpath =="
+    "${CLASSPATH_CMD[@]}"
+  } >> "$LOG_FILE" 2>&1
+elif [[ "$SKIP_COMPILE" != "1" ]]; then
   {
     echo
     echo "== test-compile =="
@@ -340,7 +433,36 @@ set +e
 {
   echo
   echo "== benchmark =="
-  "${BENCH_CMD[@]}"
+  if [[ "$LAUNCHER" == "direct-java" ]]; then
+    if [[ ! -f "$CLASSPATH_FILE" ]]; then
+      echo "Missing classpath file: $CLASSPATH_FILE" >&2
+      exit 1
+    fi
+    DIRECT_CLASSPATH=""
+    append_classpath_entry "$EFFECTIVE_ARROW_C_DATA_SHIM"
+    append_target_class_dirs
+    append_classpath_entry "$(cat "$CLASSPATH_FILE")"
+    echo "direct_classpath_length=${#DIRECT_CLASSPATH}"
+    JAVA_BENCH_CMD=(
+      java
+      -Xss128m
+      -Xmx4g
+      -XX:ReservedCodeCacheSize=2g
+      "${JAVA_EXPORTS[@]}"
+    )
+    if needs_gluten_runtime; then
+      JAVA_BENCH_CMD+=("-Dspark.gluten.sql.columnar.libpath=$EFFECTIVE_NATIVE_LIBPATH")
+    fi
+    JAVA_BENCH_CMD+=(
+      -cp "$DIRECT_CLASSPATH"
+      org.apache.spark.sql.delta.DeltaDeleteDeletionVectorBenchmark
+      "$ROWS" "$FILES" "$ITERATIONS" "$DELETE_MODE" "$EXECUTION_MODE" "$DELETE_SHAPE"
+    )
+    print_command "${JAVA_BENCH_CMD[@]}"
+    "${JAVA_BENCH_CMD[@]}"
+  else
+    "${BENCH_CMD[@]}"
+  fi
 } >> "$LOG_FILE" 2>&1
 BENCHMARK_EXIT_CODE=$?
 set -e
