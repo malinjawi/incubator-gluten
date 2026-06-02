@@ -28,6 +28,7 @@ DELETE_MODE="${DELETE_MODE:-}"
 EXECUTION_MODE="${EXECUTION_MODE:-}"
 DELETE_SHAPE="${DELETE_SHAPE:-}"
 TIER="${TIER:-tiny}"
+CUSTOM_SETTINGS=0
 EVIDENCE_DIR="${EVIDENCE_DIR:-$REPO_ROOT/target/delta-dv-evidence}"
 NATIVE_LIBPATH="${NATIVE_LIBPATH:-$REPO_ROOT/cpp/build/releases/libvelox.so}"
 ARROW_C_DATA_SHIM="${ARROW_C_DATA_SHIM:-}"
@@ -85,26 +86,32 @@ while [[ $# -gt 0 ]]; do
       ;;
     --rows)
       ROWS="$2"
+      CUSTOM_SETTINGS=1
       shift 2
       ;;
     --files)
       FILES="$2"
+      CUSTOM_SETTINGS=1
       shift 2
       ;;
     --iterations)
       ITERATIONS="$2"
+      CUSTOM_SETTINGS=1
       shift 2
       ;;
     --delete-mode)
       DELETE_MODE="$2"
+      CUSTOM_SETTINGS=1
       shift 2
       ;;
     --execution-mode)
       EXECUTION_MODE="$2"
+      CUSTOM_SETTINGS=1
       shift 2
       ;;
     --delete-shape)
       DELETE_SHAPE="$2"
+      CUSTOM_SETTINGS=1
       shift 2
       ;;
     --spark-profile)
@@ -219,7 +226,12 @@ if [[ -n "${JAVA_HOME:-}" ]]; then
   export PATH="$JAVA_HOME/bin:$PATH"
 fi
 
-RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)-delete-dv-${SPARK_PROFILE}-${TIER}-${ROWS}r-${FILES}f-${ITERATIONS}i-${DELETE_MODE}-${EXECUTION_MODE}-${DELETE_SHAPE}"
+RUN_TIER="$TIER"
+if [[ "$CUSTOM_SETTINGS" == "1" ]]; then
+  RUN_TIER="custom-${TIER}"
+fi
+
+RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)-delete-dv-${SPARK_PROFILE}-${RUN_TIER}-${ROWS}r-${FILES}f-${ITERATIONS}i-${DELETE_MODE}-${EXECUTION_MODE}-${DELETE_SHAPE}"
 LOG_FILE="$EVIDENCE_DIR/$RUN_ID.log"
 CSV_FILE="$EVIDENCE_DIR/$RUN_ID.csv"
 
@@ -471,7 +483,7 @@ echo "benchmark_exit_code=$BENCHMARK_EXIT_CODE" >> "$LOG_FILE"
 
 awk -v run_id="$RUN_ID" '
   BEGIN {
-    header = "runId,mode,activeFiles,deleteShape,deleteLayout,expectedDeletedRows,deleteDensityPct,touchedFiles,touchedFilePct,filesWithDvs,dvCardinality,dvCardinalityPct,dvPayloadBytes,payloadBytesPerDeletedRow,payloadBytesPerDvRow,finalRows,finalIdSum,deleteMs,validationMs,deletePlans,glutenDeleteCommands,deltaScanTransformers,nativeHashAggregateTransformers,bitmapAggregatorMentions,nativeBitmapAggregatePlans,sparkBitmapAggregatePlans,dmlRowIndexFallbackScans"
+    header = "runId,mode,iteration,deleteMode,activeFiles,deleteShape,deleteLayout,deletePredicate,expectedDeletedRows,deleteDensityPct,touchedFiles,touchedFilePct,filesWithDvs,dvCardinality,dvCardinalityPct,dvPayloadBytes,payloadBytesPerDeletedRow,payloadBytesPerDvRow,finalRows,finalIdSum,deleteMs,validationMs,deletePlans,glutenDeleteCommands,deltaScanTransformers,nativeHashAggregateTransformers,bitmapAggregatorMentions,nativeBitmapAggregatePlans,sparkBitmapAggregatePlans,dmlRowIndexFallbackScans"
     print header
   }
   / result: / {
@@ -482,13 +494,17 @@ awk -v run_id="$RUN_ID" '
     split(line, parts, ", ")
     delete values
     for (i in parts) {
-      split(parts[i], kv, "=")
-      if (length(kv[1]) > 0) {
-        values[kv[1]] = kv[2]
+      sep = index(parts[i], "=")
+      if (sep > 0) {
+        key = substr(parts[i], 1, sep - 1)
+        value = substr(parts[i], sep + 1)
+        if (length(key) > 0) {
+          values[key] = value
+        }
       }
     }
     printf "%s,%s", run_id, mode
-    n = split("activeFiles deleteShape deleteLayout expectedDeletedRows deleteDensityPct touchedFiles touchedFilePct filesWithDvs dvCardinality dvCardinalityPct dvPayloadBytes payloadBytesPerDeletedRow payloadBytesPerDvRow finalRows finalIdSum deleteMs validationMs deletePlans glutenDeleteCommands deltaScanTransformers nativeHashAggregateTransformers bitmapAggregatorMentions nativeBitmapAggregatePlans sparkBitmapAggregatePlans dmlRowIndexFallbackScans", cols, " ")
+    n = split("iteration deleteMode activeFiles deleteShape deleteLayout deletePredicate expectedDeletedRows deleteDensityPct touchedFiles touchedFilePct filesWithDvs dvCardinality dvCardinalityPct dvPayloadBytes payloadBytesPerDeletedRow payloadBytesPerDvRow finalRows finalIdSum deleteMs validationMs deletePlans glutenDeleteCommands deltaScanTransformers nativeHashAggregateTransformers bitmapAggregatorMentions nativeBitmapAggregatePlans sparkBitmapAggregatePlans dmlRowIndexFallbackScans", cols, " ")
     for (j = 1; j <= n; j++) {
       printf ",%s", values[cols[j]]
     }

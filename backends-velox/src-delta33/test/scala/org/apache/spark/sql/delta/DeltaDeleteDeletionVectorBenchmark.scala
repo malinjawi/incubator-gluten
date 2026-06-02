@@ -367,9 +367,10 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
           expectedStats.finalRows,
           expectedStats.finalIdSum)
         validateBitmapPlanShape(result, mode.label)
-        printFirstIterationResult(
+        printIterationResult(
           iteration,
           mode.label,
+          if (existingDv) "update" else "create",
           shape,
           measuredPredicate,
           conf.rowCount,
@@ -666,50 +667,51 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
     }
   }
 
-  private def printFirstIterationResult(
+  private def printIterationResult(
       iteration: Int,
       label: String,
+      deleteMode: String,
       shape: DeleteShape,
       measuredPredicate: String,
       rowCount: Long,
       expectedDeletedRows: Long,
       result: DeleteResult): Unit = {
-    if (iteration == 0) {
-      val deleteDensityPct = percent(expectedDeletedRows, rowCount)
-      val dvCardinalityPct = percent(result.dvCardinality, rowCount)
-      val touchedFilePct = percent(result.filesWithDvs, result.activeFiles)
-      val payloadBytesPerDeletedRow = ratio(result.dvPayloadBytes, expectedDeletedRows)
-      val payloadBytesPerDvRow = ratio(result.dvPayloadBytes, result.dvCardinality)
-      writeOutputLine(
-        s"$label result: activeFiles=${result.activeFiles}, " +
-          s"deleteShape=${shape.label}, " +
-          s"deleteLayout=${shape.layout}, " +
-          s"deletePredicate=$measuredPredicate, " +
-          s"expectedDeletedRows=$expectedDeletedRows, " +
-          s"deleteDensityPct=$deleteDensityPct, " +
-          s"touchedFiles=${result.filesWithDvs}, " +
-          s"touchedFilePct=$touchedFilePct, " +
-          s"filesWithDvs=${result.filesWithDvs}, " +
-          s"dvCardinality=${result.dvCardinality}, " +
-          s"dvCardinalityPct=$dvCardinalityPct, " +
-          s"dvPayloadBytes=${result.dvPayloadBytes}, " +
-          s"payloadBytesPerDeletedRow=$payloadBytesPerDeletedRow, " +
-          s"payloadBytesPerDvRow=$payloadBytesPerDvRow, " +
-          s"finalRows=${result.finalRows}, " +
-          s"finalIdSum=${result.finalIdSum}, " +
-          s"deleteMs=${result.deleteMs}, " +
-          s"validationMs=${result.validationMs}, " +
-          s"deletePlans=${result.planSummary.deletePlans}, " +
-          s"glutenDeleteCommands=${result.planSummary.glutenDeleteCommands}, " +
-          s"deltaScanTransformers=${result.planSummary.deltaScanTransformers}, " +
-          s"nativeHashAggregateTransformers=" +
-          s"${result.planSummary.nativeHashAggregateTransformers}, " +
-          s"bitmapAggregatorMentions=${result.planSummary.bitmapAggregatorMentions}, " +
-          s"nativeBitmapAggregatePlans=${result.planSummary.nativeBitmapAggregatePlans}, " +
-          s"sparkBitmapAggregatePlans=${result.planSummary.sparkBitmapAggregatePlans}, " +
-          s"dmlRowIndexFallbackScans=${result.planSummary.dmlRowIndexFallbackScans}, " +
-          s"fallbackReasons=${result.planSummary.fallbackReasons.mkString("[", "; ", "]")}")
-    }
+    val deleteDensityPct = percent(expectedDeletedRows, rowCount)
+    val dvCardinalityPct = percent(result.dvCardinality, rowCount)
+    val touchedFilePct = percent(result.filesWithDvs, result.activeFiles)
+    val payloadBytesPerDeletedRow = ratio(result.dvPayloadBytes, expectedDeletedRows)
+    val payloadBytesPerDvRow = ratio(result.dvPayloadBytes, result.dvCardinality)
+    writeOutputLine(
+      s"$label result: iteration=$iteration, " +
+        s"deleteMode=$deleteMode, " +
+        s"activeFiles=${result.activeFiles}, " +
+        s"deleteShape=${shape.label}, " +
+        s"deleteLayout=${shape.layout}, " +
+        s"deletePredicate=$measuredPredicate, " +
+        s"expectedDeletedRows=$expectedDeletedRows, " +
+        s"deleteDensityPct=$deleteDensityPct, " +
+        s"touchedFiles=${result.filesWithDvs}, " +
+        s"touchedFilePct=$touchedFilePct, " +
+        s"filesWithDvs=${result.filesWithDvs}, " +
+        s"dvCardinality=${result.dvCardinality}, " +
+        s"dvCardinalityPct=$dvCardinalityPct, " +
+        s"dvPayloadBytes=${result.dvPayloadBytes}, " +
+        s"payloadBytesPerDeletedRow=$payloadBytesPerDeletedRow, " +
+        s"payloadBytesPerDvRow=$payloadBytesPerDvRow, " +
+        s"finalRows=${result.finalRows}, " +
+        s"finalIdSum=${result.finalIdSum}, " +
+        s"deleteMs=${result.deleteMs}, " +
+        s"validationMs=${result.validationMs}, " +
+        s"deletePlans=${result.planSummary.deletePlans}, " +
+        s"glutenDeleteCommands=${result.planSummary.glutenDeleteCommands}, " +
+        s"deltaScanTransformers=${result.planSummary.deltaScanTransformers}, " +
+        s"nativeHashAggregateTransformers=" +
+        s"${result.planSummary.nativeHashAggregateTransformers}, " +
+        s"bitmapAggregatorMentions=${result.planSummary.bitmapAggregatorMentions}, " +
+        s"nativeBitmapAggregatePlans=${result.planSummary.nativeBitmapAggregatePlans}, " +
+        s"sparkBitmapAggregatePlans=${result.planSummary.sparkBitmapAggregatePlans}, " +
+        s"dmlRowIndexFallbackScans=${result.planSummary.dmlRowIndexFallbackScans}, " +
+        s"fallbackReasons=${result.planSummary.fallbackReasons.mkString("[", "; ", "]")}")
   }
 
   private def ratio(numerator: Long, denominator: Long): String = {
