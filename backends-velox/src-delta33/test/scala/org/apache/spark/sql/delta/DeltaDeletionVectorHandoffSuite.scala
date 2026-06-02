@@ -21,7 +21,7 @@ import org.apache.gluten.execution.{DeltaScanTransformer, FilterExecTransformerB
 import org.apache.gluten.extension.DeltaDeletionVectorDmlUtils
 import org.apache.gluten.extension.columnar.FallbackTags
 
-import org.apache.spark.sql.{QueryTest, Row}
+import org.apache.spark.sql.{DataFrame, QueryTest, Row}
 import org.apache.spark.sql.delta.commands.GlutenDeleteCommand
 import org.apache.spark.sql.delta.sources.DeltaSQLConf
 import org.apache.spark.sql.delta.test.{DeltaSQLCommandTest, DeltaSQLTestUtils}
@@ -139,6 +139,17 @@ class DeltaDeletionVectorHandoffSuite
     val log = DeltaLog.forTable(spark, new Path(path))
     log.update().allFiles.collect().flatMap(
       file => Option(file.deletionVector).map(_.cardinality)).sum
+  }
+
+  private val columnMappingReadConfs: Seq[(String, String)] =
+    Seq(DeltaSQLConf.DELETION_VECTORS_USE_METADATA_ROW_INDEX.key -> "true")
+
+  private def assertNativeDvRead(df: DataFrame): Unit = {
+    val executedPlan = df.queryExecution.executedPlan
+    val planText = executedPlan.treeString
+    assert(hasDeltaScanTransformer(executedPlan), planText)
+    assert(!planText.contains("__delta_internal_is_row_deleted"), planText)
+    assert(!planText.contains("__delta_internal_row_index"), planText)
   }
 
   private def captureNativeDeletePlans(path: String, predicate: String): Seq[SparkPlan] = {
@@ -263,6 +274,54 @@ class DeltaDeletionVectorHandoffSuite
         assert(!planText.contains("__delta_internal_is_row_deleted"))
         assert(!planText.contains("__delta_internal_row_index"))
         checkAnswer(df, Seq((1, "a"), (2, "b")).toDF())
+    }
+  }
+
+  test("Delta DV native read handoff with column mapping name mode") {
+    withTempDir {
+      tempDir =>
+        val path = new File(tempDir, "mapped delta table with spaces %2a").getCanonicalPath
+        withSQLConf(columnMappingReadConfs: _*) {
+          Seq(
+            (1, "plain keep", "plain"),
+            (2, "plain live", "plain"),
+            (3, "space delete", "space value"),
+            (4, "space live", "space value"),
+            (5, "percent delete", "percent%value"),
+            (6, "percent live", "percent%value")
+          )
+            .toDF("id", "logical value", "part value")
+            .coalesce(1)
+            .write
+            .format("delta")
+            .option(DeltaConfigs.COLUMN_MAPPING_MODE.key, NameMapping.name)
+            .partitionBy("part value")
+            .save(path)
+
+          spark.sql(
+            s"ALTER TABLE delta.`$path` SET TBLPROPERTIES " +
+              "('delta.enableDeletionVectors' = true)")
+          spark.sql(s"DELETE FROM delta.`$path` WHERE id IN (3, 5)")
+
+          val log = DeltaLog.forTable(spark, new Path(path))
+          val filesWithDVs = getFilesWithDeletionVectors(log)
+          assert(filesWithDVs.size === 2)
+          assert(filesWithDVs.map(_.deletionVector.cardinality).sum === 2L)
+          assertDeletionVectorsExist(log, filesWithDVs)
+          assert(activeDvCardinality(path) === 2L)
+
+          val df = spark.sql(
+            s"SELECT id, `logical value`, `part value` " +
+              s"FROM delta.`$path` WHERE id <= 6")
+          assertNativeDvRead(df)
+          checkAnswer(
+            df,
+            Seq(
+              Row(1, "plain keep", "plain"),
+              Row(2, "plain live", "plain"),
+              Row(4, "space live", "space value"),
+              Row(6, "percent live", "percent%value")))
+        }
     }
   }
 
