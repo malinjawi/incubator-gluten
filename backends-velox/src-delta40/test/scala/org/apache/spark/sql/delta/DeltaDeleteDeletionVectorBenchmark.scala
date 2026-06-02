@@ -449,7 +449,12 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
         spark.sql(s"DELETE FROM delta.`$path` WHERE $predicate").collect()
       }.map(_.executedPlan)
       val deleteMs = elapsedMs(deleteStartNs)
-      collectDeleteResult(path, deleteMs, summarizePlans(executedPlans))
+      collectDeleteResult(
+        path,
+        deleteMs,
+        summarizePlans(
+          executedPlans,
+          validateNativeBitmapAggregates = confs.glutenEnabled && !confs.scanOnly))
     }
   }
 
@@ -498,7 +503,9 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
     )
   }
 
-  private def summarizePlans(executedPlans: Seq[SparkPlan]): PlanSummary = {
+  private def summarizePlans(
+      executedPlans: Seq[SparkPlan],
+      validateNativeBitmapAggregates: Boolean): PlanSummary = {
     val planNodes = executedPlans.flatMap(collectSparkPlanNodes)
     val fileScans = planNodes.collect { case scan: FileSourceScanExec => scan }
     val planTexts = executedPlans.map(_.treeString.toLowerCase(Locale.ROOT))
@@ -535,11 +542,16 @@ object DeltaDeleteDeletionVectorBenchmark extends BenchmarkBase {
         }
       case _ => Seq.empty
     }
-    val bitmapAggregateValidationDiagnostics = planNodes.collect {
-      case aggregate: ObjectHashAggregateExec
-          if containsBitmapAggregator(aggregate.treeString.toLowerCase(Locale.ROOT)) =>
-        validateBitmapAggregateTransformer(aggregate)
-    }.distinct.sorted
+    val bitmapAggregateValidationDiagnostics =
+      if (validateNativeBitmapAggregates) {
+        planNodes.collect {
+          case aggregate: ObjectHashAggregateExec
+              if containsBitmapAggregator(aggregate.treeString.toLowerCase(Locale.ROOT)) =>
+            validateBitmapAggregateTransformer(aggregate)
+        }.distinct.sorted
+      } else {
+        Seq.empty
+      }
     PlanSummary(
       deletePlans = executedPlans.length,
       glutenDeleteCommands = planNodes.count(_.nodeName.contains("GlutenDeleteCommand")),
