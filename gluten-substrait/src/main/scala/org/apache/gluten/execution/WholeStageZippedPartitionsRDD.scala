@@ -44,19 +44,22 @@ class WholeStageZippedPartitionsRDD(
       _ =>
         val partitions = split.asInstanceOf[ZippedPartitionsPartition].inputColumnarRDDPartitions
         val inputIterators: Seq[Iterator[ColumnarBatch]] = rdds.getIterators(partitions, context)
-        BackendsApiManager.getIteratorApiInstance
-          .genFinalStageIterator(
-            context,
-            inputIterators,
-            sparkConf,
-            resCtx.root,
-            pipelineTime,
-            updateNativeMetrics,
-            split.index,
-            materializeInput,
-            resCtx.enableCudf,
-            resCtx.supportsValueStreamDynamicFilter
-          )
+        NativeExecutionFailurePolicies.protect {
+          NativeExecutionFailurePolicies.wrap(
+            BackendsApiManager.getIteratorApiInstance
+              .genFinalStageIterator(
+                context,
+                inputIterators,
+                sparkConf,
+                resCtx.root,
+                pipelineTime,
+                updateNativeMetrics,
+                split.index,
+                materializeInput,
+                resCtx.enableCudf,
+                resCtx.supportsValueStreamDynamicFilter
+              ))
+        }
     }
   }
 

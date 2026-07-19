@@ -17,7 +17,9 @@
 package org.apache.gluten.execution
 
 import org.apache.gluten.backendsapi.BackendsApiManager
+import org.apache.gluten.config.GlutenConfig
 
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.connector.metric.CustomMetric
 import org.apache.spark.sql.connector.write.BatchWrite
 import org.apache.spark.sql.connector.write.Write
@@ -49,9 +51,21 @@ case class VeloxIcebergWriteToDataSourceV2Exec(
 
 object VeloxIcebergWriteToDataSourceV2Exec {
 
-  private def extractOuterWrite(batchWrite: BatchWrite): Option[Write] = {
+  private def sparkSpeculationEnabled: Boolean = {
+    SparkSession.getActiveSession.exists {
+      session => session.sparkContext.getConf.getBoolean("spark.speculation", false)
+    }
+  }
+
+  private def nativeStreamingSinkEnabled(plan: SparkPlan): Boolean = {
+    val conf = new GlutenConfig(plan.conf)
+    conf.enableNativeStreaming && conf.enableNativeStreamingSink &&
+    !sparkSpeculationEnabled
+  }
+
+  private def extractOuterWrite(batchWrite: BatchWrite, plan: SparkPlan): Option[Write] = {
     batchWrite match {
-      case microBatchWrite: MicroBatchWrite =>
+      case microBatchWrite: MicroBatchWrite if nativeStreamingSinkEnabled(plan) =>
         try {
           val streamWrite = microBatchWrite.writeSupport
           val outerClassField = streamWrite.getClass.getDeclaredField("this$0")
@@ -63,12 +77,13 @@ object VeloxIcebergWriteToDataSourceV2Exec {
         } catch {
           case _: Throwable => None
         }
+      case _: MicroBatchWrite => None
       case _ => None
     }
   }
 
   def apply(original: WriteToDataSourceV2Exec): Option[VeloxIcebergWriteToDataSourceV2Exec] = {
-    extractOuterWrite(original.batchWrite)
+    extractOuterWrite(original.batchWrite, original.query)
       .filter(supportsWrite)
       .map {
         write =>

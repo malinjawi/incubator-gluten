@@ -22,8 +22,12 @@
 #include <algorithm>
 #include <condition_variable>
 #include <filesystem>
+#include <google/protobuf/descriptor.h>
+#include <google/protobuf/message.h>
 #include <mutex>
+#include <optional>
 #include <unordered_map>
+#include <vector>
 
 #include <folly/ScopeGuard.h>
 
@@ -32,6 +36,7 @@
 #include "compute/Runtime.h"
 #include "compute/VeloxPlanConverter.h"
 #include "compute/delta/DeltaConnector.h"
+#include "compute/kafka/KafkaConnector.h"
 #include "config/VeloxConfig.h"
 #include "operators/plannodes/IteratorSplit.h"
 #include "operators/serializer/VeloxRowToColumnarConverter.h"
@@ -207,16 +212,121 @@ std::unique_ptr<folly::Executor> makeHookedExecutor(
   return std::make_unique<HookedExecutor>(parent, name, debug, joinTimeout);
 }
 
-std::string makeScopedConnectorId(const std::string& base, uint64_t runtimeId) {
-  return fmt::format("{}-runtime-{}", base, runtimeId);
+VeloxConnectorIds makeProcessConnectorIds() {
+  return VeloxConnectorIds{
+      .hive = kHiveConnectorId,
+      .delta = delta::DeltaConnectorFactory::kDeltaConnectorName,
+      .iterator = kIteratorConnectorId,
+      .kafka = kafka::KafkaConnector::kKafkaConnectorName,
+      .cudfHive = kCudfHiveConnectorId};
 }
 
-VeloxConnectorIds makeScopedConnectorIds(uint64_t runtimeId) {
-  return VeloxConnectorIds{
-      .hive = makeScopedConnectorId(kHiveConnectorId, runtimeId),
-      .delta = makeScopedConnectorId(delta::DeltaConnectorFactory::kDeltaConnectorName, runtimeId),
-      .iterator = makeScopedConnectorId(kIteratorConnectorId, runtimeId),
-      .cudfHive = makeScopedConnectorId(kCudfHiveConnectorId, runtimeId)};
+std::mutex& connectorRegistryMutex() {
+  static std::mutex mutex;
+  return mutex;
+}
+
+bool hasEnabledStreamKafkaRead(const google::protobuf::Message& message) {
+  const auto* descriptor = message.GetDescriptor();
+  const auto* reflection = message.GetReflection();
+  for (int i = 0; i < descriptor->field_count(); ++i) {
+    const auto* field = descriptor->field(i);
+    if (field->name() == "stream_kafka" && field->cpp_type() == google::protobuf::FieldDescriptor::CPPTYPE_BOOL &&
+        reflection->HasField(message, field) && reflection->GetBool(message, field)) {
+      return true;
+    }
+    if (field->cpp_type() != google::protobuf::FieldDescriptor::CPPTYPE_MESSAGE) {
+      continue;
+    }
+    if (field->is_repeated()) {
+      const auto size = reflection->FieldSize(message, field);
+      for (int j = 0; j < size; ++j) {
+        if (hasEnabledStreamKafkaRead(reflection->GetRepeatedMessage(message, field, j))) {
+          return true;
+        }
+      }
+    } else if (reflection->HasField(message, field) &&
+               hasEnabledStreamKafkaRead(reflection->GetMessage(message, field))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+enum class SerializedSplitKind {
+  kLocalFiles = 0,
+  kStreamKafka = 1,
+};
+
+struct DecodedSplitPayload {
+  std::optional<SerializedSplitKind> kind;
+  const uint8_t* data;
+  int32_t size;
+};
+
+DecodedSplitPayload decodeSplitPayload(const uint8_t* data, int32_t size) {
+  constexpr int32_t kEnvelopeSize = 6;
+  if (size < kEnvelopeSize || data[0] != 'G' || data[1] != 'L' || data[2] != 'S' || data[3] != 'P') {
+    return DecodedSplitPayload{.kind = std::nullopt, .data = data, .size = size};
+  }
+
+  GLUTEN_CHECK(
+      data[4] == 1,
+      "Unsupported Gluten split envelope version: " + std::to_string(static_cast<int32_t>(data[4])));
+  switch (data[5]) {
+    case static_cast<uint8_t>(SerializedSplitKind::kLocalFiles):
+      return DecodedSplitPayload{
+          .kind = SerializedSplitKind::kLocalFiles, .data = data + kEnvelopeSize, .size = size - kEnvelopeSize};
+    case static_cast<uint8_t>(SerializedSplitKind::kStreamKafka):
+      return DecodedSplitPayload{
+          .kind = SerializedSplitKind::kStreamKafka, .data = data + kEnvelopeSize, .size = size - kEnvelopeSize};
+    default:
+      GLUTEN_CHECK(
+          false, "Unsupported Gluten split envelope kind: " + std::to_string(static_cast<int32_t>(data[5])));
+  }
+}
+
+const char* splitTypeName(SerializedSplitKind kind) {
+  switch (kind) {
+    case SerializedSplitKind::kLocalFiles:
+      return "ReadRel.LocalFiles";
+    case SerializedSplitKind::kStreamKafka:
+      return "ReadRel.StreamKafka";
+  }
+}
+
+bool isSensitiveKafkaParamForDebug(const std::string& key) {
+  return key.find("password") != std::string::npos || key.find("secret") != std::string::npos ||
+      key.find("sasl.jaas.config") != std::string::npos || key.find("ssl.key") != std::string::npos;
+}
+
+std::string splitPayloadToJsonForDebug(
+    SerializedSplitKind splitKind,
+    const char* splitType,
+    const uint8_t* data,
+    int32_t size) {
+  if (splitKind != SerializedSplitKind::kStreamKafka) {
+    return substraitFromPbToJson(splitType, data, size);
+  }
+
+  ::substrait::ReadRel_StreamKafka redacted;
+  GLUTEN_CHECK(parseProtobuf(data, size, &redacted) == true, "Parse substrait Kafka split failed");
+  std::vector<std::string> sensitiveKeys;
+  for (const auto& param : redacted.params()) {
+    const auto& key = param.first;
+    if (isSensitiveKafkaParamForDebug(key)) {
+      sensitiveKeys.emplace_back(key);
+    }
+  }
+  for (const auto& key : sensitiveKeys) {
+    (*redacted.mutable_params())[key] = "<redacted>";
+  }
+
+  const auto redactedBytes = redacted.SerializeAsString();
+  return substraitFromPbToJson(
+      splitType,
+      reinterpret_cast<const uint8_t*>(redactedBytes.data()),
+      static_cast<int32_t>(redactedBytes.size()));
 }
 
 } // namespace
@@ -240,8 +350,7 @@ VeloxRuntime::VeloxRuntime(
   FLAGS_velox_memory_pool_capacity_transfer_across_tasks = veloxCfg_->get<bool>(
       kMemoryPoolCapacityTransferAcrossTasks, FLAGS_velox_memory_pool_capacity_transfer_across_tasks);
 
-  static std::atomic<uint64_t> runtimeId{0};
-  connectorIds_ = makeScopedConnectorIds(runtimeId++);
+  connectorIds_ = makeProcessConnectorIds();
 
   initializeExecutors();
   registerConnectors();
@@ -265,64 +374,67 @@ void VeloxRuntime::initializeExecutors() {
 }
 
 void VeloxRuntime::registerConnectors() {
+  const std::lock_guard<std::mutex> lock(connectorRegistryMutex());
   auto* backend = VeloxBackend::get();
-  connectorIds_.hiveRegistered =
-      velox::connector::registerConnector(backend->createHiveConnector(connectorIds_.hive, ioExecutor_.get()));
-  GLUTEN_CHECK(connectorIds_.hiveRegistered, "Failed to register scoped hive connector: " + connectorIds_.hive);
+  if (!velox::connector::hasConnector(connectorIds_.hive)) {
+    connectorIds_.hiveRegistered =
+        velox::connector::registerConnector(backend->createHiveConnector(connectorIds_.hive, backend->ioExecutor()));
+    GLUTEN_CHECK(connectorIds_.hiveRegistered, "Failed to register hive connector: " + connectorIds_.hive);
+  }
   GLUTEN_CHECK(
       velox::connector::hasConnector(connectorIds_.hive),
-      "Scoped hive connector not found after registration: " + connectorIds_.hive);
+      "Hive connector not found after registration: " + connectorIds_.hive);
 
-  connectorIds_.deltaRegistered =
-      velox::connector::registerConnector(backend->createDeltaConnector(connectorIds_.delta, ioExecutor_.get()));
-  GLUTEN_CHECK(connectorIds_.deltaRegistered, "Failed to register scoped delta connector: " + connectorIds_.delta);
+  if (!velox::connector::hasConnector(connectorIds_.delta)) {
+    connectorIds_.deltaRegistered =
+        velox::connector::registerConnector(backend->createDeltaConnector(connectorIds_.delta, backend->ioExecutor()));
+    GLUTEN_CHECK(connectorIds_.deltaRegistered, "Failed to register delta connector: " + connectorIds_.delta);
+  }
   GLUTEN_CHECK(
       velox::connector::hasConnector(connectorIds_.delta),
-      "Scoped delta connector not found after registration: " + connectorIds_.delta);
+      "Delta connector not found after registration: " + connectorIds_.delta);
 
   const auto valueStreamDynamicFilterEnabled =
       veloxCfg_->get<bool>(kValueStreamDynamicFilterEnabled, kValueStreamDynamicFilterEnabledDefault);
-  connectorIds_.iteratorRegistered = velox::connector::registerConnector(
-      backend->createValueStreamConnector(connectorIds_.iterator, valueStreamDynamicFilterEnabled));
-  GLUTEN_CHECK(
-      connectorIds_.iteratorRegistered, "Failed to register scoped iterator connector: " + connectorIds_.iterator);
+  if (!velox::connector::hasConnector(connectorIds_.iterator)) {
+    connectorIds_.iteratorRegistered = velox::connector::registerConnector(
+        backend->createValueStreamConnector(connectorIds_.iterator, valueStreamDynamicFilterEnabled));
+    GLUTEN_CHECK(
+        connectorIds_.iteratorRegistered, "Failed to register iterator connector: " + connectorIds_.iterator);
+  }
   GLUTEN_CHECK(
       velox::connector::hasConnector(connectorIds_.iterator),
-      "Scoped iterator connector not found after registration: " + connectorIds_.iterator);
+      "Iterator connector not found after registration: " + connectorIds_.iterator);
+
+  if (!velox::connector::hasConnector(connectorIds_.kafka)) {
+    connectorIds_.kafkaRegistered =
+        velox::connector::registerConnector(backend->createKafkaConnector(connectorIds_.kafka));
+    GLUTEN_CHECK(connectorIds_.kafkaRegistered, "Failed to register Kafka connector: " + connectorIds_.kafka);
+  }
+  GLUTEN_CHECK(
+      velox::connector::hasConnector(connectorIds_.kafka),
+      "Kafka connector not found after registration: " + connectorIds_.kafka);
 
 #ifdef GLUTEN_ENABLE_GPU
   if (veloxCfg_->get<bool>(kCudfEnableTableScan, kCudfEnableTableScanDefault) &&
       veloxCfg_->get<bool>(kCudfEnabled, kCudfEnabledDefault)) {
-    connectorIds_.cudfHiveRegistered = velox::connector::registerConnector(
-        backend->createCudfHiveConnector(connectorIds_.cudfHive, ioExecutor_.get()));
-    GLUTEN_CHECK(
-        connectorIds_.cudfHiveRegistered, "Failed to register scoped cudf hive connector: " + connectorIds_.cudfHive);
+    if (!velox::connector::hasConnector(connectorIds_.cudfHive)) {
+      connectorIds_.cudfHiveRegistered = velox::connector::registerConnector(
+          backend->createCudfHiveConnector(connectorIds_.cudfHive, backend->ioExecutor()));
+      GLUTEN_CHECK(
+          connectorIds_.cudfHiveRegistered, "Failed to register cudf hive connector: " + connectorIds_.cudfHive);
+    }
     GLUTEN_CHECK(
         velox::connector::hasConnector(connectorIds_.cudfHive),
-        "Scoped cudf hive connector not found after registration: " + connectorIds_.cudfHive);
+        "Cudf hive connector not found after registration: " + connectorIds_.cudfHive);
   }
 #endif
 }
 
 void VeloxRuntime::unregisterConnectors() {
-#ifdef GLUTEN_ENABLE_GPU
-  if (connectorIds_.cudfHiveRegistered) {
-    velox::connector::unregisterConnector(connectorIds_.cudfHive);
-    connectorIds_.cudfHiveRegistered = false;
-  }
-#endif
-  if (connectorIds_.iteratorRegistered) {
-    velox::connector::unregisterConnector(connectorIds_.iterator);
-    connectorIds_.iteratorRegistered = false;
-  }
-  if (connectorIds_.deltaRegistered) {
-    velox::connector::unregisterConnector(connectorIds_.delta);
-    connectorIds_.deltaRegistered = false;
-  }
-  if (connectorIds_.hiveRegistered) {
-    velox::connector::unregisterConnector(connectorIds_.hive);
-    connectorIds_.hiveRegistered = false;
-  }
+  // Velox's connector registry is process-global, while Gluten creates short-lived runtimes for
+  // query fragments and streaming micro-batches. Keep the backend connectors registered for the
+  // process lifetime to avoid unregistering a connector while another runtime or task is using it.
 }
 
 void VeloxRuntime::parsePlan(const uint8_t* data, int32_t size) {
@@ -345,22 +457,35 @@ void VeloxRuntime::parsePlan(const uint8_t* data, int32_t size) {
 }
 
 void VeloxRuntime::parseSplitInfo(const uint8_t* data, int32_t size, int32_t splitIndex) {
+  const auto decoded = decodeSplitPayload(data, size);
+  const auto splitKind = decoded.kind.value_or(
+      hasEnabledStreamKafkaRead(substraitPlan_) ? SerializedSplitKind::kStreamKafka : SerializedSplitKind::kLocalFiles);
+  const auto splitType = splitTypeName(splitKind);
   if (debugModeEnabled_ || dumper_ != nullptr) {
     try {
-      auto splitJson = substraitFromPbToJson("ReadRel.LocalFiles", data, size);
+      auto splitJson = splitPayloadToJsonForDebug(splitKind, splitType, decoded.data, decoded.size);
       if (dumper_ != nullptr) {
         dumper_->dumpInputSplit(splitIndex, splitJson);
       }
       LOG_IF(INFO, debugModeEnabled_ && taskInfo_.has_value())
-          << std::string(50, '#') << " received substrait::ReadRel.LocalFiles: " << taskInfo_.value() << std::endl
+          << std::string(50, '#') << " received substrait::" << splitType << ": " << taskInfo_.value()
+          << std::endl
           << splitJson;
     } catch (const std::exception& e) {
-      LOG(WARNING) << "Error converting substrait::ReadRel.LocalFiles to JSON: " << e.what();
+      LOG(WARNING) << "Error converting substrait::" << splitType << " to JSON: " << e.what();
     }
   }
-  ::substrait::ReadRel_LocalFiles localFile;
-  GLUTEN_CHECK(parseProtobuf(data, size, &localFile) == true, "Parse substrait plan failed");
-  localFiles_.push_back(localFile);
+  if (splitKind == SerializedSplitKind::kStreamKafka) {
+    ::substrait::ReadRel_StreamKafka streamKafka;
+    GLUTEN_CHECK(
+        parseProtobuf(decoded.data, decoded.size, &streamKafka) == true, "Parse substrait Kafka split failed");
+    splitPayloads_.push_back(SubstraitSplit::makeStreamKafka(std::move(streamKafka)));
+  } else {
+    ::substrait::ReadRel_LocalFiles localFile;
+    GLUTEN_CHECK(
+        parseProtobuf(decoded.data, decoded.size, &localFile) == true, "Parse substrait local-files split failed");
+    splitPayloads_.push_back(SubstraitSplit::makeLocalFiles(std::move(localFile)));
+  }
 }
 
 void VeloxRuntime::getInfoAndIds(
@@ -398,7 +523,7 @@ std::string VeloxRuntime::planString(bool details, const std::unordered_map<std:
   auto veloxMemoryPool = gluten::defaultLeafVeloxMemoryPool();
   VeloxPlanConverter veloxPlanConverter(
       veloxMemoryPool.get(), veloxCfg_.get(), {}, connectorIds_, std::nullopt, std::nullopt, true);
-  auto veloxPlan = veloxPlanConverter.toVeloxPlan(substraitPlan_, localFiles_);
+  auto veloxPlan = veloxPlanConverter.toVeloxPlan(substraitPlan_, splitPayloads_);
   return veloxPlan->toString(details, true);
 }
 
@@ -420,7 +545,7 @@ std::shared_ptr<ResultIterator> VeloxRuntime::createResultIterator(
       connectorIds_,
       *localWriteFilesTempPath(),
       *localWriteFileName());
-  veloxPlan_ = veloxPlanConverter.toVeloxPlan(substraitPlan_, std::move(localFiles_));
+  veloxPlan_ = veloxPlanConverter.toVeloxPlan(substraitPlan_, std::move(splitPayloads_));
   LOG_IF(INFO, debugModeEnabled_ && taskInfo_.has_value())
       << "############### Velox plan for task " << taskInfo_.value() << " ###############" << std::endl
       << veloxPlan_->toString(true, true);

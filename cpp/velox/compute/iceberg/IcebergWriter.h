@@ -23,6 +23,8 @@
 #include "velox/connectors/hive/iceberg/IcebergColumnHandle.h"
 #include "velox/connectors/hive/iceberg/IcebergDataSink.h"
 
+#include <string_view>
+
 namespace gluten {
 
 struct WriteStats {
@@ -56,22 +58,34 @@ class IcebergWriter {
 
   std::vector<std::string> commit();
 
+  void cleanupCommittedFiles();
+
+  void abort();
+
   WriteStats writeStats() const;
 
  private:
+  enum class WriterState { kActive, kCommitted, kAborted };
+
+  void checkActive(std::string_view action) const;
+
+  const char* stateName() const;
+
   facebook::velox::RowTypePtr rowType_;
-  const facebook::velox::connector::hive::iceberg::IcebergNestedField field_;
-  int32_t partitionId_;
-  int64_t taskId_;
-  std::string operationId_;
+  const facebook::velox::parquet::ParquetFieldId field_;
   std::shared_ptr<facebook::velox::memory::MemoryPool> pool_;
   std::shared_ptr<facebook::velox::memory::MemoryPool> connectorPool_;
   std::shared_ptr<facebook::velox::connector::hive::HiveConfig> connectorConfig_;
+  std::shared_ptr<const facebook::velox::connector::hive::iceberg::IcebergConfig> icebergConfig_;
   std::shared_ptr<facebook::velox::config::ConfigBase> connectorSessionProperties_;
 
   std::unique_ptr<facebook::velox::connector::ConnectorQueryCtx> connectorQueryCtx_;
 
   std::unique_ptr<facebook::velox::connector::hive::iceberg::IcebergDataSink> dataSink_;
+
+  std::vector<std::string> lastCommitMessages_;
+
+  WriterState state_{WriterState::kActive};
 
   // Records the writer creation time in ns.
   const uint64_t createTimeNs_{0};

@@ -27,8 +27,27 @@ import java.util.List;
  * org.apache.gluten.execution.BasicScanExecTransformer#getSplitInfos()}.
  */
 public interface SplitInfo extends Serializable {
+  enum Kind {
+    LOCAL_FILES((byte) 0),
+    STREAM_KAFKA((byte) 1);
+
+    private final byte id;
+
+    Kind(byte id) {
+      this.id = id;
+    }
+
+    public byte id() {
+      return id;
+    }
+  }
+
   /** The preferred locations where the table files returned by this read split can run faster. */
   List<String> preferredLocations();
+
+  default Kind kind() {
+    return Kind.LOCAL_FILES;
+  }
 
   Message toProtobuf();
 }

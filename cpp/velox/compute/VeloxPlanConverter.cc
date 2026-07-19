@@ -135,15 +135,69 @@ std::shared_ptr<SplitInfo> parseScanSplitInfo(
   return splitInfo;
 }
 
-void parseLocalFileNodes(
+std::shared_ptr<SplitInfo> parseKafkaSplitInfo(const ::substrait::ReadRel_StreamKafka& split) {
+  VELOX_USER_CHECK(split.has_topic_partition(), "Native Kafka split is missing topic partition.");
+  VELOX_USER_CHECK(
+      !split.topic_partition().topic().empty(),
+      "Native Kafka split requires a non-empty topic, got partition={}, startOffset={}, endOffset={}.",
+      split.topic_partition().partition(),
+      split.start_offset(),
+      split.end_offset());
+  VELOX_USER_CHECK(
+      split.topic_partition().partition() >= 0,
+      "Native Kafka split requires a non-negative partition, got topic={}, partition={}.",
+      split.topic_partition().topic(),
+      split.topic_partition().partition());
+  VELOX_USER_CHECK(
+      split.poll_timeout_ms() >= 0,
+      "Native Kafka split requires a non-negative poll timeout, got topic={}, partition={}, timeoutMs={}.",
+      split.topic_partition().topic(),
+      split.topic_partition().partition(),
+      split.poll_timeout_ms());
+  VELOX_USER_CHECK(
+      split.start_offset() >= 0 && split.end_offset() >= 0,
+      "Native Kafka split requires finite non-negative offsets, got topic={}, partition={}, startOffset={}, endOffset={}.",
+      split.topic_partition().topic(),
+      split.topic_partition().partition(),
+      split.start_offset(),
+      split.end_offset());
+  VELOX_USER_CHECK(
+      split.end_offset() >= split.start_offset(),
+      "Native Kafka split requires endOffset >= startOffset, got topic={}, partition={}, startOffset={}, endOffset={}.",
+      split.topic_partition().topic(),
+      split.topic_partition().partition(),
+      split.start_offset(),
+      split.end_offset());
+
+  auto splitInfo = std::make_shared<KafkaSplitInfo>();
+  splitInfo->topic = split.topic_partition().topic();
+  splitInfo->partition = split.topic_partition().partition();
+  splitInfo->startOffset = split.start_offset();
+  splitInfo->endOffset = split.end_offset();
+  splitInfo->pollTimeoutMs = split.poll_timeout_ms();
+  splitInfo->failOnDataLoss = split.fail_on_data_loss();
+  splitInfo->includeHeaders = split.include_headers();
+  for (const auto& param : split.params()) {
+    splitInfo->params.emplace(param.first, param.second);
+  }
+  return splitInfo;
+}
+
+void parseSplitPayloads(
     SubstraitToVeloxPlanConverter* planConverter,
     const facebook::velox::config::ConfigBase* veloxCfg,
-    std::vector<::substrait::ReadRel_LocalFiles>& localFiles) {
+    const std::vector<SubstraitSplit>& splitPayloads) {
   std::vector<std::shared_ptr<SplitInfo>> splitInfos;
-  splitInfos.reserve(localFiles.size());
-  for (const auto& localFile : localFiles) {
-    const auto& fileList = localFile.items();
-    splitInfos.push_back(parseScanSplitInfo(veloxCfg, fileList));
+  splitInfos.reserve(splitPayloads.size());
+  for (const auto& splitPayload : splitPayloads) {
+    switch (splitPayload.kind) {
+      case SubstraitSplit::Kind::kLocalFiles:
+        splitInfos.push_back(parseScanSplitInfo(veloxCfg, splitPayload.localFiles.items()));
+        break;
+      case SubstraitSplit::Kind::kStreamKafka:
+        splitInfos.push_back(parseKafkaSplitInfo(splitPayload.streamKafka));
+        break;
+    }
   }
 
   planConverter->setSplitInfos(std::move(splitInfos));
@@ -153,8 +207,19 @@ void parseLocalFileNodes(
 std::shared_ptr<const facebook::velox::core::PlanNode> VeloxPlanConverter::toVeloxPlan(
     const ::substrait::Plan& substraitPlan,
     std::vector<::substrait::ReadRel_LocalFiles> localFiles) {
+  std::vector<SubstraitSplit> splitPayloads;
+  splitPayloads.reserve(localFiles.size());
+  for (auto& localFile : localFiles) {
+    splitPayloads.push_back(SubstraitSplit::makeLocalFiles(std::move(localFile)));
+  }
+  return toVeloxPlan(substraitPlan, std::move(splitPayloads));
+}
+
+std::shared_ptr<const facebook::velox::core::PlanNode> VeloxPlanConverter::toVeloxPlan(
+    const ::substrait::Plan& substraitPlan,
+    std::vector<SubstraitSplit> splitPayloads) {
   if (!validationMode_) {
-    parseLocalFileNodes(&substraitVeloxPlanConverter_, veloxCfg_, localFiles);
+    parseSplitPayloads(&substraitVeloxPlanConverter_, veloxCfg_, splitPayloads);
   }
 
   return substraitVeloxPlanConverter_.toVeloxPlan(substraitPlan);

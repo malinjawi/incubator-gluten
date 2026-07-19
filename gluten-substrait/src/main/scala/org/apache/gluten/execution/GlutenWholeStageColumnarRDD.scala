@@ -66,16 +66,19 @@ class GlutenWholeStageColumnarRDD(
       _ =>
         val (inputPartition, inputColumnarRDDPartitions) = castNativePartition(split)
         val inputIterators = rdds.getIterators(inputColumnarRDDPartitions, context)
-        BackendsApiManager.getIteratorApiInstance.genFirstStageIterator(
-          inputPartition,
-          context,
-          pipelineTime,
-          updateInputMetrics,
-          updateNativeMetrics,
-          split.index,
-          inputIterators,
-          enableCudf
-        )
+        NativeExecutionFailurePolicies.protect {
+          NativeExecutionFailurePolicies.wrap(
+            BackendsApiManager.getIteratorApiInstance.genFirstStageIterator(
+              inputPartition,
+              context,
+              pipelineTime,
+              updateInputMetrics,
+              updateNativeMetrics,
+              split.index,
+              inputIterators,
+              enableCudf
+            ))
+        }
     }
   }
 

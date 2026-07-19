@@ -1,0 +1,133 @@
+diff --git a/sql/core/src/main/scala/org/apache/spark/sql/execution/streaming/runtime/GlutenKafkaOffsetLogHandoffHook.scala b/sql/core/src/main/scala/org/apache/spark/sql/execution/streaming/runtime/GlutenKafkaOffsetLogHandoffHook.scala
+new file mode 100644
+index 000000000000..5d8a0b7a8b1c
+--- /dev/null
++++ b/sql/core/src/main/scala/org/apache/spark/sql/execution/streaming/runtime/GlutenKafkaOffsetLogHandoffHook.scala
+@@ -0,0 +1,88 @@
++/*
++ * Licensed to the Apache Software Foundation (ASF) under one or more
++ * contributor license agreements.  See the NOTICE file distributed with
++ * this work for additional information regarding copyright ownership.
++ * The ASF licenses this file to You under the Apache License, Version 2.0
++ * (the "License"); you may not use this file except in compliance with
++ * the License.  You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package org.apache.spark.sql.execution.streaming.runtime
++
++import scala.collection.Map
++import scala.util.control.NonFatal
++
++import org.apache.spark.internal.Logging
++import org.apache.spark.sql.connector.read.streaming.{Offset, SparkDataStream}
++import org.apache.spark.util.Utils
++
++/**
++ * Optional runtime bridge used by Gluten's native Kafka source prototype.
++ *
++ * This lives in Spark runtime code but uses reflection so Spark itself does not need a compile-time
++ * dependency on Gluten. If Gluten Kafka is absent, the hook is a no-op. If Gluten Kafka is present
++ * but too old to expose the expected helper methods, fail closed rather than writing an offset log
++ * whose native handoff manifest cannot be prepared or validated.
++ */
++private[streaming] object GlutenKafkaOffsetLogHandoffHook extends Logging {
++  private val UtilClassName = "org.apache.spark.sql.kafka010.GlutenStreamKafkaSourceUtil$"
++
++  def prepareBeforeOffsetLogAdd(
++      sources: Seq[SparkDataStream],
++      startOffsets: Map[SparkDataStream, Offset],
++      endOffsets: Map[SparkDataStream, Offset]): Unit = {
++    invoke(
++      "prepareOffsetLogHandoffBeforeSparkOffsetLogAdd",
++      sources,
++      startOffsets,
++      endOffsets)
++  }
++
++  def validateAfterOffsetLogReplay(
++      sources: Seq[SparkDataStream],
++      startOffsets: Map[SparkDataStream, Offset],
++      endOffsets: Map[SparkDataStream, Offset]): Unit = {
++    invoke(
++      "validateOffsetLogHandoffAfterSparkOffsetLogReplay",
++      sources,
++      startOffsets,
++      endOffsets)
++  }
++
++  private def invoke(
++      methodName: String,
++      sources: Seq[SparkDataStream],
++      startOffsets: Map[SparkDataStream, Offset],
++      endOffsets: Map[SparkDataStream, Offset]): Unit = {
++    if (sources.isEmpty || endOffsets.isEmpty) {
++      return
++    }
++    try {
++      val module = Utils.classForName(UtilClassName).getField("MODULE$").get(null)
++      val method = module.getClass.getMethod(
++        methodName,
++        classOf[scala.collection.immutable.Seq[_]],
++        classOf[scala.collection.Map[_, _]],
++        classOf[scala.collection.Map[_, _]])
++      method.invoke(module, sources, startOffsets, endOffsets)
++    } catch {
++      case _: ClassNotFoundException =>
++        logDebug("Gluten Kafka is not on the classpath; skipping native offset-log handoff hook")
++      case e: NoSuchMethodException =>
++        throw new IllegalStateException(
++          s"Gluten Kafka offset-log handoff method $methodName is unavailable", e)
++      case e: java.lang.reflect.InvocationTargetException =>
++        throw e.getCause
++      case NonFatal(e) =>
++        throw e
++    }
++  }
++}
+diff --git a/sql/core/src/main/scala/org/apache/spark/sql/execution/streaming/runtime/MicroBatchExecution.scala b/sql/core/src/main/scala/org/apache/spark/sql/execution/streaming/runtime/MicroBatchExecution.scala
+index 111111111111..222222222222 100644
+--- a/sql/core/src/main/scala/org/apache/spark/sql/execution/streaming/runtime/MicroBatchExecution.scala
++++ b/sql/core/src/main/scala/org/apache/spark/sql/execution/streaming/runtime/MicroBatchExecution.scala
+@@ -665,6 +665,10 @@ class MicroBatchExecution(
+         }
+         // initialize committed offsets to start offsets of the most recent committed batch
+         committedOffsets = execCtx.startOffsets
++        GlutenKafkaOffsetLogHandoffHook.validateAfterOffsetLogReplay(
++          sources,
++          execCtx.startOffsets,
++          execCtx.endOffsets)
+         logInfo(log"Resuming at batch ${MDC(LogKeys.BATCH_ID, execCtx.batchId)} with committed " +
+           log"offsets ${MDC(LogKeys.STREAMING_OFFSETS_START, execCtx.startOffsets)} and " +
+           log"available offsets ${MDC(LogKeys.STREAMING_OFFSETS_END, execCtx.endOffsets)}")
+@@ -1106,4 +1110,8 @@ class MicroBatchExecution(
+     if (!trigger.isInstanceOf[RealTimeTrigger]) {
++      GlutenKafkaOffsetLogHandoffHook.prepareBeforeOffsetLogAdd(
++        sources,
++        execCtx.startOffsets,
++        execCtx.endOffsets)
+       if (!offsetLog.add(
+           execCtx.batchId,
+           execCtx.endOffsets.toOffsetSeq(sources, execCtx.offsetSeqMetadata)
+diff --git a/sql/core/src/main/scala/org/apache/spark/sql/execution/streaming/runtime/AsyncProgressTrackingMicroBatchExecution.scala b/sql/core/src/main/scala/org/apache/spark/sql/execution/streaming/runtime/AsyncProgressTrackingMicroBatchExecution.scala
+index 333333333333..444444444444 100644
+--- a/sql/core/src/main/scala/org/apache/spark/sql/execution/streaming/runtime/AsyncProgressTrackingMicroBatchExecution.scala
++++ b/sql/core/src/main/scala/org/apache/spark/sql/execution/streaming/runtime/AsyncProgressTrackingMicroBatchExecution.scala
+@@ -134,6 +134,10 @@ class AsyncProgressTrackingMicroBatchExecution(
+    * in this method for async progress tracking
+    */
+   override def markMicroBatchStart(execCtx: MicroBatchExecutionContext): Unit = {
++    GlutenKafkaOffsetLogHandoffHook.prepareBeforeOffsetLogAdd(
++      sources,
++      execCtx.startOffsets,
++      execCtx.endOffsets)
+     // Because we are using a thread pool with only one thread, async writes to the offset log
+     // are still written in a serial / in order fashion
+     offsetLog

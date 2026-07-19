@@ -306,6 +306,32 @@
 
   <profiles>
     <profile>
+      <id>spark-4.1</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>build-helper-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>add-spark41-sources</id>
+                <goals>
+                  <goal>add-source</goal>
+                </goals>
+                <phase>generate-sources</phase>
+                <configuration>
+                  <sources>
+                    <source>${project.basedir}/src-spark41/main/java</source>
+                    <source>${project.basedir}/src-spark41/main/scala</source>
+                  </sources>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
       <id>exclude-tests</id>
       <activation>
         <activeByDefault>true</activeByDefault>
@@ -358,6 +384,25 @@
           <groupId>org.apache.uniffle</groupId>
           <artifactId>rss-client-spark${spark.major.version}-shaded</artifactId>
           <version>${uniffle.version}</version>
+          <scope>provided</scope>
+        </dependency>
+      </dependencies>
+    </profile>
+    <profile>
+      <id>kafka</id>
+      <activation>
+        <activeByDefault>false</activeByDefault>
+      </activation>
+      <dependencies>
+        <dependency>
+          <groupId>org.apache.gluten</groupId>
+          <artifactId>gluten-kafka</artifactId>
+          <version>${project.version}</version>
+        </dependency>
+        <dependency>
+          <groupId>org.apache.spark</groupId>
+          <artifactId>spark-sql-kafka-0-10_${scala.binary.version}</artifactId>
+          <version>${spark.version}</version>
           <scope>provided</scope>
         </dependency>
       </dependencies>

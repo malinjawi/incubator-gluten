@@ -18,7 +18,7 @@ package org.apache.gluten.backendsapi.velox
 
 import org.apache.gluten.GlutenBuildInfo._
 import org.apache.gluten.backendsapi._
-import org.apache.gluten.config.{GlutenConfig, VeloxConfig}
+import org.apache.gluten.config.{ConfigJniWrapper, GlutenConfig, VeloxConfig}
 import org.apache.gluten.exception.GlutenNotSupportException
 import org.apache.gluten.execution.ValidationResult
 import org.apache.gluten.execution.WriteFilesExecTransformer
@@ -28,7 +28,7 @@ import org.apache.gluten.extension.columnar.transition.{Convention, ConventionFu
 import org.apache.gluten.sql.shims.SparkShimLoader
 import org.apache.gluten.substrait.rel.LocalFilesNode
 import org.apache.gluten.substrait.rel.LocalFilesNode.ReadFileFormat
-import org.apache.gluten.substrait.rel.LocalFilesNode.ReadFileFormat.{DwrfReadFormat, OrcReadFormat, ParquetReadFormat}
+import org.apache.gluten.substrait.rel.LocalFilesNode.ReadFileFormat.{DwrfReadFormat, KafkaReadFormat, OrcReadFormat, ParquetReadFormat}
 import org.apache.gluten.utils._
 
 import org.apache.spark.sql.catalyst.catalog.BucketSpec
@@ -160,6 +160,10 @@ object VeloxBackendSettings extends BackendSettingsApi {
             None
           }
         case DwrfReadFormat => None
+        case KafkaReadFormat =>
+          validateKafkaReadFormat(
+            GlutenConfig.get,
+            nativeKafkaClientAvailable = isVeloxKafkaClientAvailable())
         case OrcReadFormat =>
           if (!VeloxConfig.get.veloxOrcScanEnabled) {
             Some(s"Velox ORC scan is turned off, ${VeloxConfig.VELOX_ORC_SCAN_ENABLED.key}")
@@ -260,6 +264,37 @@ object VeloxBackendSettings extends BackendSettingsApi {
     }
 
     ValidationResult.succeeded
+  }
+
+  private[velox] def validateKafkaReadFormat(
+      glutenConf: GlutenConfig,
+      nativeKafkaClientAvailable: Boolean): Option[String] = {
+    if (
+      !glutenConf.enableNativeStreaming ||
+      !glutenConf.enableNativeStreamingKafkaSource ||
+      !glutenConf.enableNativeStreamingKafkaSourceExecution
+    ) {
+      return Some(
+        s"Velox Kafka scan requires ${GlutenConfig.NATIVE_STREAMING_ENABLED.key}, " +
+          s"${GlutenConfig.NATIVE_STREAMING_KAFKA_SOURCE_ENABLED.key}, and " +
+          s"${GlutenConfig.NATIVE_STREAMING_KAFKA_SOURCE_EXECUTION_ENABLED.key}")
+    }
+
+    if (!nativeKafkaClientAvailable) {
+      return Some(
+        "Velox Kafka scan execution requires the native Kafka client to be compiled with " +
+          "ENABLE_VELOX_KAFKA_CLIENT=ON and librdkafka available to libgluten.")
+    }
+
+    None
+  }
+
+  private[velox] def isVeloxKafkaClientAvailable(): Boolean = {
+    try {
+      ConfigJniWrapper.isVeloxKafkaClientEnabled()
+    } catch {
+      case _: UnsatisfiedLinkError => false
+    }
   }
 
   def distinctRootPaths(paths: Seq[String]): Seq[String] = {

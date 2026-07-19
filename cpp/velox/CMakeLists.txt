@@ -167,10 +167,15 @@ set(VELOX_SRCS
     compute/delta/DeltaSplitReader.cpp
     compute/delta/RoaringBitmapArray.cpp
     compute/iceberg/IcebergPlanConverter.cc
+    compute/kafka/KafkaConnector.cc
+    compute/kafka/KafkaFiniteReader.cc
+    compute/kafka/KafkaRdkafkaConsumer.cc
+    compute/kafka/KafkaSplitReader.cc
     jni/JniFileSystem.cc
     jni/JniUdf.cc
     jni/VeloxJniWrapper.cc
     jni/JniHashTable.cc
+    jni/JniVeloxNativeStateStore.cc
     memory/BufferOutputStream.cc
     memory/VeloxColumnarBatch.cc
     memory/VeloxMemoryManager.cc
@@ -192,6 +197,9 @@ set(VELOX_SRCS
     shuffle/VeloxShuffleReader.cc
     shuffle/VeloxShuffleWriter.cc
     shuffle/VeloxSortShuffleWriter.cc
+    state/VeloxNativeStateStore.cc
+    state/VeloxNativeStreamingAggregation.cc
+    state/VeloxNativeStreamingDeduplicate.cc
     substrait/SubstraitExtensionCollector.cc
     substrait/SubstraitParser.cc
     substrait/SubstraitToVeloxExpr.cc
@@ -297,6 +305,33 @@ set_target_properties(velox PROPERTIES LIBRARY_OUTPUT_DIRECTORY
 # `-DCMAKE_PREFIX_PATH="${folly lib path}" to cmake arguments. It is also
 # applicable to other dependencies.
 find_package(Folly REQUIRED CONFIG)
+if(CMAKE_SYSTEM_NAME MATCHES "Darwin" AND TARGET Folly::folly_deps)
+  if(TARGET gflags::gflags_shared)
+    set(GLUTEN_GFLAGS_SHARED_TARGET gflags::gflags_shared)
+  elseif(TARGET gflags_shared)
+    set(GLUTEN_GFLAGS_SHARED_TARGET gflags_shared)
+  endif()
+
+  if(DEFINED GLUTEN_GFLAGS_SHARED_TARGET)
+    get_target_property(FOLLY_DEPS_LINK_LIBRARIES Folly::folly_deps
+                        INTERFACE_LINK_LIBRARIES)
+    if(FOLLY_DEPS_LINK_LIBRARIES)
+      set(FOLLY_DARWIN_LINK_LIBRARIES)
+      foreach(FOLLY_LINK_LIBRARY IN LISTS FOLLY_DEPS_LINK_LIBRARIES)
+        if(FOLLY_LINK_LIBRARY STREQUAL "gflags_static"
+           OR FOLLY_LINK_LIBRARY STREQUAL "gflags::gflags_static")
+          list(APPEND FOLLY_DARWIN_LINK_LIBRARIES
+               ${GLUTEN_GFLAGS_SHARED_TARGET})
+        else()
+          list(APPEND FOLLY_DARWIN_LINK_LIBRARIES ${FOLLY_LINK_LIBRARY})
+        endif()
+      endforeach()
+      set_target_properties(
+        Folly::folly_deps PROPERTIES INTERFACE_LINK_LIBRARIES
+                                     "${FOLLY_DARWIN_LINK_LIBRARIES}")
+    endif()
+  endif()
+endif()
 
 if(ENABLE_JEMALLOC_STATS)
   include(Findjemalloc)
@@ -310,6 +345,13 @@ if(ENABLE_JEMALLOC_STATS)
 endif()
 
 target_link_libraries(velox PUBLIC gluten)
+
+if(ENABLE_VELOX_KAFKA_CLIENT)
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(RDKAFKA REQUIRED IMPORTED_TARGET rdkafka)
+  target_compile_definitions(velox PRIVATE GLUTEN_ENABLE_LIBRDKAFKA)
+  target_link_libraries(velox PUBLIC PkgConfig::RDKAFKA)
+endif()
 
 # Requires VELOX_MONO_LIBRARY=ON when building Velox.
 import_library(facebook::velox ${VELOX_BUILD_PATH}/lib/libvelox.a)

@@ -18,13 +18,103 @@ package org.apache.gluten.execution
 
 import org.apache.gluten.backendsapi.BackendsApiManager
 
-import org.apache.iceberg.{FileFormat, PartitionField, PartitionSpec, Schema, TableProperties}
+import org.apache.spark.sql.connector.write.BatchWrite
+import org.apache.spark.sql.execution.streaming.sources.MicroBatchWrite
+
+import org.apache.iceberg.{FileFormat, PartitionField, PartitionSpec, Schema, Snapshot, Table, TableProperties}
 import org.apache.iceberg.TableProperties.{ORC_COMPRESSION, ORC_COMPRESSION_DEFAULT, PARQUET_COMPRESSION, PARQUET_COMPRESSION_DEFAULT, PARQUET_PAGE_SIZE_BYTES, PARQUET_PAGE_SIZE_BYTES_DEFAULT}
 import org.apache.iceberg.avro.AvroSchemaUtil
 import org.apache.iceberg.spark.source.IcebergWriteUtil
 import org.apache.iceberg.types.Type.TypeID
 
 import scala.collection.JavaConverters._
+import scala.util.control.NonFatal
+
+private[execution] object IcebergStreamingEpochAudit {
+  private val QueryIdSummaryKey = "spark.sql.streaming.queryId"
+  private val EpochIdSummaryKey = "spark.sql.streaming.epochId"
+
+  def findLastCommittedStreamingEpochId(table: Table, queryId: String): Option[Long] = {
+    var snapshot = table.currentSnapshot()
+    while (snapshot != null) {
+      streamingEpochId(snapshot, queryId) match {
+        case Some(epochId) => return Some(epochId)
+        case None =>
+      }
+      val parentId = snapshot.parentId()
+      snapshot = if (parentId == null) null else table.snapshot(parentId)
+    }
+    None
+  }
+
+  def findCommittedStreamingEpochSnapshot(
+      table: Table,
+      queryId: String,
+      epochId: Long): Option[Snapshot] = {
+    var snapshot = table.currentSnapshot()
+    while (snapshot != null) {
+      if (streamingEpochId(snapshot, queryId).contains(epochId)) {
+        return Some(snapshot)
+      }
+      val parentId = snapshot.parentId()
+      snapshot = if (parentId == null) null else table.snapshot(parentId)
+    }
+    None
+  }
+
+  def auditCommittedStreamingEpochFiles(
+      table: Table,
+      queryId: String,
+      epochId: Long,
+      snapshot: Snapshot): Unit = {
+    val io = table.io()
+    val dataFiles =
+      try {
+        snapshot.addedDataFiles(io).asScala.toSeq
+      } catch {
+        case NonFatal(e) =>
+          throw new IllegalStateException(
+            s"Unable to audit native Iceberg streaming epoch $epochId for query $queryId " +
+              s"from committed snapshot ${snapshot.snapshotId()}.",
+            e)
+      }
+    val missingFiles = dataFiles.flatMap {
+      dataFile =>
+        val path = dataFile.path().toString
+        try {
+          if (io.newInputFile(path).exists()) {
+            None
+          } else {
+            Some(path)
+          }
+        } catch {
+          case NonFatal(e) =>
+            throw new IllegalStateException(
+              s"Unable to audit object-store file existence for native Iceberg streaming " +
+                s"epoch $epochId, query $queryId, snapshot ${snapshot.snapshotId()}, " +
+                s"file $path.",
+              e
+            )
+        }
+    }
+    if (missingFiles.nonEmpty) {
+      throw new IllegalStateException(
+        s"Native Iceberg streaming epoch $epochId for query $queryId was committed in " +
+          s"Iceberg snapshot ${snapshot.snapshotId()}, but ${missingFiles.size} data file(s) " +
+          s"are missing from object store. Refusing to synthesize Spark commit-log progress. " +
+          s"missingFiles=${missingFiles.mkString("[", ",", "]")}")
+    }
+  }
+
+  private def streamingEpochId(snapshot: Snapshot, queryId: String): Option[Long] = {
+    val summary = snapshot.summary()
+    if (queryId == summary.get(QueryIdSummaryKey)) {
+      Option(summary.get(EpochIdSummaryKey)).map(_.toLong)
+    } else {
+      None
+    }
+  }
+}
 
 trait IcebergWriteExec extends ColumnarV2TableWriteExec {
 
@@ -62,6 +152,47 @@ trait IcebergWriteExec extends ColumnarV2TableWriteExec {
 
   protected def getPartitionSpec: PartitionSpec = {
     IcebergWriteUtil.getPartitionSpec(write)
+  }
+
+  override protected def shouldSkipNativeStreamingEpoch(batchWrite: BatchWrite): Boolean = {
+    batchWrite match {
+      case microBatchWrite: MicroBatchWrite =>
+        val epochId = microBatchEpochId(microBatchWrite)
+        val table = IcebergWriteUtil.getTable(write)
+        val queryId = IcebergWriteUtil.getQueryId(write)
+        table.refresh()
+        val lastCommittedEpochId =
+          IcebergStreamingEpochAudit.findLastCommittedStreamingEpochId(table, queryId)
+        lastCommittedEpochId.exists {
+          committedEpochId =>
+            val skip = epochId <= committedEpochId
+            if (skip) {
+              val committedSnapshot =
+                IcebergStreamingEpochAudit
+                  .findCommittedStreamingEpochSnapshot(table, queryId, epochId)
+                  .getOrElse {
+                    throw new IllegalStateException(
+                      s"Native Iceberg streaming epoch $epochId for query $queryId is at or " +
+                        s"before last committed Iceberg epoch $committedEpochId, but no exact " +
+                        s"Iceberg snapshot for that epoch remains. Refusing to synthesize Spark " +
+                        s"commit-log progress without an auditable catalog/object-store state.")
+                  }
+              IcebergStreamingEpochAudit
+                .auditCommittedStreamingEpochFiles(table, queryId, epochId, committedSnapshot)
+              logInfo(
+                s"Skipping native Iceberg streaming epoch $epochId for query $queryId; " +
+                  s"last committed Iceberg epoch is $committedEpochId.")
+            }
+            skip
+        }
+      case _ => false
+    }
+  }
+
+  private def microBatchEpochId(microBatchWrite: MicroBatchWrite): Long = {
+    val epochIdField = microBatchWrite.getClass.getDeclaredField("epochId")
+    epochIdField.setAccessible(true)
+    epochIdField.getLong(microBatchWrite)
   }
 
   private def validatePartitionType(schema: Schema, field: PartitionField): Boolean = {

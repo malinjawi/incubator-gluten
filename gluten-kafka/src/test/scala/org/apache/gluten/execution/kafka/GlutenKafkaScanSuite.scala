@@ -18,14 +18,24 @@ package org.apache.gluten.execution.kafka
 
 import org.apache.gluten.execution.{MicroBatchScanExecTransformer, WholeStageTransformerSuite}
 
-import org.apache.spark.sql.execution.streaming.StreamingQueryWrapper
+import org.apache.spark.sql.execution.{QueryExecution, SparkPlan}
 import org.apache.spark.sql.functions.{col, split}
-import org.apache.spark.sql.streaming.Trigger
+import org.apache.spark.sql.streaming.{StreamingQuery, Trigger}
 
 import scala.concurrent.duration.DurationInt
 
 trait GlutenKafkaScanSuite extends WholeStageTransformerSuite {
   protected val kafkaBootstrapServers: String
+
+  private def lastExecutedPlan(query: StreamingQuery): SparkPlan = {
+    val streamingQuery = query.getClass.getMethod("streamingQuery").invoke(query)
+    streamingQuery
+      .getClass
+      .getMethod("lastExecution")
+      .invoke(streamingQuery)
+      .asInstanceOf[QueryExecution]
+      .executedPlan
+  }
 
   test("test MicroBatchScanExecTransformer not fallback") {
     withTempDir(
@@ -75,11 +85,7 @@ trait GlutenKafkaScanSuite extends WholeStageTransformerSuite {
             .start(dir.getCanonicalPath)
 
           eventually(timeout(60.seconds), interval(5.seconds)) {
-            val size = streamQuery
-              .asInstanceOf[StreamingQueryWrapper]
-              .streamingQuery
-              .lastExecution
-              .executedPlan
+            val size = lastExecutedPlan(streamQuery)
               .collect { case p: MicroBatchScanExecTransformer => p }
             assert(size.size == 1)
             streamQuery.awaitTermination(1000)

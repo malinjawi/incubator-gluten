@@ -31,6 +31,10 @@ object TestUtils {
   }
 
   def checkExecutedPlanContains[T: ClassTag](spark: SparkSession)(action: => Unit): Unit = {
+    assert(executedPlanContains[T](spark)(action))
+  }
+
+  def executedPlanContains[T: ClassTag](spark: SparkSession)(action: => Unit): Boolean = {
     var found = false
     val queryListener = new QueryExecutionListener {
       override def onFailure(f: String, qe: QueryExecution, e: Exception): Unit = {}
@@ -44,7 +48,7 @@ object TestUtils {
       spark.listenerManager.register(queryListener)
       action
       spark.sparkContext.listenerBus.waitUntilEmpty()
-      assert(found)
+      found
     } finally {
       spark.listenerManager.unregister(queryListener)
     }

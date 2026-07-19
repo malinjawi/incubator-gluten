@@ -49,6 +49,10 @@ case class IcebergDataWriteFactory(
   extends ColumnarBatchDataWriterFactory
   with ColumnarStreamingDataWriterFactory {
 
+  require(
+    queryId != null && queryId.nonEmpty,
+    "Native Iceberg streaming writer requires a non-empty query id")
+
   override def createWriter(partitionId: Int, taskId: Long): DataWriter[ColumnarBatch] = {
     createWriter(partitionId, taskId, 0)
   }
@@ -74,7 +78,7 @@ case class IcebergDataWriteFactory(
       .setSpecId(partitionSpec.specId())
       .addAllFields(fields)
       .build()
-    val operationId = queryId + "-" + epochId
+    val operationId = validateWriterIdentity(partitionId, taskId, epochId)
     val (writerHandle, jniWrapper) =
       getJniWrapper(
         schema,
@@ -88,6 +92,26 @@ case class IcebergDataWriteFactory(
         field,
         icebergProperties)
     IcebergColumnarBatchDataWriter(writerHandle, jniWrapper, format, partitionSpec, sortOrder)
+  }
+
+  private[write] def operationIdForEpoch(epochId: Long): String = {
+    require(
+      epochId >= 0,
+      s"Native Iceberg streaming writer requires a non-negative epoch id: $epochId")
+    s"$queryId-$epochId"
+  }
+
+  private[write] def validateWriterIdentity(
+      partitionId: Int,
+      taskId: Long,
+      epochId: Long): String = {
+    require(
+      partitionId >= 0,
+      s"Native Iceberg streaming writer requires a non-negative partition id: $partitionId")
+    require(
+      taskId >= 0,
+      s"Native Iceberg streaming writer requires a non-negative task id: $taskId")
+    operationIdForEpoch(epochId)
   }
 
   private def getJniWrapper(

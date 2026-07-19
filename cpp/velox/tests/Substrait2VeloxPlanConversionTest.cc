@@ -18,6 +18,8 @@
 #include "JsonToProtoConverter.h"
 
 #include <filesystem>
+#include <google/protobuf/util/json_util.h>
+#include "compute/kafka/KafkaConnector.h"
 #include "compute/VeloxPlanConverter.h"
 #include "substrait/SubstraitToVeloxPlan.h"
 #include "velox/common/base/tests/GTestUtils.h"
@@ -26,6 +28,7 @@
 #include "velox/exec/tests/utils/HiveConnectorTestBase.h"
 #include "velox/exec/tests/utils/TempDirectoryPath.h"
 #include "velox/type/Type.h"
+#include "velox/vector/tests/utils/VectorTestBase.h"
 
 #include "FilePathGenerator.h"
 
@@ -35,6 +38,19 @@ using namespace facebook::velox::connector::hive;
 using namespace facebook::velox::exec;
 
 namespace gluten {
+
+namespace {
+
+void readFromJsonString(const std::string& json, google::protobuf::Message& msg) {
+  auto status = google::protobuf::util::JsonStringToMessage(json, &msg);
+  VELOX_CHECK(
+      status.ok(),
+      "Failed to parse Substrait JSON: {} {}",
+      static_cast<int8_t>(status.code()),
+      status.message().ToString());
+}
+
+} // namespace
 
 class Substrait2VeloxPlanConversionTest : public exec::test::HiveConnectorTestBase {
  protected:
@@ -76,6 +92,21 @@ class Substrait2VeloxPlanConversionTest : public exec::test::HiveConnectorTestBa
       veloxCfg_.get(),
       std::vector<std::shared_ptr<ResultIterator>>{},
       VeloxConnectorIds{.hive = facebook::velox::exec::test::kHiveConnectorId});
+};
+
+class Substrait2VeloxKafkaSplitConversionTest : public ::testing::Test, public facebook::velox::test::VectorTestBase {
+ protected:
+  static void SetUpTestCase() {
+    memory::MemoryManager::testingSetInstance(memory::MemoryManager::Options{});
+  }
+
+  std::shared_ptr<facebook::velox::config::ConfigBase> veloxCfg_ =
+      std::make_shared<facebook::velox::config::ConfigBase>(std::unordered_map<std::string, std::string>());
+  std::shared_ptr<VeloxPlanConverter> planConverter_ = std::make_shared<VeloxPlanConverter>(
+      pool(),
+      veloxCfg_.get(),
+      std::vector<std::shared_ptr<ResultIterator>>{},
+      VeloxConnectorIds{.hive = "hive", .kafka = gluten::kafka::KafkaConnector::kKafkaConnectorName});
 };
 
 // This test will firstly generate mock TPC-H lineitem ORC file. Then, Velox's
@@ -286,6 +317,127 @@ TEST_F(Substrait2VeloxPlanConversionTest, filterUpper) {
   ASSERT_EQ(
       "-- Project[1][expressions: ] -> \n  -- TableScan[0][table: hive_table, remaining filter: (and(isnotnull(\"key\"),lessthan(\"key\",3))), data columns: ROW<key:INTEGER>] -> n0_0:INTEGER\n",
       planNode->toString(true, true));
+}
+
+TEST_F(Substrait2VeloxKafkaSplitConversionTest, streamKafkaSplitPayloadIsTyped) {
+  ::substrait::Plan substraitPlan;
+  readFromJsonString(
+      R"({
+        "relations": [{
+          "root": {
+            "input": {
+              "read": {
+                "common": {"direct": {}},
+                "baseSchema": {
+                  "names": ["key", "value", "topic", "partition", "offset"],
+                  "struct": {
+                    "types": [
+                      {"binary": {"nullability": "NULLABILITY_NULLABLE"}},
+                      {"binary": {"nullability": "NULLABILITY_NULLABLE"}},
+                      {"string": {"nullability": "NULLABILITY_REQUIRED"}},
+                      {"i32": {"nullability": "NULLABILITY_REQUIRED"}},
+                      {"i64": {"nullability": "NULLABILITY_REQUIRED"}}
+                    ]
+                  }
+                },
+                "streamKafka": true
+              }
+            },
+            "names": ["key", "value", "topic", "partition", "offset"]
+          }
+        }]
+      })",
+      substraitPlan);
+
+  ::substrait::ReadRel_StreamKafka kafkaSplit;
+  readFromJsonString(
+      R"({
+        "topicPartition": {"topic": "native-topic", "partition": 2},
+        "startOffset": "11",
+        "endOffset": "17",
+        "params": {"bootstrap.servers": "localhost:9092"},
+        "pollTimeoutMs": "1000",
+        "failOnDataLoss": true,
+        "includeHeaders": false
+      })",
+      kafkaSplit);
+
+  auto planNode =
+      planConverter_->toVeloxPlan(
+          substraitPlan, std::vector<SubstraitSplit>{SubstraitSplit::makeStreamKafka(kafkaSplit)});
+  const auto& splitInfos = planConverter_->splitInfos();
+  auto leafPlanNodeIds = planNode->leafPlanNodeIds();
+  ASSERT_EQ(1, leafPlanNodeIds.size());
+
+  auto kafkaSplitInfo = std::dynamic_pointer_cast<KafkaSplitInfo>(splitInfos.at(*leafPlanNodeIds.begin()));
+  ASSERT_NE(nullptr, kafkaSplitInfo);
+  auto tableScanNode = std::dynamic_pointer_cast<const core::TableScanNode>(planNode);
+  ASSERT_NE(nullptr, tableScanNode);
+  EXPECT_NE(nullptr, std::dynamic_pointer_cast<const gluten::kafka::KafkaTableHandle>(tableScanNode->tableHandle()));
+  EXPECT_EQ("native-topic", kafkaSplitInfo->topic);
+  EXPECT_EQ(2, kafkaSplitInfo->partition);
+  EXPECT_EQ(11, kafkaSplitInfo->startOffset);
+  EXPECT_EQ(17, kafkaSplitInfo->endOffset);
+  EXPECT_EQ("localhost:9092", kafkaSplitInfo->params.at("bootstrap.servers"));
+}
+
+TEST_F(Substrait2VeloxKafkaSplitConversionTest, rejectsInvalidStreamKafkaSplitMetadata) {
+  ::substrait::Plan substraitPlan;
+  readFromJsonString(
+      R"({
+        "relations": [{
+          "root": {
+            "input": {
+              "read": {
+                "common": {"direct": {}},
+                "baseSchema": {
+                  "names": ["offset"],
+                  "struct": {
+                    "types": [
+                      {"i64": {"nullability": "NULLABILITY_REQUIRED"}}
+                    ]
+                  }
+                },
+                "streamKafka": true
+              }
+            },
+            "names": ["offset"]
+          }
+        }]
+      })",
+      substraitPlan);
+
+  ::substrait::ReadRel_StreamKafka baseSplit;
+  readFromJsonString(
+      R"({
+        "topicPartition": {"topic": "native-topic", "partition": 2},
+        "startOffset": "11",
+        "endOffset": "17",
+        "params": {"bootstrap.servers": "localhost:9092"},
+        "pollTimeoutMs": "1000",
+        "failOnDataLoss": true,
+        "includeHeaders": false
+      })",
+      baseSplit);
+
+  auto expectInvalid = [&](const ::substrait::ReadRel_StreamKafka& split) {
+    EXPECT_THROW(
+        planConverter_->toVeloxPlan(
+            substraitPlan, std::vector<SubstraitSplit>{SubstraitSplit::makeStreamKafka(split)}),
+        facebook::velox::VeloxException);
+  };
+
+  auto emptyTopic = baseSplit;
+  emptyTopic.mutable_topic_partition()->set_topic("");
+  expectInvalid(emptyTopic);
+
+  auto negativePartition = baseSplit;
+  negativePartition.mutable_topic_partition()->set_partition(-1);
+  expectInvalid(negativePartition);
+
+  auto negativePollTimeout = baseSplit;
+  negativePollTimeout.set_poll_timeout_ms(-1);
+  expectInvalid(negativePollTimeout);
 }
 
 } // namespace gluten

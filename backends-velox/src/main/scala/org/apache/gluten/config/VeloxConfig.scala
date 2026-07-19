@@ -108,6 +108,18 @@ class VeloxConfig(conf: SQLConf) extends GlutenConfig(conf) {
   def valueStreamDynamicFilterEnabled: Boolean =
     getConf(VALUE_STREAM_DYNAMIC_FILTER_ENABLED)
 
+  def enableVeloxNativeStreamingStateStore: Boolean =
+    getConf(VELOX_NATIVE_STREAMING_STATE_STORE_ENABLED)
+
+  def nativeStreamingStateStoreCheckpointFormatVersion: Int =
+    getConf(VELOX_NATIVE_STREAMING_STATE_STORE_CHECKPOINT_FORMAT_VERSION)
+
+  def nativeStreamingStateStoreResidentReuseEnabled: Boolean =
+    getConf(VELOX_NATIVE_STREAMING_STATE_STORE_RESIDENT_REUSE_ENABLED)
+
+  def nativeStreamingStateStoreDeltaCheckpointEnabled: Boolean =
+    getConf(VELOX_NATIVE_STREAMING_STATE_STORE_DELTA_CHECKPOINT_ENABLED)
+
   def enableTimestampNtzValidation: Boolean = getConf(ENABLE_TIMESTAMP_NTZ_VALIDATION)
 }
 
@@ -517,6 +529,56 @@ object VeloxConfig extends ConfigRegistry {
       .doc(
         "Whether to apply dynamic filters pushed down from hash probe in the ValueStream" +
           " (shuffle reader) operator to filter rows before they reach the hash join.")
+      .booleanConf
+      .createWithDefault(false)
+
+  val VELOX_NATIVE_STREAMING_STATE_STORE_ENABLED =
+    buildConf("spark.gluten.sql.columnar.backend.velox.streaming.nativeStateStore.enabled")
+      .doc(
+        "Developer-only gate for the Velox native Spark StateStore provider. Spark still owns " +
+          "Structured Streaming planning, versions, and checkpoint location, while Gluten/Velox " +
+          "owns the native key/value state implementation behind Spark's StateStoreProvider API.")
+      .experimental()
+      .booleanConf
+      .createWithDefault(false)
+
+  val VELOX_NATIVE_STREAMING_STATE_STORE_CHECKPOINT_FORMAT_VERSION =
+    buildConf(
+      "spark.gluten.sql.columnar.backend.velox.streaming.nativeStateStore.checkpointFormatVersion")
+      .doc("Checkpoint format version for Gluten-owned Velox native StateStore snapshots.")
+      .experimental()
+      .intConf
+      .checkValue(_ == 1, "Only Velox native StateStore checkpoint format version 1 is supported.")
+      .createWithDefault(1)
+
+  val VELOX_NATIVE_STREAMING_STATE_STORE_RESIDENT_REUSE_ENABLED =
+    buildConf(
+      "spark.gluten.sql.columnar.backend.velox.streaming.nativeStateStore.residentReuse.enabled")
+      .doc(
+        "When the Velox native StateStore is enabled, keep the last committed native state map " +
+          "resident on the executor across micro-batches. A getStore() for the version just " +
+          "committed reuses the resident map instead of re-reading and deserializing the whole " +
+          "snapshot, removing an O(total-state) cost per batch. The on-disk full-snapshot format " +
+          "is unchanged. Disabled by default so the native StateStore keeps its " +
+          "read-modify-write-from-disk lifecycle until reuse is explicitly opted into.")
+      .experimental()
+      .booleanConf
+      .createWithDefault(false)
+
+  val VELOX_NATIVE_STREAMING_STATE_STORE_DELTA_CHECKPOINT_ENABLED =
+    buildConf(
+      "spark.gluten.sql.columnar.backend.velox.streaming.nativeStateStore.deltaCheckpoint.enabled")
+      .doc(
+        "When the Velox native StateStore is enabled, checkpoint each micro-batch as an " +
+          "O(changed-keys) delta file instead of an O(total-state) full snapshot, writing a full " +
+          "snapshot only every spark.sql.streaming.stateStore.minDeltasForSnapshot versions. On " +
+          "getStore(version) the latest snapshot at or before the version is loaded and the " +
+          "intervening deltas are replayed; the steady-state path still reuses the resident map " +
+          "when residentReuse is enabled. This removes the per-batch full-snapshot write that " +
+          "grows with cumulative state size. The delta and snapshot on-disk formats carry " +
+          "distinct magics so they can never be confused. Disabled by default so the native " +
+          "StateStore keeps its full-snapshot-per-version lifecycle until deltas are opted into.")
+      .experimental()
       .booleanConf
       .createWithDefault(false)
 

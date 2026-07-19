@@ -21,6 +21,7 @@
 
 #include "compute/ProtobufUtils.h"
 #include "compute/ResultIterator.h"
+#include "compute/SubstraitSplit.h"
 #include "memory/ColumnarBatch.h"
 #include "memory/MemoryManager.h"
 #include "memory/SplitAwareColumnarBatchIterator.h"
@@ -193,7 +194,7 @@ class Runtime : public std::enable_shared_from_this<Runtime> {
   std::unordered_map<std::string, std::string> confMap_; // Session conf map
 
   ::substrait::Plan substraitPlan_;
-  std::vector<::substrait::ReadRel_LocalFiles> localFiles_;
+  std::vector<SubstraitSplit> splitPayloads_;
 
   std::optional<SparkTaskInfo> taskInfo_{std::nullopt};
   std::shared_ptr<WholeStageDumper> dumper_{nullptr};

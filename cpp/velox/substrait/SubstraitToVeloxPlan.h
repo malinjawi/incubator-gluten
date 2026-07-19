@@ -74,6 +74,21 @@ struct SplitInfo {
   bool canUseCudfConnector();
 };
 
+struct KafkaSplitInfo : SplitInfo {
+  KafkaSplitInfo() {
+    leafType = LeafType::TABLE_SCAN;
+  }
+
+  std::string topic;
+  int32_t partition{0};
+  int64_t startOffset{0};
+  int64_t endOffset{0};
+  int64_t pollTimeoutMs{0};
+  bool failOnDataLoss{false};
+  bool includeHeaders{false};
+  std::unordered_map<std::string, std::string> params;
+};
+
 /// This class is used to convert the Substrait plan into Velox plan.
 class SubstraitToVeloxPlanConverter {
  public:

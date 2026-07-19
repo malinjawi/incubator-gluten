@@ -19,4 +19,27 @@ package org.apache.gluten.config;
 public class ConfigJniWrapper {
 
   public static native boolean isEnhancedFeaturesEnabled();
+
+  public static native boolean isVeloxKafkaClientEnabled();
+
+  public static native long[] planKafkaMicroBatchRange(
+      String topic,
+      int partition,
+      long startOffset,
+      boolean hasMaxOffsetsPerTrigger,
+      long maxOffsetsPerTrigger,
+      long pollTimeoutMs,
+      boolean failOnDataLoss,
+      boolean includeHeaders,
+      String[] paramKeys,
+      String[] paramValues);
+
+  public static native String[] discoverKafkaTopicPartitions(
+      String[] topics, long timeoutMs, String[] paramKeys, String[] paramValues);
+
+  public static native String[] listKafkaTopicPartitions(
+      long timeoutMs, String[] paramKeys, String[] paramValues);
+
+  public static native String[] listKafkaTopicPartitionMetadata(
+      long timeoutMs, String[] paramKeys, String[] paramValues);
 }

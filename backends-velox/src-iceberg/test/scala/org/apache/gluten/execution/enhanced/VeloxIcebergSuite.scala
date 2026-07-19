@@ -16,6 +16,7 @@
  */
 package org.apache.gluten.execution.enhanced
 
+import org.apache.gluten.config.GlutenConfig
 import org.apache.gluten.execution._
 import org.apache.gluten.tags.EnhancedFeaturesTest
 
@@ -25,11 +26,36 @@ import org.apache.spark.sql.execution.GlutenImplicits._
 import org.apache.spark.sql.execution.datasources.v2.AppendDataExec
 import org.apache.spark.sql.execution.streaming.MemoryStream
 import org.apache.spark.sql.gluten.TestUtils
+import org.apache.spark.sql.internal.SQLConf
 
 @EnhancedFeaturesTest
 class VeloxIcebergSuite extends IcebergSuite {
 
   import testImplicits._
+
+  private def runTwoBatchIcebergStream(tableName: String, checkpointLocation: String): Unit = {
+    val inputData = MemoryStream[(Int, String)]
+    val stream = inputData
+      .toDS()
+      .toDF("a", "b")
+      .writeStream
+      .option("checkpointLocation", checkpointLocation)
+      .format("iceberg")
+      .toTable(tableName)
+
+    val query = () => spark.sql(s"SELECT * FROM $tableName ORDER BY a")
+    try {
+      inputData.addData((1, "a"))
+      stream.processAllAvailable()
+      checkAnswer(query(), Seq(Row(1, "a")))
+
+      inputData.addData((2, "b"))
+      stream.processAllAvailable()
+      checkAnswer(query(), Seq(Row(1, "a"), Row(2, "b")))
+    } finally {
+      stream.stop()
+    }
+  }
 
   test("iceberg insert") {
     withTable("iceberg_tb2") {
@@ -345,43 +371,43 @@ class VeloxIcebergSuite extends IcebergSuite {
         .getString(0)
 
       val fileName = filePath.split('/').last
-      // Expected format: {partitionId:05d}-{taskId}-{operationId}-{fileCount:05d}.parquet
-      // Example: 00000-0-query_id-0-00001.parquet
+      // Expected format: {partitionId:05d}-{operationId}-{fileCount:05d}.parquet
+      // Example: 00000-query_id-0-00001.parquet
       assert(
-        fileName.matches("\\d{5}-\\d+-.*-\\d{5}\\.parquet"),
+        fileName.matches("\\d{5}-.*-\\d{5}\\.parquet"),
         s"File name does not match expected format: $fileName")
     }
   }
 
-  test("iceberg stream write to table") {
+  test("iceberg stream write stays Spark-owned until native sink gates are enabled") {
     withTable("iceberg_tbl") {
       withTempDir {
         checkpointDir =>
-          spark.sql("CREATE TABLE iceberg_tbl (a INT, b STRING) USING iceberg")
-          TestUtils.checkExecutedPlanContains[VeloxIcebergWriteToDataSourceV2Exec](spark) {
-            val inputData = MemoryStream[(Int, String)]
-            val stream = inputData
-              .toDS()
-              .toDF("a", "b")
-              .writeStream
-              .option("checkpointLocation", checkpointDir.getCanonicalPath)
-              .format("iceberg")
-              .toTable("iceberg_tbl")
+          withSQLConf(SQLConf.ANSI_ENABLED.key -> "false") {
+            spark.sql("CREATE TABLE iceberg_tbl (a INT, b STRING) USING iceberg")
+            val foundNativeStreamingWrite =
+              TestUtils.executedPlanContains[VeloxIcebergWriteToDataSourceV2Exec](spark) {
+                runTwoBatchIcebergStream("iceberg_tbl", checkpointDir.getCanonicalPath)
+              }
+            assert(!foundNativeStreamingWrite)
+          }
+      }
+    }
+  }
 
-            val query = () => spark.sql("SELECT * FROM iceberg_tbl ORDER BY a")
-            try {
-              inputData.addData((1, "a"))
-              stream.processAllAvailable()
-              checkAnswer(query(), Seq(Row(1, "a")))
-
-              inputData.addData((2, "b"))
-              stream.processAllAvailable()
-              checkAnswer(query(), Seq(Row(1, "a"), Row(2, "b")))
-            } finally {
-              stream.stop()
+  test("iceberg stream write to table with native sink gates") {
+    withTable("iceberg_tbl") {
+      withTempDir {
+        checkpointDir =>
+          withSQLConf(
+            SQLConf.ANSI_ENABLED.key -> "false",
+            GlutenConfig.NATIVE_STREAMING_ENABLED.key -> "true",
+            GlutenConfig.NATIVE_STREAMING_SINK_ENABLED.key -> "true") {
+            spark.sql("CREATE TABLE iceberg_tbl (a INT, b STRING) USING iceberg")
+            TestUtils.checkExecutedPlanContains[VeloxIcebergWriteToDataSourceV2Exec](spark) {
+              runTwoBatchIcebergStream("iceberg_tbl", checkpointDir.getCanonicalPath)
             }
           }
-
       }
     }
   }

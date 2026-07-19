@@ -25,11 +25,16 @@
 #include <velox/exec/OperatorUtils.h>
 
 #include <exception>
+#include <optional>
+#include <string>
 #include <type_traits>
+#include <unordered_map>
 #include "JniUdf.h"
 #include "compute/Runtime.h"
 #include "compute/VeloxBackend.h"
 #include "compute/VeloxRuntime.h"
+#include "compute/kafka/KafkaFiniteReader.h"
+#include "compute/kafka/KafkaRdkafkaConsumer.h"
 #include "config/GlutenConfig.h"
 #include "config/VeloxConfig.h"
 #include "jni/JniError.h"
@@ -68,6 +73,117 @@ jmethodID blockStripesConstructor;
 
 jclass batchWriteMetricsClass;
 jmethodID batchWriteMetricsConstructor;
+
+std::unordered_map<std::string, std::string> jStringArraysToMap(
+    JNIEnv* env,
+    jobjectArray keys,
+    jobjectArray values) {
+  const auto keyCount = env->GetArrayLength(keys);
+  const auto valueCount = env->GetArrayLength(values);
+  VELOX_USER_CHECK_EQ(
+      keyCount,
+      valueCount,
+      "Native Kafka offset planner received mismatched Kafka param key/value arrays: {} keys, {} values.",
+      keyCount,
+      valueCount);
+
+  std::unordered_map<std::string, std::string> params;
+  params.reserve(keyCount);
+  for (jsize i = 0; i < keyCount; ++i) {
+    auto key = reinterpret_cast<jstring>(env->GetObjectArrayElement(keys, i));
+    auto value = reinterpret_cast<jstring>(env->GetObjectArrayElement(values, i));
+    VELOX_USER_CHECK_NOT_NULL(
+        key,
+        "Native Kafka offset planner received a null Kafka param key at index {}.",
+        i);
+    VELOX_USER_CHECK_NOT_NULL(
+        value,
+        "Native Kafka offset planner received a null Kafka param value at index {}.",
+        i);
+    params.emplace(jStringToCString(env, key), jStringToCString(env, value));
+    env->DeleteLocalRef(key);
+    env->DeleteLocalRef(value);
+  }
+  return params;
+}
+
+std::vector<std::string> jStringArrayToVector(
+    JNIEnv* env,
+    jobjectArray values,
+    const std::string& label) {
+  VELOX_USER_CHECK_NOT_NULL(values, "Native Kafka {} requires a non-null string array.", label);
+  const auto count = env->GetArrayLength(values);
+  std::vector<std::string> result;
+  result.reserve(count);
+  for (jsize i = 0; i < count; ++i) {
+    auto value = reinterpret_cast<jstring>(env->GetObjectArrayElement(values, i));
+    VELOX_USER_CHECK_NOT_NULL(
+        value,
+        "Native Kafka {} received a null string at index {}.",
+        label,
+        i);
+    result.push_back(jStringToCString(env, value));
+    env->DeleteLocalRef(value);
+  }
+  return result;
+}
+
+jlongArray kafkaMicroBatchRangePlanToJniResult(
+    JNIEnv* env,
+    const gluten::kafka::KafkaMicroBatchRangePlan& plan) {
+  jlong result[] = {
+      static_cast<jlong>(plan.range.startOffset),
+      static_cast<jlong>(plan.range.endOffset),
+      static_cast<jlong>(plan.lowWatermark),
+      static_cast<jlong>(plan.highWatermark),
+      static_cast<jlong>(plan.skippedMessages),
+      static_cast<jlong>(plan.advancedStartOffset ? 1 : 0),
+      static_cast<jlong>(plan.resetStartToHighWatermark ? 1 : 0),
+      static_cast<jlong>(plan.limitedByMaxOffsetsPerTrigger ? 1 : 0)};
+  auto output = env->NewLongArray(sizeof(result) / sizeof(result[0]));
+  env->SetLongArrayRegion(output, 0, sizeof(result) / sizeof(result[0]), result);
+  return output;
+}
+
+jobjectArray kafkaTopicPartitionsToJniResult(
+    JNIEnv* env,
+    const std::vector<gluten::kafka::KafkaTopicPartition>& topicPartitions) {
+  auto output =
+      env->NewObjectArray(topicPartitions.size() * 2, env->FindClass("java/lang/String"), nullptr);
+  for (jsize i = 0; i < static_cast<jsize>(topicPartitions.size()); ++i) {
+    const auto& topicPartition = topicPartitions[i];
+    auto topic = env->NewStringUTF(topicPartition.topic.c_str());
+    auto partition = env->NewStringUTF(std::to_string(topicPartition.partition).c_str());
+    env->SetObjectArrayElement(output, i * 2, topic);
+    env->SetObjectArrayElement(output, i * 2 + 1, partition);
+    env->DeleteLocalRef(topic);
+    env->DeleteLocalRef(partition);
+  }
+  return output;
+}
+
+jobjectArray kafkaTopicPartitionMetadataToJniResult(
+    JNIEnv* env,
+    const std::vector<gluten::kafka::KafkaTopicPartitionMetadata>& topicPartitions) {
+  auto output =
+      env->NewObjectArray(topicPartitions.size() * 4, env->FindClass("java/lang/String"), nullptr);
+  for (jsize i = 0; i < static_cast<jsize>(topicPartitions.size()); ++i) {
+    const auto& topicPartition = topicPartitions[i];
+    auto topic = env->NewStringUTF(topicPartition.topic.c_str());
+    auto partition = env->NewStringUTF(std::to_string(topicPartition.partition).c_str());
+    auto failureKind = env->NewStringUTF(topicPartition.failureKind.c_str());
+    auto error = env->NewStringUTF(topicPartition.error.c_str());
+    env->SetObjectArrayElement(output, i * 4, topic);
+    env->SetObjectArrayElement(output, i * 4 + 1, partition);
+    env->SetObjectArrayElement(output, i * 4 + 2, failureKind);
+    env->SetObjectArrayElement(output, i * 4 + 3, error);
+    env->DeleteLocalRef(topic);
+    env->DeleteLocalRef(partition);
+    env->DeleteLocalRef(failureKind);
+    env->DeleteLocalRef(error);
+  }
+  return output;
+}
 
 template <typename PartitionChannels>
 auto makePartitionIdGenerator(
@@ -851,6 +967,143 @@ JNIEXPORT jboolean JNICALL Java_org_apache_gluten_config_ConfigJniWrapper_isEnha
 #endif
 }
 
+JNIEXPORT jboolean JNICALL Java_org_apache_gluten_config_ConfigJniWrapper_isVeloxKafkaClientEnabled( // NOLINT
+    JNIEnv* env,
+    jclass) {
+  return gluten::kafka::rdkafkaSupportCompiled();
+}
+
+JNIEXPORT jlongArray JNICALL Java_org_apache_gluten_config_ConfigJniWrapper_planKafkaMicroBatchRange( // NOLINT
+    JNIEnv* env,
+    jclass,
+    jstring topic,
+    jint partition,
+    jlong startOffset,
+    jboolean hasMaxOffsetsPerTrigger,
+    jlong maxOffsetsPerTrigger,
+    jlong pollTimeoutMs,
+    jboolean failOnDataLoss,
+    jboolean includeHeaders,
+    jobjectArray paramKeys,
+    jobjectArray paramValues) {
+  JNI_METHOD_START
+  VELOX_USER_CHECK_NOT_NULL(topic, "Native Kafka offset planner requires a non-null topic.");
+  VELOX_USER_CHECK_NOT_NULL(
+      paramKeys,
+      "Native Kafka offset planner requires a non-null Kafka param key array.");
+  VELOX_USER_CHECK_NOT_NULL(
+      paramValues,
+      "Native Kafka offset planner requires a non-null Kafka param value array.");
+  VELOX_USER_CHECK_GE(
+      maxOffsetsPerTrigger,
+      0,
+      "Native Kafka offset planner requires non-negative maxOffsetsPerTrigger, got {}.",
+      maxOffsetsPerTrigger);
+
+  gluten::kafka::KafkaMicroBatchRangeRequest request;
+  request.topic = jStringToCString(env, topic);
+  request.partition = partition;
+  request.startOffset = startOffset;
+  if (hasMaxOffsetsPerTrigger == JNI_TRUE) {
+    request.maxOffsetsPerTrigger = static_cast<uint64_t>(maxOffsetsPerTrigger);
+  }
+  request.pollTimeoutMs = pollTimeoutMs;
+  request.failOnDataLoss = failOnDataLoss == JNI_TRUE;
+  request.includeHeaders = includeHeaders == JNI_TRUE;
+  request.params = jStringArraysToMap(env, paramKeys, paramValues);
+
+  gluten::kafka::KafkaPartitionRange consumerRange{
+      request.topic,
+      request.partition,
+      request.startOffset,
+      request.startOffset,
+      request.pollTimeoutMs,
+      request.failOnDataLoss,
+      request.includeHeaders,
+      request.params};
+  auto consumer = gluten::kafka::createRdkafkaConsumerFactory()->create(consumerRange);
+  const auto plan = gluten::kafka::planKafkaMicroBatchRange(request, consumer.get());
+  return kafkaMicroBatchRangePlanToJniResult(env, plan);
+  JNI_METHOD_END(nullptr)
+}
+
+JNIEXPORT jobjectArray JNICALL Java_org_apache_gluten_config_ConfigJniWrapper_discoverKafkaTopicPartitions( // NOLINT
+    JNIEnv* env,
+    jclass,
+    jobjectArray topics,
+    jlong timeoutMs,
+    jobjectArray paramKeys,
+    jobjectArray paramValues) {
+  JNI_METHOD_START
+  VELOX_USER_CHECK_NOT_NULL(
+      paramKeys,
+      "Native Kafka partition discovery requires a non-null Kafka param key array.");
+  VELOX_USER_CHECK_NOT_NULL(
+      paramValues,
+      "Native Kafka partition discovery requires a non-null Kafka param value array.");
+  VELOX_USER_CHECK_GE(
+      timeoutMs,
+      0,
+      "Native Kafka partition discovery requires non-negative timeoutMs, got {}.",
+      timeoutMs);
+
+  const auto topicList = jStringArrayToVector(env, topics, "partition discovery");
+  const auto kafkaParams = jStringArraysToMap(env, paramKeys, paramValues);
+  const auto discovered = gluten::kafka::discoverTopicPartitions(topicList, kafkaParams, timeoutMs);
+  return kafkaTopicPartitionsToJniResult(env, discovered);
+  JNI_METHOD_END(nullptr)
+}
+
+JNIEXPORT jobjectArray JNICALL Java_org_apache_gluten_config_ConfigJniWrapper_listKafkaTopicPartitions( // NOLINT
+    JNIEnv* env,
+    jclass,
+    jlong timeoutMs,
+    jobjectArray paramKeys,
+    jobjectArray paramValues) {
+  JNI_METHOD_START
+  VELOX_USER_CHECK_NOT_NULL(
+      paramKeys,
+      "Native Kafka topic listing requires a non-null Kafka param key array.");
+  VELOX_USER_CHECK_NOT_NULL(
+      paramValues,
+      "Native Kafka topic listing requires a non-null Kafka param value array.");
+  VELOX_USER_CHECK_GE(
+      timeoutMs,
+      0,
+      "Native Kafka topic listing requires non-negative timeoutMs, got {}.",
+      timeoutMs);
+
+  const auto kafkaParams = jStringArraysToMap(env, paramKeys, paramValues);
+  const auto discovered = gluten::kafka::listTopicPartitions(kafkaParams, timeoutMs);
+  return kafkaTopicPartitionsToJniResult(env, discovered);
+  JNI_METHOD_END(nullptr)
+}
+
+JNIEXPORT jobjectArray JNICALL Java_org_apache_gluten_config_ConfigJniWrapper_listKafkaTopicPartitionMetadata( // NOLINT
+    JNIEnv* env,
+    jclass,
+    jlong timeoutMs,
+    jobjectArray paramKeys,
+    jobjectArray paramValues) {
+  JNI_METHOD_START
+  VELOX_USER_CHECK_NOT_NULL(
+      paramKeys,
+      "Native Kafka topic listing requires a non-null Kafka param key array.");
+  VELOX_USER_CHECK_NOT_NULL(
+      paramValues,
+      "Native Kafka topic listing requires a non-null Kafka param value array.");
+  VELOX_USER_CHECK_GE(
+      timeoutMs,
+      0,
+      "Native Kafka topic listing requires non-negative timeoutMs, got {}.",
+      timeoutMs);
+
+  const auto kafkaParams = jStringArraysToMap(env, paramKeys, paramValues);
+  const auto discovered = gluten::kafka::listTopicPartitionMetadata(kafkaParams, timeoutMs);
+  return kafkaTopicPartitionMetadataToJniResult(env, discovered);
+  JNI_METHOD_END(nullptr)
+}
+
 #ifdef GLUTEN_ENABLE_GPU
 JNIEXPORT jboolean JNICALL Java_org_apache_gluten_cudf_VeloxCudfPlanValidatorJniWrapper_validate( // NOLINT
     JNIEnv* env,
@@ -935,6 +1188,35 @@ JNIEXPORT jobjectArray JNICALL Java_org_apache_gluten_execution_IcebergWriteJniW
   return ret;
 
   JNI_METHOD_END(nullptr)
+}
+
+JNIEXPORT void JNICALL Java_org_apache_gluten_execution_IcebergWriteJniWrapper_abort( // NOLINT
+    JNIEnv* env,
+    jobject wrapper,
+    jlong writerHandle) {
+  JNI_METHOD_START
+  auto writer = ObjectStore::retrieve<IcebergWriter>(writerHandle);
+  writer->abort();
+  JNI_METHOD_END()
+}
+
+JNIEXPORT void JNICALL Java_org_apache_gluten_execution_IcebergWriteJniWrapper_cleanupCommittedFiles( // NOLINT
+    JNIEnv* env,
+    jobject wrapper,
+    jlong writerHandle) {
+  JNI_METHOD_START
+  auto writer = ObjectStore::retrieve<IcebergWriter>(writerHandle);
+  writer->cleanupCommittedFiles();
+  JNI_METHOD_END()
+}
+
+JNIEXPORT void JNICALL Java_org_apache_gluten_execution_IcebergWriteJniWrapper_close( // NOLINT
+    JNIEnv* env,
+    jobject wrapper,
+    jlong writerHandle) {
+  JNI_METHOD_START
+  ObjectStore::release(writerHandle);
+  JNI_METHOD_END()
 }
 
 JNIEXPORT jobject JNICALL Java_org_apache_gluten_execution_IcebergWriteJniWrapper_metrics( // NOLINT

@@ -17,11 +17,18 @@
 
 #include "IcebergWriter.h"
 
+#include <algorithm>
+#include <cctype>
+
+#include <fmt/format.h>
+#include <folly/json.h>
+
 #include "IcebergPartitionSpec.pb.h"
 #include "compute/ProtobufUtils.h"
 #include "compute/iceberg/IcebergFormat.h"
 #include "config/VeloxConfig.h"
 #include "utils/ConfigExtractor.h"
+#include "velox/common/file/FileSystems.h"
 #include "velox/connectors/hive/iceberg/IcebergDataSink.h"
 #include "velox/connectors/hive/iceberg/IcebergDeleteFile.h"
 
@@ -30,15 +37,45 @@ using namespace facebook::velox::connector::hive;
 using namespace facebook::velox::connector::hive::iceberg;
 namespace {
 
-// Custom Iceberg file name generator for Gluten
+std::string fileExtensionFor(dwio::common::FileFormat fileFormat) {
+  std::string extension(dwio::common::toString(fileFormat));
+  std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c) {
+    return static_cast<char>(std::tolower(c));
+  });
+  if (extension == "dwrf") {
+    return "orc";
+  }
+  return extension;
+}
+
+std::string sanitizeOperationId(std::string operationId) {
+  for (auto& c : operationId) {
+    const auto ch = static_cast<unsigned char>(c);
+    if (!std::isalnum(ch) && c != '-' && c != '_' && c != '.') {
+      c = '_';
+    }
+  }
+  return operationId.empty() ? "unknown" : operationId;
+}
+
+std::string childPath(const std::string& directory, const std::string& fileName) {
+  if (directory.empty() || directory.back() == '/') {
+    return directory + fileName;
+  }
+  return directory + "/" + fileName;
+}
+
 class GlutenIcebergFileNameGenerator : public connector::hive::FileNameGenerator {
  public:
   GlutenIcebergFileNameGenerator(
       int32_t partitionId,
       int64_t taskId,
-      const std::string& operationId,
+      std::string operationId,
       dwio::common::FileFormat fileFormat)
-      : partitionId_(partitionId), taskId_(taskId), operationId_(operationId), fileFormat_(fileFormat), fileCount_(0) {}
+      : partitionId_(partitionId),
+        taskId_(taskId),
+        operationId_(sanitizeOperationId(std::move(operationId))),
+        fileExtension_(fileExtensionFor(fileFormat)) {}
 
   std::pair<std::string, std::string> gen(
       std::optional<uint32_t> bucketId,
@@ -47,40 +84,15 @@ class GlutenIcebergFileNameGenerator : public connector::hive::FileNameGenerator
       bool commitRequired) const override {
     auto targetFileName = insertTableHandle->locationHandle()->targetFileName();
     if (targetFileName.empty()) {
-      // Generate file name following Iceberg format:
-      // {partitionId:05d}-{taskId}-{operationId}-{fileCount:05d}{suffix}
-      fileCount_++;
-
-      std::string fileExtension;
-      switch (fileFormat_) {
-        case dwio::common::FileFormat::PARQUET:
-          fileExtension = ".parquet";
-          break;
-        case dwio::common::FileFormat::ORC:
-          fileExtension = ".orc";
-          break;
-        default:
-          fileExtension = ".parquet";
-      }
-
-      char buffer[256];
-      snprintf(
-          buffer,
-          sizeof(buffer),
-          "%05d-%" PRId64 "-%s-%05d%s",
-          partitionId_,
-          taskId_,
-          operationId_.c_str(),
-          fileCount_,
-          fileExtension.c_str());
-      targetFileName = std::string(buffer);
+      targetFileName =
+          fmt::format("{:05d}-{}-{:05d}.{}", partitionId_, operationId_, ++fileCount_, fileExtension_);
+      cleanupExistingRetryFile(targetFileName, insertTableHandle);
     }
-
     return {targetFileName, targetFileName};
   }
 
   folly::dynamic serialize() const override {
-    VELOX_UNREACHABLE("Unexpected code path, implement serialize() first.");
+    VELOX_UNREACHABLE("GlutenIcebergFileNameGenerator is local to native Iceberg writes.");
   }
 
   std::string toString() const override {
@@ -92,24 +104,32 @@ class GlutenIcebergFileNameGenerator : public connector::hive::FileNameGenerator
   }
 
  private:
-  int32_t partitionId_;
-  int64_t taskId_;
-  std::string operationId_;
-  dwio::common::FileFormat fileFormat_;
-  mutable int32_t fileCount_;
-};
-
-iceberg::IcebergNestedField convertToIcebergNestedField(const gluten::IcebergNestedField& protoField) {
-  IcebergNestedField result;
-  result.id = protoField.id();
-
-  // Recursively convert children
-  result.children.reserve(protoField.children_size());
-  for (const auto& protoChild : protoField.children()) {
-    result.children.push_back(convertToIcebergNestedField(protoChild));
+  void cleanupExistingRetryFile(
+      const std::string& targetFileName,
+      const std::shared_ptr<const connector::hive::HiveInsertTableHandle>& insertTableHandle) const {
+    const auto targetPath = childPath(insertTableHandle->locationHandle()->targetPath(), targetFileName);
+    auto fileSystem = filesystems::getFileSystem(
+        targetPath, std::make_shared<config::ConfigBase>(std::unordered_map<std::string, std::string>()));
+    if (fileSystem->exists(targetPath)) {
+      fileSystem->remove(targetPath);
+    }
   }
 
-  return result;
+  const int32_t partitionId_;
+  const int64_t taskId_;
+  const std::string operationId_;
+  const std::string fileExtension_;
+  mutable int32_t fileCount_{0};
+};
+
+parquet::ParquetFieldId convertToParquetFieldId(const gluten::IcebergNestedField& protoField) {
+  std::vector<parquet::ParquetFieldId> children;
+  children.reserve(protoField.children_size());
+  for (const auto& protoChild : protoField.children()) {
+    children.push_back(convertToParquetFieldId(protoChild));
+  }
+
+  return parquet::ParquetFieldId{protoField.id(), std::move(children)};
 }
 
 std::shared_ptr<IcebergInsertTableHandle> createIcebergInsertTableHandle(
@@ -121,17 +141,18 @@ std::shared_ptr<IcebergInsertTableHandle> createIcebergInsertTableHandle(
     int64_t taskId,
     const std::string& operationId,
     std::shared_ptr<const IcebergPartitionSpec> spec,
-    const iceberg::IcebergNestedField& nestedField,
-    facebook::velox::memory::MemoryPool* pool) {
+    const parquet::ParquetFieldId& nestedField) {
   std::vector<std::shared_ptr<const iceberg::IcebergColumnHandle>> columnHandles;
 
   std::vector<std::string> columnNames = outputRowType->names();
   columnHandles.reserve(columnNames.size());
   std::vector<TypePtr> columnTypes = outputRowType->children();
   std::vector<std::string> partitionColumns;
-  partitionColumns.reserve(spec->fields.size());
-  for (const auto& field : spec->fields) {
-    partitionColumns.push_back(field.name);
+  if (spec != nullptr) {
+    partitionColumns.reserve(spec->fields.size());
+    for (const auto& field : spec->fields) {
+      partitionColumns.push_back(field.name);
+    }
   }
   for (auto i = 0; i < columnNames.size(); ++i) {
     if (std::find(partitionColumns.begin(), partitionColumns.end(), columnNames[i]) != partitionColumns.end()) {
@@ -139,33 +160,27 @@ std::shared_ptr<IcebergInsertTableHandle> createIcebergInsertTableHandle(
           columnNames.at(i),
           connector::hive::HiveColumnHandle::ColumnType::kPartitionKey,
           columnTypes.at(i),
-          columnTypes.at(i),
-          nestedField.children[i]));
+          nestedField.children.at(i)));
     } else {
       columnHandles.push_back(std::make_shared<iceberg::IcebergColumnHandle>(
           columnNames.at(i),
           connector::hive::HiveColumnHandle::ColumnType::kRegular,
           columnTypes.at(i),
-          columnTypes.at(i),
-          nestedField.children[i]));
+          nestedField.children.at(i)));
     }
   }
 
   auto fileNameGenerator =
       std::make_shared<const GlutenIcebergFileNameGenerator>(partitionId, taskId, operationId, fileFormat);
-
   std::shared_ptr<const connector::hive::LocationHandle> locationHandle =
       std::make_shared<connector::hive::LocationHandle>(
           outputDirectoryPath, outputDirectoryPath, connector::hive::LocationHandle::TableType::kExisting);
-  const std::vector<IcebergSortingColumn> sortedBy;
   const std::unordered_map<std::string, std::string> serdeParameters;
   return std::make_shared<connector::hive::iceberg::IcebergInsertTableHandle>(
       columnHandles,
       locationHandle,
-      spec,
-      pool,
       fileFormat,
-      sortedBy,
+      spec,
       compressionKind,
       serdeParameters,
       fileNameGenerator);
@@ -188,10 +203,7 @@ IcebergWriter::IcebergWriter(
     std::shared_ptr<facebook::velox::memory::MemoryPool> memoryPool,
     std::shared_ptr<facebook::velox::memory::MemoryPool> connectorPool)
     : rowType_(rowType),
-      field_(convertToIcebergNestedField(field)),
-      partitionId_(partitionId),
-      taskId_(taskId),
-      operationId_(operationId),
+      field_(convertToParquetFieldId(field)),
       pool_(memoryPool),
       connectorPool_(connectorPool),
       createTimeNs_(getCurrentTimeNano()) {
@@ -200,6 +212,7 @@ IcebergWriter::IcebergWriter(
   connectorSessionProperties_ = createHiveConnectorSessionConfig(veloxCfg);
   connectorConfig_ =
       std::make_shared<facebook::velox::connector::hive::HiveConfig>(createHiveConnectorConfig(veloxCfg));
+  icebergConfig_ = std::make_shared<iceberg::IcebergConfig>(veloxCfg);
   connectorQueryCtx_ = std::make_unique<connector::ConnectorQueryCtx>(
       pool_.get(),
       connectorPool_.get(),
@@ -221,18 +234,39 @@ IcebergWriter::IcebergWriter(
           outputDirectory,
           icebergFormatToVelox(format),
           compressionKind,
-          partitionId_,
-          taskId_,
-          operationId_,
+          partitionId,
+          taskId,
+          operationId,
           spec,
-          field_,
-          pool_.get()),
+          field_),
       connectorQueryCtx_.get(),
       facebook::velox::connector::CommitStrategy::kNoCommit,
-      connectorConfig_);
+      connectorConfig_,
+      icebergConfig_);
+}
+
+const char* IcebergWriter::stateName() const {
+  switch (state_) {
+    case WriterState::kActive:
+      return "active";
+    case WriterState::kCommitted:
+      return "committed";
+    case WriterState::kAborted:
+      return "aborted";
+  }
+  VELOX_UNREACHABLE();
+}
+
+void IcebergWriter::checkActive(std::string_view action) const {
+  VELOX_CHECK(
+      state_ == WriterState::kActive,
+      "Cannot {} native Iceberg writer after it has been {}.",
+      action,
+      stateName());
 }
 
 void IcebergWriter::write(const VeloxColumnarBatch& batch) {
+  checkActive("write");
   auto inputRowVector = batch.getRowVector();
   auto inputRowType = asRowType(inputRowVector->type());
 
@@ -250,9 +284,31 @@ void IcebergWriter::write(const VeloxColumnarBatch& batch) {
 }
 
 std::vector<std::string> IcebergWriter::commit() {
+  checkActive("commit");
   auto finished = dataSink_->finish();
   VELOX_CHECK(finished);
-  return dataSink_->close();
+  lastCommitMessages_ = dataSink_->close();
+  state_ = WriterState::kCommitted;
+  return lastCommitMessages_;
+}
+
+void IcebergWriter::cleanupCommittedFiles() {
+  for (const auto& commitMessage : lastCommitMessages_) {
+    const auto commitData = folly::parseJson(commitMessage);
+    const auto& path = commitData["path"].asString();
+    auto fileSystem = filesystems::getFileSystem(path, connectorSessionProperties_);
+    if (fileSystem->exists(path)) {
+      fileSystem->remove(path);
+    }
+  }
+}
+
+void IcebergWriter::abort() {
+  if (state_ == WriterState::kAborted || state_ == WriterState::kCommitted) {
+    return;
+  }
+  dataSink_->abort();
+  state_ = WriterState::kAborted;
 }
 
 WriteStats IcebergWriter::writeStats() const {

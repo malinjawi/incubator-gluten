@@ -22,6 +22,8 @@
 #include <folly/executors/task_queue/UnboundedBlockingQueue.h>
 
 #include "compute/delta/DeltaConnector.h"
+#include "compute/kafka/KafkaConnector.h"
+#include "compute/kafka/KafkaRdkafkaConsumer.h"
 #include "operators/functions/RegistrationAllFunctions.h"
 #include "operators/plannodes/RowVectorStream.h"
 #include "utils/ConfigExtractor.h"
@@ -336,6 +338,11 @@ std::shared_ptr<facebook::velox::connector::Connector> VeloxBackend::createValue
     const std::string& connectorId,
     bool dynamicFilterEnabled) const {
   return std::make_shared<ValueStreamConnector>(connectorId, hiveConnectorConfig_, dynamicFilterEnabled);
+}
+
+std::shared_ptr<facebook::velox::connector::Connector> VeloxBackend::createKafkaConnector(
+    const std::string& connectorId) const {
+  return std::make_shared<kafka::KafkaConnector>(connectorId, hiveConnectorConfig_, kafka::createRdkafkaConsumerFactory());
 }
 
 #ifdef GLUTEN_ENABLE_GPU

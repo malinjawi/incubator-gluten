@@ -112,6 +112,26 @@ add_velox_test(velox_rss_sort_shuffle_writer_test SOURCES
 add_velox_test(velox_sort_shuffle_writer_test SOURCES
                VeloxSortShuffleWriterTest.cc)
 
+add_velox_test(velox_native_state_store_test SOURCES
+               VeloxNativeStateStoreTest.cc
+               VeloxNativeStreamingAggregationTest.cc
+               VeloxNativeStreamingDeduplicateTest.cc)
+
+add_executable(velox_native_streaming_state_execution_benchmark
+               VeloxNativeStreamingStateExecutionBenchmark.cc)
+target_include_directories(
+  velox_native_streaming_state_execution_benchmark
+  PRIVATE ${CMAKE_SOURCE_DIR}/velox ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(velox_native_streaming_state_execution_benchmark
+                      velox ${GLUTEN_ROARING_LINK_LIBRARY} google::glog)
+if(ENABLE_GPU)
+  target_link_libraries(velox_native_streaming_state_execution_benchmark
+                        velox_curl)
+endif()
+
+add_velox_test(velox_kafka_finite_reader_test SOURCES
+               KafkaFiniteReaderTest.cc)
+
 # TODO: ORC is not well supported. add_velox_test(orc_test SOURCES OrcTest.cc)
 add_velox_test(
   velox_operators_test

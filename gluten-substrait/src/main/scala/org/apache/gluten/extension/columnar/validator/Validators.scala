@@ -28,7 +28,7 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.sql.execution._
 import org.apache.spark.sql.execution.aggregate.{HashAggregateExec, ObjectHashAggregateExec, SortAggregateExec}
 import org.apache.spark.sql.execution.datasources.WriteFilesExec
-import org.apache.spark.sql.execution.datasources.v2.{AppendDataExec, BatchScanExec, OverwriteByExpressionExec, OverwritePartitionsDynamicExec, ReplaceDataExec, WriteToDataSourceV2Exec}
+import org.apache.spark.sql.execution.datasources.v2.{AppendDataExec, BatchScanExec, MicroBatchScanExec, OverwriteByExpressionExec, OverwritePartitionsDynamicExec, ReplaceDataExec, WriteToDataSourceV2Exec}
 import org.apache.spark.sql.execution.exchange.{BroadcastExchangeExec, ShuffleExchangeExec}
 import org.apache.spark.sql.execution.joins._
 import org.apache.spark.sql.execution.window.WindowExec
@@ -37,11 +37,11 @@ import org.apache.spark.sql.types.{ArrayType, DataType, MapType, StructType}
 
 object Validators {
   implicit class ValidatorBuilderImplicits(builder: Validator.Builder) {
-    private val conf = GlutenConfig.get
-    private val settings = BackendsApiManager.getSettings
+    private lazy val conf = GlutenConfig.get
+    private lazy val settings = BackendsApiManager.getSettings
 
     // Get VeloxConfig if available
-    private val veloxConf: Option[Any] = {
+    private lazy val veloxConf: Option[Any] = {
       try {
         // scalastyle:off classforname
         val veloxConfigClass = Class.forName("org.apache.gluten.config.VeloxConfig")
@@ -86,6 +86,16 @@ object Validators {
      */
     def fallbackByUserOptions(): Validator.Builder = {
       builder.add(new FallbackByUserOptions(conf))
+    }
+
+    /**
+     * Fails validation for Spark Structured Streaming nodes unless they are covered by explicit
+     * native streaming research gates.
+     */
+    def fallbackByStreamingOptions(
+        isStreaming: Boolean,
+        glutenConf: GlutenConfig): Validator.Builder = {
+      builder.add(new FallbackByStreamingOptions(isStreaming, glutenConf))
     }
 
     def fallbackByTestInjects(): Validator.Builder = {
@@ -222,6 +232,248 @@ object Validators {
     }
   }
 
+  private class FallbackByStreamingOptions(isStreamingQuery: Boolean, glutenConf: GlutenConfig)
+    extends Validator {
+    private def hasExecutableStreamingSourceBoundary: Boolean = {
+      (glutenConf.enableNativeStreamingKafkaSource &&
+        glutenConf.enableNativeStreamingKafkaSourceExecution &&
+        (!glutenConf.enableNativeStreamingFull ||
+          (glutenConf.enableNativeStreamingKafkaSourceOffsetLogHandoff &&
+            glutenConf.enableNativeStreamingKafkaSourceNativeOffsetPlanning))) ||
+      (!glutenConf.enableNativeStreamingFull &&
+        glutenConf.enableNativeStreamingSparkInput &&
+        glutenConf.enableNativeStreamingSparkBridgeExecution) ||
+      (!glutenConf.enableNativeStreamingFull &&
+        glutenConf.enableNativeStreamingFileSource)
+    }
+
+    private def hasExecutableStreamingSinkBoundary: Boolean = {
+      glutenConf.enableNativeStreamingSink ||
+      (!glutenConf.enableNativeStreamingFull &&
+        glutenConf.enableNativeStreamingSparkOutput &&
+        glutenConf.enableNativeStreamingSparkBridgeExecution)
+    }
+
+    private def hasExecutableStreamingStateBoundary: Boolean = {
+      !glutenConf.enableNativeStreamingFull &&
+      (glutenConf.enableNativeStreamingStateStore ||
+        (glutenConf.enableNativeStreamingSparkState &&
+          glutenConf.enableNativeStreamingSparkBridgeExecution))
+    }
+
+    private def hasSparkOwnedStreamingBridge: Boolean = {
+      glutenConf.enableNativeStreamingSparkInput ||
+      glutenConf.enableNativeStreamingSparkOutput ||
+      glutenConf.enableNativeStreamingSparkState ||
+      glutenConf.enableNativeStreamingSparkBridgeExecution
+    }
+
+    private def isNativeStreamingStatelessOperator(plan: SparkPlan): Boolean = {
+      plan.isInstanceOf[ProjectExec] || plan.isInstanceOf[FilterExec]
+    }
+
+    private def statelessSourceBoundaryFailureMessage: String = {
+      if (glutenConf.enableNativeStreamingFull) {
+        "Native stateless Spark Structured Streaming operators require a full-native " +
+          "streaming source boundary. Enable native Kafka source execution, native Kafka " +
+          s"offset planning, and Kafka offset-log handoff with " +
+          s"${GlutenConfig.NATIVE_STREAMING_KAFKA_SOURCE_EXECUTION_ENABLED.key}, " +
+          s"${GlutenConfig.NATIVE_STREAMING_KAFKA_SOURCE_NATIVE_OFFSET_PLANNING_ENABLED.key}, " +
+          s"and ${GlutenConfig.NATIVE_STREAMING_KAFKA_SOURCE_OFFSET_LOG_HANDOFF_ENABLED.key}."
+      } else {
+        "Native stateless Spark Structured Streaming operators require an executable " +
+          "streaming source boundary. Enable native Kafka source execution with " +
+          s"${GlutenConfig.NATIVE_STREAMING_KAFKA_SOURCE_EXECUTION_ENABLED.key}, or " +
+          "enable the Spark-owned source input bridge with " +
+          s"${GlutenConfig.NATIVE_STREAMING_SPARK_INPUT_ENABLED.key} and " +
+          s"${GlutenConfig.NATIVE_STREAMING_SPARK_BRIDGE_EXECUTION_ENABLED.key}."
+      }
+    }
+
+    override def validate(plan: SparkPlan): Validator.OutCome = {
+      if (!isStreamingQuery && !StreamingPlanSupport.isStreamingPlan(plan)) {
+        return pass()
+      }
+
+      if (!glutenConf.enableNativeStreaming) {
+        return fail(
+          s"Native Spark Structured Streaming is disabled by " +
+            s"${GlutenConfig.NATIVE_STREAMING_ENABLED.key}")
+      }
+
+      if (glutenConf.enableNativeStreamingFull && hasSparkOwnedStreamingBridge) {
+        return fail(
+          "Full native Spark Structured Streaming forbids Spark-owned source, sink, and state " +
+            s"bridges; disable ${GlutenConfig.NATIVE_STREAMING_SPARK_INPUT_ENABLED.key}, " +
+            s"${GlutenConfig.NATIVE_STREAMING_SPARK_OUTPUT_ENABLED.key}, " +
+            s"${GlutenConfig.NATIVE_STREAMING_SPARK_STATE_ENABLED.key}, and " +
+            s"${GlutenConfig.NATIVE_STREAMING_SPARK_BRIDGE_EXECUTION_ENABLED.key}.")
+      }
+
+      plan match {
+        case plan
+            if isNativeStreamingStatelessOperator(plan) &&
+              !glutenConf.enableNativeStreamingStateless =>
+          fail(
+            s"Native stateless Spark Structured Streaming is disabled by " +
+              s"${GlutenConfig.NATIVE_STREAMING_STATELESS_ENABLED.key}")
+        case plan
+            if isNativeStreamingStatelessOperator(plan) &&
+              !hasExecutableStreamingSourceBoundary =>
+          fail(statelessSourceBoundaryFailureMessage)
+        case plan
+            if isNativeStreamingStatelessOperator(plan) &&
+              !hasExecutableStreamingSinkBoundary =>
+          fail(
+            "Native stateless Spark Structured Streaming operators require an executable " +
+              "streaming sink boundary. Enable native streaming sink execution with " +
+              s"${GlutenConfig.NATIVE_STREAMING_SINK_ENABLED.key}, or enable the Spark-owned " +
+              "sink output bridge with " +
+              s"${GlutenConfig.NATIVE_STREAMING_SPARK_OUTPUT_ENABLED.key} and " +
+              s"${GlutenConfig.NATIVE_STREAMING_SPARK_BRIDGE_EXECUTION_ENABLED.key}.")
+        case plan
+            if isNativeStreamingStatelessOperator(plan) &&
+              StreamingPlanSupport.containsSparkOwnedStatefulStreamingPlan(plan) &&
+              glutenConf.enableNativeStreamingFull =>
+          fail(StreamingPlanSupport.FullNativeStatefulOperatorRequirement)
+        case plan
+            if isNativeStreamingStatelessOperator(plan) &&
+              StreamingPlanSupport.containsSparkOwnedStatefulStreamingPlan(plan) &&
+              !hasExecutableStreamingStateBoundary =>
+          fail(
+            "Spark streaming state remains Spark-owned until native streaming state or the " +
+              s"Spark-owned state bridge is explicitly enabled; guarded by " +
+              s"${GlutenConfig.NATIVE_STREAMING_STATE_STORE_ENABLED.key} and " +
+              s"${GlutenConfig.NATIVE_STREAMING_SPARK_STATE_ENABLED.key}")
+        case plan if isNativeStreamingStatelessOperator(plan) =>
+          pass()
+        case scan: MicroBatchScanExec
+            if glutenConf.enableNativeStreamingFull &&
+              glutenConf.enableNativeStreamingKafkaSource &&
+              StreamingPlanSupport.isKafkaMicroBatchScan(scan) &&
+              !glutenConf.enableNativeStreamingKafkaSourceOffsetLogHandoff =>
+          fail(StreamingPlanSupport.FullNativeKafkaOffsetLogRequirement)
+        case scan: MicroBatchScanExec
+            if glutenConf.enableNativeStreamingFull &&
+              glutenConf.enableNativeStreamingKafkaSource &&
+              StreamingPlanSupport.isKafkaMicroBatchScan(scan) &&
+              !glutenConf.enableNativeStreamingKafkaSourceNativeOffsetPlanning =>
+          fail(StreamingPlanSupport.FullNativeKafkaNativeOffsetPlanningRequirement)
+        case scan: MicroBatchScanExec
+            if glutenConf.enableNativeStreamingKafkaSource &&
+              StreamingPlanSupport.isKafkaMicroBatchScan(scan) &&
+              glutenConf.enableNativeStreamingKafkaSourceExecution =>
+          pass()
+        case scan: MicroBatchScanExec
+            if glutenConf.enableNativeStreamingKafkaSource &&
+              StreamingPlanSupport.isKafkaMicroBatchScan(scan) &&
+              !glutenConf.enableNativeStreamingKafkaSourceExecution &&
+              !(glutenConf.enableNativeStreamingSparkInput &&
+                glutenConf.enableNativeStreamingSparkBridgeExecution) =>
+          fail(
+            s"Native Kafka micro-batch source execution is disabled by " +
+              s"${GlutenConfig.NATIVE_STREAMING_KAFKA_SOURCE_EXECUTION_ENABLED.key}")
+        case _: MicroBatchScanExec
+            if glutenConf.enableNativeStreamingSparkInput &&
+              glutenConf.enableNativeStreamingSparkBridgeExecution =>
+          pass()
+        case _: MicroBatchScanExec if glutenConf.enableNativeStreamingSparkInput =>
+          fail(
+            s"Spark-owned streaming source input bridge execution is disabled by " +
+              s"${GlutenConfig.NATIVE_STREAMING_SPARK_BRIDGE_EXECUTION_ENABLED.key}")
+        case scan: MicroBatchScanExec if glutenConf.enableNativeStreamingKafkaSource =>
+          fail(
+            s"Native Spark Structured Streaming source execution currently only supports Kafka " +
+              s"micro-batch scans; found ${StreamingPlanSupport.describeMicroBatchScan(scan)}")
+        case _: MicroBatchScanExec =>
+          fail(
+            s"Native Spark Structured Streaming sources are disabled by " +
+              s"${GlutenConfig.NATIVE_STREAMING_KAFKA_SOURCE_ENABLED.key}, and the Spark-owned " +
+              s"source input bridge is disabled by " +
+              s"${GlutenConfig.NATIVE_STREAMING_SPARK_INPUT_ENABLED.key}")
+        case plan
+            if StreamingPlanSupport.isStreamingSink(plan) &&
+              (glutenConf.enableNativeStreamingSink ||
+                (glutenConf.enableNativeStreamingSparkOutput &&
+                  glutenConf.enableNativeStreamingSparkBridgeExecution)) =>
+          pass()
+        case plan
+            if StreamingPlanSupport.isStreamingSink(plan) &&
+              glutenConf.enableNativeStreamingSparkOutput =>
+          fail(
+            s"Spark-owned streaming sink output bridge execution is disabled by " +
+              s"${GlutenConfig.NATIVE_STREAMING_SPARK_BRIDGE_EXECUTION_ENABLED.key}")
+        case plan if StreamingPlanSupport.isStreamingSink(plan) =>
+          fail(
+            s"Native Spark Structured Streaming sinks are disabled by " +
+              s"${GlutenConfig.NATIVE_STREAMING_SINK_ENABLED.key}, and the Spark-owned sink " +
+              s"output bridge is disabled by " +
+              s"${GlutenConfig.NATIVE_STREAMING_SPARK_OUTPUT_ENABLED.key}")
+        case _: AppendDataExec | _: ReplaceDataExec | _: OverwriteByExpressionExec |
+            _: OverwritePartitionsDynamicExec | _: WriteToDataSourceV2Exec
+            if glutenConf.enableNativeStreamingSink ||
+              (glutenConf.enableNativeStreamingSparkOutput &&
+                glutenConf.enableNativeStreamingSparkBridgeExecution) =>
+          pass()
+        case _: AppendDataExec | _: ReplaceDataExec | _: OverwriteByExpressionExec |
+            _: OverwritePartitionsDynamicExec | _: WriteToDataSourceV2Exec
+            if glutenConf.enableNativeStreamingSparkOutput =>
+          fail(
+            s"Spark-owned streaming sink output bridge execution is disabled by " +
+              s"${GlutenConfig.NATIVE_STREAMING_SPARK_BRIDGE_EXECUTION_ENABLED.key}")
+        case _: AppendDataExec | _: ReplaceDataExec | _: OverwriteByExpressionExec |
+            _: OverwritePartitionsDynamicExec | _: WriteToDataSourceV2Exec =>
+          fail(
+            s"Native Spark Structured Streaming sinks are disabled by " +
+              s"${GlutenConfig.NATIVE_STREAMING_SINK_ENABLED.key}, and the Spark-owned sink " +
+              s"output bridge is disabled by " +
+              s"${GlutenConfig.NATIVE_STREAMING_SPARK_OUTPUT_ENABLED.key}")
+        case plan
+            if StreamingPlanSupport.isNativeStreamingStatefulPlan(plan) =>
+          StreamingPlanSupport.nativeStatefulOperatorGateFailure(plan, glutenConf) match {
+            case Some(reason) => fail(reason)
+            case None => pass()
+          }
+        case plan
+            if StreamingPlanSupport.isSparkOwnedStatefulStreamingPlan(plan) &&
+              glutenConf.enableNativeStreamingFull =>
+          fail(StreamingPlanSupport.FullNativeStatefulOperatorRequirement)
+        case plan
+            if StreamingPlanSupport.isSparkOwnedStatefulStreamingPlan(plan) &&
+              hasExecutableStreamingStateBoundary =>
+          pass()
+        case plan
+            if StreamingPlanSupport.isSparkOwnedStatefulStreamingPlan(plan) &&
+              glutenConf.enableNativeStreamingSparkState =>
+          fail(
+            s"Spark-owned streaming state bridge execution is disabled by " +
+              s"${GlutenConfig.NATIVE_STREAMING_SPARK_BRIDGE_EXECUTION_ENABLED.key}")
+        case plan if StreamingPlanSupport.isSparkOwnedStatefulStreamingPlan(plan) =>
+          fail(
+            "Spark streaming state remains Spark-owned until native streaming state or the " +
+              "Spark-owned state bridge is explicitly enabled")
+        case _: FileSourceScanExec if glutenConf.enableNativeStreamingFileSource =>
+          pass()
+        // Stateless stream-to-STATIC equi-join gate. A BroadcastHashJoinExec / ShuffledHashJoinExec
+        // inside a streaming micro-batch joins the streaming side to a STATIC (batch) relation that
+        // Spark has broadcast/shuffled; it carries no join state store. Stateful stream-stream joins
+        // are a distinct operator (StreamingSymmetricHashJoin) and are NOT matched here, so they
+        // remain Spark-owned. Spark still owns the source, sink, checkpoint logs, and offsets.
+        case _: BroadcastHashJoinExec | _: ShuffledHashJoinExec
+            if glutenConf.enableNativeStreamingStatelessJoin =>
+          pass()
+        // The broadcast of the static build side feeds the stateless join above. Passing it lets the
+        // build side stay columnar so the native join can consume a native HashedRelation.
+        case _: BroadcastExchangeExec if glutenConf.enableNativeStreamingStatelessJoin =>
+          pass()
+        case _ =>
+          fail(
+            s"${plan.nodeName} is not in the native Spark Structured Streaming stateless " +
+              "operator allowlist")
+      }
+    }
+  }
+
   private class FallbackByTestInjects() extends Validator {
     override def validate(plan: SparkPlan): Validator.OutCome = {
       if (FallbackInjects.shouldFallback(plan)) {
@@ -327,8 +579,15 @@ object Validators {
    * Once the native validation fails, the validator then gives negative outcome.
    */
   def newValidator(conf: GlutenConfig, offloads: Seq[OffloadSingleNode]): Validator = {
+    newValidator(conf, offloads, isStreaming = false)
+  }
+
+  def newValidator(
+      conf: GlutenConfig,
+      offloads: Seq[OffloadSingleNode],
+      isStreaming: Boolean): Validator = {
     val nativeValidator = Validator.builder().fallbackByNativeValidation(offloads).build()
-    newValidator(conf).andThen(nativeValidator)
+    newValidator(conf, isStreaming).andThen(nativeValidator)
   }
 
   /**
@@ -338,11 +597,16 @@ object Validators {
    * rules.
    */
   def newValidator(conf: GlutenConfig): Validator = {
+    newValidator(conf, isStreaming = false)
+  }
+
+  def newValidator(conf: GlutenConfig, isStreaming: Boolean): Validator = {
     Validator
       .builder()
       .fallbackByHint()
       .fallbackIfScanOnlyWithFilterPushed(conf.enableScanOnly)
       .fallbackComplexExpressions()
+      .fallbackByStreamingOptions(isStreaming, conf)
       .fallbackByBackendSettings()
       .fallbackByUserOptions()
       .fallbackByTimestampNTZ()

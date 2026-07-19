@@ -20,6 +20,7 @@ import org.apache.gluten.backendsapi.BackendsApiManager
 import org.apache.gluten.config.GlutenConfig
 import org.apache.gluten.execution._
 import org.apache.gluten.extension.columnar.FallbackTags
+import org.apache.gluten.extension.columnar.validator.StreamingPlanSupport
 import org.apache.gluten.logging.LogLevelUtil
 import org.apache.gluten.sql.shims.SparkShimLoader
 
@@ -30,7 +31,7 @@ import org.apache.spark.sql.execution._
 import org.apache.spark.sql.execution.RDDScanTransformer
 import org.apache.spark.sql.execution.aggregate.{HashAggregateExec, ObjectHashAggregateExec, SortAggregateExec}
 import org.apache.spark.sql.execution.datasources.WriteFilesExec
-import org.apache.spark.sql.execution.datasources.v2.BatchScanExec
+import org.apache.spark.sql.execution.datasources.v2.{BatchScanExec, MicroBatchScanExec}
 import org.apache.spark.sql.execution.exchange.{BroadcastExchangeExec, ShuffleExchangeExec}
 import org.apache.spark.sql.execution.joins._
 import org.apache.spark.sql.execution.python.{ArrowEvalPythonExec, BatchEvalPythonExec, EvalPythonExecTransformer}
@@ -196,7 +197,12 @@ object OffloadOthers {
       if (FallbackTags.nonEmpty(plan)) {
         return plan
       }
+      if (sparkOwnedStreamingBridgeRequestedButNotExecutable) {
+        return plan
+      }
       val result = plan match {
+        case plan: MicroBatchScanExec if GlutenConfig.get.enableNativeStreaming =>
+          maybeWrapSparkOwnedStreamingInput(plan)
         case plan: BatchScanExec =>
           ScanTransformerFactory.createBatchScanTransformer(plan)
         case plan: FileSourceScanExec =>
@@ -206,9 +212,13 @@ object OffloadOthers {
           HiveTableScanExecTransformer(plan)
         case plan: CoalesceExec =>
           ColumnarCoalesceExec(plan.numPartitions, plan.child)
+        case plan: FilterExec if !canOffloadStatelessStreamingOperator =>
+          plan
         case plan: FilterExec =>
           BackendsApiManager.getSparkPlanExecApiInstance
             .genFilterExecTransformer(plan.condition, plan.child)
+        case plan: ProjectExec if !canOffloadStatelessStreamingOperator =>
+          plan
         case plan: ProjectExec =>
           val columnarChild = plan.child
           ProjectExecTransformer(plan.projectList, columnarChild)
@@ -324,6 +334,54 @@ object OffloadOthers {
         logDebug(s"Columnar Processing for ${plan.getClass} is currently supported.")
       }
       result
+    }
+
+    private def maybeWrapSparkOwnedStreamingInput(plan: MicroBatchScanExec): SparkPlan = {
+      val conf = GlutenConfig.get
+      val nativeKafkaExecution =
+        conf.enableNativeStreamingKafkaSource &&
+          conf.enableNativeStreamingKafkaSourceExecution &&
+          StreamingPlanSupport.isKafkaMicroBatchScan(plan)
+
+      if (
+        conf.enableNativeStreamingSparkInput &&
+        conf.enableNativeStreamingSparkBridgeExecution &&
+        !nativeKafkaExecution
+      ) {
+        SparkOwnedMicroBatchScanExec(plan)
+      } else {
+        plan
+      }
+    }
+
+    private def canOffloadStatelessStreamingOperator: Boolean = {
+      val conf = GlutenConfig.get
+      if (!conf.enableNativeStreaming) {
+        return true
+      }
+
+      val hasExecutableStreamingSource =
+        (conf.enableNativeStreamingKafkaSource &&
+          conf.enableNativeStreamingKafkaSourceExecution) ||
+          (conf.enableNativeStreamingSparkInput &&
+            conf.enableNativeStreamingSparkBridgeExecution)
+      val hasExecutableStreamingSink =
+        conf.enableNativeStreamingSink ||
+          (conf.enableNativeStreamingSparkOutput &&
+            conf.enableNativeStreamingSparkBridgeExecution)
+
+      conf.enableNativeStreamingStateless &&
+      hasExecutableStreamingSource &&
+      hasExecutableStreamingSink
+    }
+
+    private def sparkOwnedStreamingBridgeRequestedButNotExecutable: Boolean = {
+      val conf = GlutenConfig.get
+      conf.enableNativeStreaming &&
+      !conf.enableNativeStreamingSparkBridgeExecution &&
+      (conf.enableNativeStreamingSparkInput ||
+        conf.enableNativeStreamingSparkOutput ||
+        conf.enableNativeStreamingSparkState)
     }
   }
 }

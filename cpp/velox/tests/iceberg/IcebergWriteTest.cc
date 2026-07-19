@@ -17,11 +17,15 @@
 
 #include "compute/iceberg/IcebergWriter.h"
 #include "memory/VeloxColumnarBatch.h"
+#include "folly/json.h"
+#include "velox/common/base/Fs.h"
 #include "velox/dwio/parquet/RegisterParquetWriter.h"
 #include "velox/exec/tests/utils/TempDirectoryPath.h"
 #include "velox/vector/tests/utils/VectorTestBase.h"
 
 #include <gtest/gtest.h>
+
+#include <string>
 
 using namespace facebook::velox;
 namespace gluten {
@@ -70,5 +74,201 @@ TEST_F(VeloxIcebergWriteTest, write) {
   writer->write(batch);
   auto commitMessage = writer->commit();
   EXPECT_EQ(commitMessage.size(), 1);
+}
+
+TEST_F(VeloxIcebergWriteTest, usesSparkOperationIdentityInFileName) {
+  auto vector = makeRowVector({makeFlatVector<int8_t>({1, 2}), makeFlatVector<int16_t>({1, 2})});
+  auto tmpPath = tmpDir_->getPath();
+  std::vector<connector::hive::iceberg::IcebergPartitionSpec::Field> fields;
+  auto partitionSpec = std::make_shared<const connector::hive::iceberg::IcebergPartitionSpec>(0, fields);
+
+  gluten::IcebergNestedField root;
+  root.set_id(0);
+  gluten::IcebergNestedField* child1 = root.add_children();
+  child1->set_id(1);
+  gluten::IcebergNestedField* child2 = root.add_children();
+  child2->set_id(2);
+
+  auto writer = std::make_unique<IcebergWriter>(
+      asRowType(vector->type()),
+      1,
+      tmpPath + "/iceberg_operation_identity_table",
+      common::CompressionKind::CompressionKind_ZSTD,
+      3, // partitionId
+      99, // taskId
+      "query-epoch-7", // operationId
+      partitionSpec,
+      root,
+      std::unordered_map<std::string, std::string>(),
+      pool_,
+      connectorPool_);
+  auto batch = VeloxColumnarBatch(vector);
+  writer->write(batch);
+  auto commitMessage = writer->commit();
+  ASSERT_EQ(commitMessage.size(), 1);
+
+  auto commitData = folly::parseJson(commitMessage.at(0));
+  const auto filePath = commitData["path"].asString();
+  const auto lastSlash = filePath.find_last_of('/');
+  const auto fileName = lastSlash == std::string::npos ? filePath : filePath.substr(lastSlash + 1);
+  EXPECT_EQ(fileName, "00003-query-epoch-7-00001.parquet");
+}
+
+TEST_F(VeloxIcebergWriteTest, retryReplacesExistingSparkOperationFile) {
+  auto vector = makeRowVector({makeFlatVector<int8_t>({1, 2}), makeFlatVector<int16_t>({1, 2})});
+  auto tmpPath = tmpDir_->getPath();
+  const auto tablePath = tmpPath + "/iceberg_retry_replace_table";
+  std::vector<connector::hive::iceberg::IcebergPartitionSpec::Field> fields;
+  auto partitionSpec = std::make_shared<const connector::hive::iceberg::IcebergPartitionSpec>(0, fields);
+
+  gluten::IcebergNestedField root;
+  root.set_id(0);
+  gluten::IcebergNestedField* child1 = root.add_children();
+  child1->set_id(1);
+  gluten::IcebergNestedField* child2 = root.add_children();
+  child2->set_id(2);
+
+  auto writeOnce = [&]() {
+    auto writer = std::make_unique<IcebergWriter>(
+        asRowType(vector->type()),
+        1,
+        tablePath,
+        common::CompressionKind::CompressionKind_ZSTD,
+        7, // partitionId
+        99, // taskId
+        "query-epoch-retry", // operationId
+        partitionSpec,
+        root,
+        std::unordered_map<std::string, std::string>(),
+        pool_,
+        connectorPool_);
+    auto batch = VeloxColumnarBatch(vector);
+    writer->write(batch);
+    return writer->commit();
+  };
+
+  auto firstCommitMessage = writeOnce();
+  ASSERT_EQ(firstCommitMessage.size(), 1);
+  auto firstCommitData = folly::parseJson(firstCommitMessage.at(0));
+  const auto firstFilePath = firstCommitData["path"].asString();
+  ASSERT_TRUE(fs::exists(firstFilePath));
+
+  auto secondCommitMessage = writeOnce();
+  ASSERT_EQ(secondCommitMessage.size(), 1);
+  auto secondCommitData = folly::parseJson(secondCommitMessage.at(0));
+  const auto secondFilePath = secondCommitData["path"].asString();
+  EXPECT_EQ(secondFilePath, firstFilePath);
+  EXPECT_TRUE(fs::exists(secondFilePath));
+}
+
+TEST_F(VeloxIcebergWriteTest, cleanupCommittedFilesRemovesNativeFilesAfterSparkCommitFailure) {
+  auto vector = makeRowVector({makeFlatVector<int8_t>({1, 2}), makeFlatVector<int16_t>({1, 2})});
+  auto tmpPath = tmpDir_->getPath();
+  std::vector<connector::hive::iceberg::IcebergPartitionSpec::Field> fields;
+  auto partitionSpec = std::make_shared<const connector::hive::iceberg::IcebergPartitionSpec>(0, fields);
+
+  gluten::IcebergNestedField root;
+  root.set_id(0);
+  gluten::IcebergNestedField* child1 = root.add_children();
+  child1->set_id(1);
+  gluten::IcebergNestedField* child2 = root.add_children();
+  child2->set_id(2);
+
+  auto writer = std::make_unique<IcebergWriter>(
+      asRowType(vector->type()),
+      1,
+      tmpPath + "/iceberg_cleanup_commit_failure_table",
+      common::CompressionKind::CompressionKind_ZSTD,
+      5, // partitionId
+      101, // taskId
+      "query-epoch-cleanup", // operationId
+      partitionSpec,
+      root,
+      std::unordered_map<std::string, std::string>(),
+      pool_,
+      connectorPool_);
+  auto batch = VeloxColumnarBatch(vector);
+  writer->write(batch);
+  auto commitMessage = writer->commit();
+  ASSERT_EQ(commitMessage.size(), 1);
+
+  auto commitData = folly::parseJson(commitMessage.at(0));
+  const auto filePath = commitData["path"].asString();
+  ASSERT_TRUE(fs::exists(filePath));
+
+  writer->cleanupCommittedFiles();
+  EXPECT_FALSE(fs::exists(filePath));
+  EXPECT_NO_THROW(writer->cleanupCommittedFiles());
+}
+
+TEST_F(VeloxIcebergWriteTest, terminalStatesRejectFurtherNativeWritesAndCommits) {
+  auto vector = makeRowVector({makeFlatVector<int8_t>({1, 2}), makeFlatVector<int16_t>({1, 2})});
+  auto tmpPath = tmpDir_->getPath();
+  std::vector<connector::hive::iceberg::IcebergPartitionSpec::Field> fields;
+  auto partitionSpec = std::make_shared<const connector::hive::iceberg::IcebergPartitionSpec>(0, fields);
+
+  gluten::IcebergNestedField root;
+  root.set_id(0);
+  gluten::IcebergNestedField* child1 = root.add_children();
+  child1->set_id(1);
+  gluten::IcebergNestedField* child2 = root.add_children();
+  child2->set_id(2);
+
+  auto writer = std::make_unique<IcebergWriter>(
+      asRowType(vector->type()),
+      1,
+      tmpPath + "/iceberg_terminal_commit_table",
+      common::CompressionKind::CompressionKind_ZSTD,
+      6, // partitionId
+      102, // taskId
+      "query-epoch-terminal", // operationId
+      partitionSpec,
+      root,
+      std::unordered_map<std::string, std::string>(),
+      pool_,
+      connectorPool_);
+  auto batch = VeloxColumnarBatch(vector);
+  writer->write(batch);
+  auto commitMessage = writer->commit();
+  ASSERT_EQ(commitMessage.size(), 1);
+
+  EXPECT_THROW(writer->commit(), VeloxException);
+  EXPECT_NO_THROW(writer->abort());
+  EXPECT_THROW(writer->write(batch), VeloxException);
+}
+
+TEST_F(VeloxIcebergWriteTest, abortAfterWrite) {
+  auto vector = makeRowVector({makeFlatVector<int8_t>({1, 2}), makeFlatVector<int16_t>({1, 2})});
+  auto tmpPath = tmpDir_->getPath();
+  std::vector<connector::hive::iceberg::IcebergPartitionSpec::Field> fields;
+  auto partitionSpec = std::make_shared<const connector::hive::iceberg::IcebergPartitionSpec>(0, fields);
+
+  gluten::IcebergNestedField root;
+  root.set_id(0);
+  gluten::IcebergNestedField* child1 = root.add_children();
+  child1->set_id(1);
+  gluten::IcebergNestedField* child2 = root.add_children();
+  child2->set_id(2);
+
+  auto writer = std::make_unique<IcebergWriter>(
+      asRowType(vector->type()),
+      1,
+      tmpPath + "/iceberg_abort_test_table",
+      common::CompressionKind::CompressionKind_ZSTD,
+      0, // partitionId
+      0, // taskId
+      folly::to<std::string>(folly::Random::rand64()), // operationId
+      partitionSpec,
+      root,
+      std::unordered_map<std::string, std::string>(),
+      pool_,
+      connectorPool_);
+  auto batch = VeloxColumnarBatch(vector);
+  writer->write(batch);
+  writer->abort();
+
+  EXPECT_NO_THROW(writer->abort());
+  EXPECT_THROW(writer->commit(), VeloxException);
+  EXPECT_THROW(writer->write(batch), VeloxException);
 }
 } // namespace gluten

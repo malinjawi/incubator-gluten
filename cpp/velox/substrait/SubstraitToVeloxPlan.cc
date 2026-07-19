@@ -19,6 +19,7 @@
 
 #include "TypeUtils.h"
 #include "VariantToVectorConverter.h"
+#include "compute/kafka/KafkaConnector.h"
 #include "jni/JniHashTable.h"
 #include "operators/hashjoin/HashTableBuilder.h"
 #include "operators/plannodes/RowVectorStream.h"
@@ -1386,6 +1387,7 @@ core::PlanNodePtr SubstraitToVeloxPlanConverter::toVeloxPlan(const ::substrait::
 core::PlanNodePtr SubstraitToVeloxPlanConverter::constructValueStreamNode(
     const ::substrait::ReadRel& readRel,
     int32_t streamIdx) {
+  VELOX_CHECK_LT(streamIdx, inputIters_.size(), "Could not find stream index {} in input iterator list.", streamIdx);
   // Use TableScanNode with iterator connector for runtime iterator inputs
   // Get output schema from ReadRel
   uint64_t colNum = 0;
@@ -1518,6 +1520,12 @@ core::PlanNodePtr SubstraitToVeloxPlanConverter::toVeloxPlan(const ::substrait::
     VELOX_CHECK_LT(splitInfoIdx_, splitInfos_.size(), "Plan must have readRel and related split info.");
     splitInfo = splitInfos_[splitInfoIdx_++];
   }
+  const bool isStreamKafkaRead = readRel.has_stream_kafka() && readRel.stream_kafka();
+  if (!validationMode_ && isStreamKafkaRead) {
+    VELOX_USER_CHECK(
+        std::dynamic_pointer_cast<KafkaSplitInfo>(splitInfo) != nullptr,
+        "ReadRel.StreamKafka requires a native Kafka split payload.");
+  }
 
   // Get output names and types.
   std::vector<std::string> colNameList;
@@ -1575,15 +1583,26 @@ core::PlanNodePtr SubstraitToVeloxPlanConverter::toVeloxPlan(const ::substrait::
   connector::ConnectorTableHandlePtr tableHandle;
   auto remainingFilter = readRel.has_filter() ? exprConverter_->toVeloxExpr(readRel.filter(), baseSchema) : nullptr;
   auto connectorId = connectorIds_.hive;
-  if (useCudfTableHandle(splitInfos_) && veloxCfg_->get<bool>(kCudfEnableTableScan, kCudfEnableTableScanDefault) &&
+  if (isStreamKafkaRead) {
+    connectorId =
+        connectorIds_.kafka.empty() ? kafka::KafkaConnector::kKafkaConnectorName : connectorIds_.kafka;
+  } else if (useCudfTableHandle(splitInfos_) &&
+      veloxCfg_->get<bool>(kCudfEnableTableScan, kCudfEnableTableScanDefault) &&
       veloxCfg_->get<bool>(kCudfEnabled, kCudfEnabledDefault)) {
 #ifdef GLUTEN_ENABLE_GPU
     connectorId = connectorIds_.cudfHive;
 #endif
   }
-  common::SubfieldFilters subfieldFilters;
-  tableHandle = std::make_shared<connector::hive::HiveTableHandle>(
-      connectorId, "hive_table", std::move(subfieldFilters), remainingFilter, dataColumns);
+  if (isStreamKafkaRead) {
+    VELOX_USER_CHECK(
+        remainingFilter == nullptr,
+        "Native Kafka TableScan does not support remaining filters before the Kafka data source is enabled.");
+    tableHandle = std::make_shared<kafka::KafkaTableHandle>(connectorId);
+  } else {
+    common::SubfieldFilters subfieldFilters;
+    tableHandle = std::make_shared<connector::hive::HiveTableHandle>(
+        connectorId, "hive_table", std::move(subfieldFilters), remainingFilter, dataColumns);
+  }
 
   // Get assignments and out names.
   std::vector<std::string> outNames;
@@ -1592,8 +1611,12 @@ core::PlanNodePtr SubstraitToVeloxPlanConverter::toVeloxPlan(const ::substrait::
   for (int idx = 0; idx < colNameList.size(); idx++) {
     auto outName = SubstraitParser::makeNodeName(planNodeId_, idx);
     auto columnType = columnTypes[idx];
-    assignments[outName] = std::make_shared<connector::hive::HiveColumnHandle>(
-        colNameList[idx], columnType, veloxTypeList[idx], veloxTypeList[idx]);
+    if (isStreamKafkaRead) {
+      assignments[outName] = std::make_shared<kafka::KafkaColumnHandle>(outName, colNameList[idx], veloxTypeList[idx]);
+    } else {
+      assignments[outName] = std::make_shared<connector::hive::HiveColumnHandle>(
+          colNameList[idx], columnType, veloxTypeList[idx], veloxTypeList[idx]);
+    }
     outNames.emplace_back(outName);
   }
   auto outputType = ROW(std::move(outNames), std::move(veloxTypeList));

@@ -109,6 +109,83 @@ class GlutenConfig(conf: SQLConf) extends GlutenCoreConfig(conf) {
 
   def enableColumnarWriteToDataSourceV2: Boolean = getConf(COLUMNAR_WRITE_TO_DATASOURCE_V2_ENABLED)
 
+  def enableNativeStreaming: Boolean = getConf(NATIVE_STREAMING_ENABLED)
+
+  def enableNativeStreamingFull: Boolean = getConf(NATIVE_STREAMING_FULL_ENABLED)
+
+  def enableNativeStreamingStateless: Boolean = getConf(NATIVE_STREAMING_STATELESS_ENABLED)
+
+  def enableNativeStreamingStatelessJoin: Boolean =
+    getConf(NATIVE_STREAMING_STATELESS_JOIN_ENABLED)
+
+  def enableNativeStreamingKafkaSource: Boolean = getConf(NATIVE_STREAMING_KAFKA_SOURCE_ENABLED)
+
+  def enableNativeStreamingKafkaSourceExecution: Boolean =
+    getConf(NATIVE_STREAMING_KAFKA_SOURCE_EXECUTION_ENABLED)
+
+  def enableNativeStreamingKafkaSourceNativeOffsetPlanning: Boolean =
+    getConf(NATIVE_STREAMING_KAFKA_SOURCE_NATIVE_OFFSET_PLANNING_ENABLED)
+
+  def enableNativeStreamingKafkaSourceOffsetLogHandoff: Boolean =
+    getConf(NATIVE_STREAMING_KAFKA_SOURCE_OFFSET_LOG_HANDOFF_ENABLED)
+
+  def enableNativeStreamingSparkInput: Boolean = getConf(NATIVE_STREAMING_SPARK_INPUT_ENABLED)
+
+  def enableNativeStreamingFileSource: Boolean = getConf(NATIVE_STREAMING_FILE_SOURCE_ENABLED)
+
+  def enableNativeStreamingSparkBridgeExecution: Boolean =
+    getConf(NATIVE_STREAMING_SPARK_BRIDGE_EXECUTION_ENABLED)
+
+  def enableNativeStreamingSink: Boolean = getConf(NATIVE_STREAMING_SINK_ENABLED)
+
+  def enableNativeStreamingSinkTestFailBeforeCommit: Boolean =
+    getConf(NATIVE_STREAMING_SINK_TEST_FAIL_BEFORE_COMMIT_ENABLED)
+
+  def nativeStreamingSinkTestFailBeforeCommitAction: String =
+    getConf(NATIVE_STREAMING_SINK_TEST_FAIL_BEFORE_COMMIT_ACTION)
+
+  def enableNativeStreamingSinkTestFailAfterCommit: Boolean =
+    getConf(NATIVE_STREAMING_SINK_TEST_FAIL_AFTER_COMMIT_ENABLED)
+
+  def nativeStreamingSinkTestFailAfterCommitAction: String =
+    getConf(NATIVE_STREAMING_SINK_TEST_FAIL_AFTER_COMMIT_ACTION)
+
+  def enableNativeStreamingSinkTestFailTaskAfterWrite: Boolean =
+    getConf(NATIVE_STREAMING_SINK_TEST_FAIL_TASK_AFTER_WRITE_ENABLED)
+
+  def nativeStreamingSinkTestFailTaskAfterWriteAction: String =
+    getConf(NATIVE_STREAMING_SINK_TEST_FAIL_TASK_AFTER_WRITE_ACTION)
+
+  def nativeStreamingSinkTestFailTaskAfterWritePartitionId: Int =
+    getConf(NATIVE_STREAMING_SINK_TEST_FAIL_TASK_AFTER_WRITE_PARTITION_ID)
+
+  def enableNativeStreamingSinkTestFailTaskAfterCommit: Boolean =
+    getConf(NATIVE_STREAMING_SINK_TEST_FAIL_TASK_AFTER_COMMIT_ENABLED)
+
+  def nativeStreamingSinkTestFailTaskAfterCommitAction: String =
+    getConf(NATIVE_STREAMING_SINK_TEST_FAIL_TASK_AFTER_COMMIT_ACTION)
+
+  def nativeStreamingSinkTestFailTaskAfterCommitPartitionId: Int =
+    getConf(NATIVE_STREAMING_SINK_TEST_FAIL_TASK_AFTER_COMMIT_PARTITION_ID)
+
+  def enableNativeStreamingSparkOutput: Boolean = getConf(NATIVE_STREAMING_SPARK_OUTPUT_ENABLED)
+
+  def enableNativeStreamingStateStore: Boolean = getConf(NATIVE_STREAMING_STATE_STORE_ENABLED)
+
+  def enableNativeStreamingStatefulDeduplicate: Boolean =
+    getConf(NATIVE_STREAMING_STATEFUL_DEDUPLICATE_ENABLED)
+
+  def enableNativeStreamingStatefulAggregation: Boolean =
+    getConf(NATIVE_STREAMING_STATEFUL_AGGREGATION_ENABLED)
+
+  def enableNativeStreamingStatefulLongSumNullableValue: Boolean =
+    getConf(NATIVE_STREAMING_STATEFUL_LONG_SUM_NULLABLE_VALUE_ENABLED)
+
+  def enableNativeStreamingStatefulTypedPrimitiveOutput: Boolean =
+    getConf(NATIVE_STREAMING_STATEFUL_TYPED_PRIMITIVE_OUTPUT_ENABLED)
+
+  def enableNativeStreamingSparkState: Boolean = getConf(NATIVE_STREAMING_SPARK_STATE_ENABLED)
+
   def enableColumnarShuffledHashJoin: Boolean = getConf(COLUMNAR_SHUFFLED_HASH_JOIN_ENABLED)
 
   def shuffledHashJoinOptimizeBuildSide: Boolean =
@@ -924,6 +1001,305 @@ object GlutenConfig extends ConfigRegistry {
       .doc("Enable or disable columnar v2 command write to data source v2.")
       .booleanConf
       .createWithDefault(true)
+
+  val NATIVE_STREAMING_ENABLED =
+    buildConf("spark.gluten.sql.streaming.native.enabled")
+      .doc(
+        "Experimental gate for native execution inside Spark Structured Streaming queries. " +
+          "When false, streaming plans should remain Spark-owned even if batch native operator " +
+          "configs are enabled.")
+      .experimental()
+      .booleanConf
+      .createWithDefault(false)
+
+  val NATIVE_STREAMING_FULL_ENABLED =
+    buildConf("spark.gluten.sql.streaming.native.full.enabled")
+      .doc(
+        "Developer-only gate for full native Spark Structured Streaming research. When true, " +
+          "Spark-owned streaming source, sink, and state bridge execution is rejected; every " +
+          "streaming boundary must be native-owned and separately guarded.")
+      .experimental()
+      .booleanConf
+      .createWithDefault(false)
+
+  val NATIVE_STREAMING_STATELESS_ENABLED =
+    buildConf("spark.gluten.sql.streaming.native.stateless.enabled")
+      .doc(
+        "Experimental gate for native stateless operators inside Spark Structured Streaming " +
+          "micro-batches. Requires spark.gluten.sql.streaming.native.enabled=true.")
+      .experimental()
+      .booleanConf
+      .createWithDefault(false)
+
+  val NATIVE_STREAMING_STATELESS_JOIN_ENABLED =
+    buildConf("spark.gluten.sql.streaming.native.stateless.join.enabled")
+      .doc(
+        "Experimental gate for native stateless equi-joins inside Spark Structured Streaming " +
+          "micro-batches, specifically a streaming side joined to a broadcast (or shuffled) " +
+          "STATIC table. Such a join carries no join state store, so Spark still owns the " +
+          "source, sink, checkpoint logs, and offsets. Requires " +
+          "spark.gluten.sql.streaming.native.enabled=true and the columnar broadcast/shuffled " +
+          "join operators. Does NOT cover stateful stream-stream joins " +
+          "(StreamingSymmetricHashJoin), which remain Spark-owned.")
+      .experimental()
+      .booleanConf
+      .createWithDefault(false)
+
+  val NATIVE_STREAMING_KAFKA_SOURCE_ENABLED =
+    buildConf("spark.gluten.sql.streaming.native.sources.kafka.enabled")
+      .doc(
+        "Experimental gate for a native Kafka source in Spark Structured Streaming. Spark " +
+          "checkpointed offsets remain authoritative.")
+      .experimental()
+      .booleanConf
+      .createWithDefault(false)
+
+  val NATIVE_STREAMING_KAFKA_SOURCE_EXECUTION_ENABLED =
+    buildConf("spark.gluten.sql.streaming.native.sources.kafka.execution.enabled")
+      .doc(
+        "Developer-only gate for executing native Kafka micro-batch source scans. Keep false " +
+          "until the Velox backend can parse StreamKafka splits and read Spark-planned finite " +
+          "Kafka offset ranges without committing offsets independently.")
+      .experimental()
+      .booleanConf
+      .createWithDefault(false)
+
+  val NATIVE_STREAMING_KAFKA_SOURCE_NATIVE_OFFSET_PLANNING_ENABLED =
+    buildConf("spark.gluten.sql.streaming.native.sources.kafka.nativeOffsetPlanning.enabled")
+      .doc(
+        "Developer-only gate for validating Spark-planned Kafka micro-batch ranges against " +
+          "Velox native broker-watermark offset planning before native split creation. Keep " +
+          "false until the native planner is wired into Spark offset-log ownership.")
+      .experimental()
+      .booleanConf
+      .createWithDefault(false)
+
+  val NATIVE_STREAMING_KAFKA_SOURCE_OFFSET_LOG_HANDOFF_ENABLED =
+    buildConf("spark.gluten.sql.streaming.native.sources.kafka.offsetLogHandoff.enabled")
+      .doc(
+        "Developer-only gate for Kafka source offset-log handoff research. When false, Spark " +
+          "remains the only Kafka offset-log owner even if native Kafka split execution and " +
+          "native offset-planning validation are enabled. When true, Gluten writes or replays a " +
+          "deterministic native handoff manifest beside Spark's Kafka stream metadata and fails " +
+          "closed if Spark's replayed offset range diverges.")
+      .experimental()
+      .booleanConf
+      .createWithDefault(false)
+
+  val NATIVE_STREAMING_SPARK_INPUT_ENABLED =
+    buildConf("spark.gluten.sql.streaming.native.sparkInput.enabled")
+      .doc(
+        "Experimental gate that lets native stateless streaming fragments consume Spark-owned " +
+          "micro-batch source output through Gluten's input-iterator bridge. Spark still owns " +
+          "source offsets, replay, and checkpoint logs.")
+      .experimental()
+      .booleanConf
+      .createWithDefault(false)
+
+  val NATIVE_STREAMING_FILE_SOURCE_ENABLED =
+    buildConf("spark.gluten.sql.streaming.native.fileSource.enabled")
+      .doc(
+        "Experimental gate that lets a native columnar file-source scan own a Spark Structured " +
+          "Streaming micro-batch boundary, removing the source-side Row->Columnar bridge. Spark " +
+          "still owns source offsets, replay, and checkpoint logs.")
+      .experimental()
+      .booleanConf
+      .createWithDefault(false)
+
+  val NATIVE_STREAMING_SPARK_BRIDGE_EXECUTION_ENABLED =
+    buildConf("spark.gluten.sql.streaming.native.sparkBridge.execution.enabled")
+      .doc(
+        "Developer-only gate for executing Spark-owned streaming source/sink bridge fragments. " +
+          "Keep false until the Velox ValueStream path is hardened for Spark streaming " +
+          "micro-batches.")
+      .experimental()
+      .booleanConf
+      .createWithDefault(false)
+
+  val NATIVE_STREAMING_SINK_ENABLED =
+    buildConf("spark.gluten.sql.streaming.native.sinks.enabled")
+      .doc(
+        "Experimental gate for native Spark Structured Streaming sink execution. Sink epoch, " +
+          "commit, abort, and checkpoint replay semantics must remain Spark-compatible.")
+      .experimental()
+      .booleanConf
+      .createWithDefault(false)
+
+  val NATIVE_STREAMING_SINK_TEST_FAIL_BEFORE_COMMIT_ENABLED =
+    buildConf("spark.gluten.sql.streaming.native.sinks.test.failBeforeCommit.enabled")
+      .internal()
+      .doc(
+        "Internal test hook for native streaming sink restart coverage. When true, Gluten " +
+          "fails after streaming sink task commits are collected, before BatchWrite.commit.")
+      .booleanConf
+      .createWithDefault(false)
+
+  val NATIVE_STREAMING_SINK_TEST_FAIL_BEFORE_COMMIT_ACTION =
+    buildConf("spark.gluten.sql.streaming.native.sinks.test.failBeforeCommit.action")
+      .internal()
+      .doc(
+        "Internal test action for pre-commit native streaming sink restart coverage. Valid " +
+          "values are 'throw' for in-process tests and 'halt' for subprocess driver-crash tests.")
+      .stringConf
+      .transform(_.toLowerCase(Locale.ROOT))
+      .checkValues(Set("throw", "halt"))
+      .createWithDefault("throw")
+
+  val NATIVE_STREAMING_SINK_TEST_FAIL_AFTER_COMMIT_ENABLED =
+    buildConf("spark.gluten.sql.streaming.native.sinks.test.failAfterCommit.enabled")
+      .internal()
+      .doc(
+        "Internal test hook for native streaming sink restart coverage. When true, Gluten " +
+          "fails after a streaming sink BatchWrite.commit returns, before Spark records commit " +
+          "progress for the micro-batch.")
+      .booleanConf
+      .createWithDefault(false)
+
+  val NATIVE_STREAMING_SINK_TEST_FAIL_AFTER_COMMIT_ACTION =
+    buildConf("spark.gluten.sql.streaming.native.sinks.test.failAfterCommit.action")
+      .internal()
+      .doc(
+        "Internal test action for post-commit native streaming sink restart coverage. Valid " +
+          "values are 'throw' for in-process tests and 'halt' for subprocess driver-crash tests.")
+      .stringConf
+      .transform(_.toLowerCase(Locale.ROOT))
+      .checkValues(Set("throw", "halt"))
+      .createWithDefault("throw")
+
+  val NATIVE_STREAMING_SINK_TEST_FAIL_TASK_AFTER_WRITE_ENABLED =
+    buildConf("spark.gluten.sql.streaming.native.sinks.test.failTaskAfterWrite.enabled")
+      .internal()
+      .doc(
+        "Internal test hook for native streaming sink executor-failure coverage. When true, " +
+          "Gluten fails a selected task after DataWriter.write returns, before DataWriter.commit.")
+      .booleanConf
+      .createWithDefault(false)
+
+  val NATIVE_STREAMING_SINK_TEST_FAIL_TASK_AFTER_WRITE_ACTION =
+    buildConf("spark.gluten.sql.streaming.native.sinks.test.failTaskAfterWrite.action")
+      .internal()
+      .doc(
+        "Internal test action for post-write native streaming sink task failure coverage. Valid " +
+          "values are 'throw' for in-process tests and 'halt' for executor-process crash tests.")
+      .stringConf
+      .transform(_.toLowerCase(Locale.ROOT))
+      .checkValues(Set("throw", "halt"))
+      .createWithDefault("throw")
+
+  val NATIVE_STREAMING_SINK_TEST_FAIL_TASK_AFTER_WRITE_PARTITION_ID =
+    buildConf("spark.gluten.sql.streaming.native.sinks.test.failTaskAfterWrite.partitionId")
+      .internal()
+      .doc("Internal test target partition for post-write native streaming sink task failure.")
+      .intConf
+      .checkValue(_ >= 0, "The target partition id must be non-negative.")
+      .createWithDefault(0)
+
+  val NATIVE_STREAMING_SINK_TEST_FAIL_TASK_AFTER_COMMIT_ENABLED =
+    buildConf("spark.gluten.sql.streaming.native.sinks.test.failTaskAfterCommit.enabled")
+      .internal()
+      .doc(
+        "Internal test hook for native streaming sink executor-failure coverage. When true, " +
+          "Gluten fails a selected task after DataWriter.commit returns, before the task result " +
+          "is reported to the driver.")
+      .booleanConf
+      .createWithDefault(false)
+
+  val NATIVE_STREAMING_SINK_TEST_FAIL_TASK_AFTER_COMMIT_ACTION =
+    buildConf("spark.gluten.sql.streaming.native.sinks.test.failTaskAfterCommit.action")
+      .internal()
+      .doc(
+        "Internal test action for post-commit native streaming sink task failure coverage. Valid " +
+          "values are 'throw' for in-process tests and 'halt' for executor-process crash tests.")
+      .stringConf
+      .transform(_.toLowerCase(Locale.ROOT))
+      .checkValues(Set("throw", "halt"))
+      .createWithDefault("throw")
+
+  val NATIVE_STREAMING_SINK_TEST_FAIL_TASK_AFTER_COMMIT_PARTITION_ID =
+    buildConf("spark.gluten.sql.streaming.native.sinks.test.failTaskAfterCommit.partitionId")
+      .internal()
+      .doc("Internal test target partition for post-commit native streaming sink task failure.")
+      .intConf
+      .checkValue(_ >= 0, "The target partition id must be non-negative.")
+      .createWithDefault(0)
+
+  val NATIVE_STREAMING_SPARK_OUTPUT_ENABLED =
+    buildConf("spark.gluten.sql.streaming.native.sparkOutput.enabled")
+      .doc(
+        "Experimental gate that lets Spark-owned streaming sinks consume native stateless " +
+          "fragment output through Gluten's transition bridge. Spark still owns sink epoch, " +
+          "commit, abort, and checkpoint replay semantics.")
+      .experimental()
+      .booleanConf
+      .createWithDefault(false)
+
+  val NATIVE_STREAMING_STATE_STORE_ENABLED =
+    buildConf("spark.gluten.sql.streaming.native.stateStore.enabled")
+      .doc(
+        "Experimental gate for Gluten native StateStore research. Native state checkpoint " +
+          "formats are not compatible with Spark's built-in StateStore providers unless " +
+          "explicitly implemented and tested.")
+      .experimental()
+      .booleanConf
+      .createWithDefault(false)
+
+  val NATIVE_STREAMING_STATEFUL_DEDUPLICATE_ENABLED =
+    buildConf("spark.gluten.sql.streaming.native.stateful.deduplicate.enabled")
+      .doc(
+        "Developer-only gate for native Spark Structured Streaming deduplicate physical " +
+          "operator research. This is separate from the native StateStore provider gate; the " +
+          "native deduplicate state kernel exists, but Spark physical operator replacement must " +
+          "not be treated as production support until it is wired and tested end to end.")
+      .experimental()
+      .booleanConf
+      .createWithDefault(false)
+
+  val NATIVE_STREAMING_STATEFUL_AGGREGATION_ENABLED =
+    buildConf("spark.gluten.sql.streaming.native.stateful.aggregation.enabled")
+      .doc(
+        "Developer-only gate for native Spark Structured Streaming aggregation physical " +
+          "operator research. The initial scope is narrow count aggregation over Spark-planned " +
+          "micro-batches with native StateStore count mutation; other aggregate functions, " +
+          "watermark eviction, joins, and session windows remain unsupported.")
+      .experimental()
+      .booleanConf
+      .createWithDefault(false)
+
+  val NATIVE_STREAMING_STATEFUL_LONG_SUM_NULLABLE_VALUE_ENABLED =
+    buildConf("spark.gluten.sql.streaming.native.stateful.longSum.nullableValue.enabled")
+      .doc(
+        "Developer-only gate that lets the native streaming long-sum operator engage when the " +
+          "summed value column is nullable (for example a column read from a Parquet file source, " +
+          "which Spark marks nullable by default). The native long-sum path treats a null summed " +
+          "value as no contribution, matching Spark SUM semantics. Keep false unless the value " +
+          "column is known to be free of nulls, because the native columnar fast-path rejects " +
+          "actual null values at runtime.")
+      .experimental()
+      .booleanConf
+      .createWithDefault(false)
+
+  val NATIVE_STREAMING_STATEFUL_TYPED_PRIMITIVE_OUTPUT_ENABLED =
+    buildConf("spark.gluten.sql.streaming.native.stateful.typedPrimitiveOutput.enabled")
+      .doc(
+        "Developer-only gate that lets the native streaming long-sum / count operator return the " +
+          "changed Update-mode groups as a single primitive long[] (int64 key + int64 sum) instead " +
+          "of a per-key byte[][] of UnsafeRow blobs, for the narrow single-non-null-BIGINT-key + " +
+          "non-null-BIGINT-value shape. This removes the per-key JNI marshaling on the Update " +
+          "output hot path; the resident state map and Spark StateStore checkpoint bytes are " +
+          "unchanged. Off by default while under research.")
+      .experimental()
+      .booleanConf
+      .createWithDefault(false)
+
+  val NATIVE_STREAMING_SPARK_STATE_ENABLED =
+    buildConf("spark.gluten.sql.streaming.native.sparkState.enabled")
+      .doc(
+        "Experimental gate for native stateless fragments around Spark-owned streaming state " +
+          "operators. Spark still owns StateStore versions, checkpoint files, watermarks, and " +
+          "state operator commit/abort semantics.")
+      .experimental()
+      .booleanConf
+      .createWithDefault(false)
 
   val COLUMNAR_PREFER_STREAMING_AGGREGATE =
     buildConf("spark.gluten.sql.columnar.preferStreamingAggregate")

@@ -16,6 +16,7 @@
  */
 package org.apache.gluten.execution
 
+import org.apache.gluten.exception.GlutenNotSupportException
 import org.apache.gluten.substrait.SubstraitContext
 import org.apache.gluten.substrait.rel.{ReadRelNode, SplitInfo}
 import org.apache.gluten.substrait.rel.LocalFilesNode.ReadFileFormat
@@ -28,7 +29,7 @@ import org.apache.spark.sql.connector.read.{InputPartition, PartitionReaderFacto
 import org.apache.spark.sql.connector.read.streaming.{MicroBatchStream, Offset}
 import org.apache.spark.sql.execution.datasources.v2.MicroBatchScanExec
 import org.apache.spark.sql.kafka010.GlutenStreamKafkaSourceUtil
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types.{ArrayType, BinaryType, IntegerType, LongType, StringType, StructField, StructType, TimestampType}
 
 import java.util.Objects
 
@@ -62,7 +63,7 @@ case class MicroBatchScanExecTransformer(
   override lazy val readerFactory: PartitionReaderFactory = stream.createReaderFactory()
 
   @transient override lazy val inputPartitionsShim: Seq[InputPartition] =
-    stream.planInputPartitions(start, end)
+    GlutenStreamKafkaSourceUtil.planInputPartitions(stream, start, end)
 
   override def scanFilters: Seq[Expression] = Seq.empty
 
@@ -111,16 +112,38 @@ case class MicroBatchScanExecTransformer(
 }
 
 object MicroBatchScanExecTransformer {
+  private val KafkaScanClassName = "org.apache.spark.sql.kafka010.KafkaSourceProvider$KafkaScan"
+  private val KafkaOffsetLogHandoffScanClassName =
+    "org.apache.gluten.execution.kafka.GlutenKafkaOffsetLogHandoffScan"
+  val SparkKafkaReadSchema = StructType(
+    Seq(
+      StructField("key", BinaryType),
+      StructField("value", BinaryType),
+      StructField("topic", StringType),
+      StructField("partition", IntegerType),
+      StructField("offset", LongType),
+      StructField("timestamp", TimestampType),
+      StructField("timestampType", IntegerType),
+      StructField(
+        "headers",
+        ArrayType(
+          StructType(
+            Seq(
+              StructField("key", StringType),
+              StructField("value", BinaryType)))))
+    ))
+
   def apply(batch: MicroBatchScanExec): MicroBatchScanExecTransformer = {
     val output = batch.output
       .filter(_.isInstanceOf[AttributeReference])
       .map(_.asInstanceOf[AttributeReference])
       .toSeq
     if (output.size == batch.output.size) {
+      validateKafkaReadSchema(output)
       new MicroBatchScanExecTransformer(
         output,
         batch.scan,
-        batch.stream,
+        GlutenStreamKafkaSourceUtil.wrapKafkaMicroBatchStreamIfNeeded(batch.stream),
         batch.start,
         batch.end,
         null,
@@ -133,6 +156,51 @@ object MicroBatchScanExecTransformer {
   }
 
   def supportsBatchScan(scan: Scan): Boolean = {
-    scan.getClass.getName == "org.apache.spark.sql.kafka010.KafkaSourceProvider$KafkaScan"
+    val scanClassName = scan.getClass.getName
+    scanClassName == KafkaScanClassName ||
+    scanClassName == KafkaOffsetLogHandoffScanClassName
+  }
+
+  private[execution] def validateKafkaReadSchema(output: Seq[AttributeReference]): Unit = {
+    val expected = SparkKafkaReadSchema
+    val expectedByName = expected.fields.map(field => field.name -> field).toMap
+    val expectedNames = expected.fieldNames.toSeq
+    val names = output.map(_.name)
+    val duplicateNames = names.groupBy(identity).collect {
+      case (name, values) if values.size > 1 =>
+        name
+    }
+    if (duplicateNames.nonEmpty) {
+      throw new GlutenNotSupportException(
+        s"Native Kafka micro-batch scan requires unique Spark Kafka columns, got duplicates: " +
+          duplicateNames.toSeq.sorted.mkString(","))
+    }
+
+    output.foreach {
+      attribute =>
+        val expectedField = expectedByName.getOrElse(
+          attribute.name,
+          throw new GlutenNotSupportException(
+            s"Native Kafka micro-batch scan found unsupported column '${attribute.name}'. " +
+              s"Expected Spark Kafka columns: ${expectedNames.mkString(",")}")
+        )
+        validateKafkaField(attribute, expectedField)
+    }
+
+    val positions = names.map(expectedNames.indexOf)
+    if (positions != positions.sorted) {
+      throw new GlutenNotSupportException(
+        s"Native Kafka micro-batch scan requires Spark Kafka column order " +
+          s"${expectedNames.mkString(",")}, got ${names.mkString(",")}")
+    }
+  }
+
+  private def validateKafkaField(attribute: AttributeReference, expected: StructField): Unit = {
+    if (attribute.dataType != expected.dataType || attribute.nullable != expected.nullable) {
+      throw new GlutenNotSupportException(
+        s"Native Kafka micro-batch scan requires Spark Kafka column '${attribute.name}' to have " +
+          s"type ${expected.dataType.sql} nullable=${expected.nullable}, got " +
+          s"type ${attribute.dataType.sql} nullable=${attribute.nullable}")
+    }
   }
 }

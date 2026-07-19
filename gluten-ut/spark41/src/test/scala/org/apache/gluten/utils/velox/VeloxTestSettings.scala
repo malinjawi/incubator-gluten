@@ -1217,6 +1217,12 @@ class VeloxTestSettings extends BackendTestSettings {
     // TODO: fix on Spark-4.1 introduced by https://github.com/apache/spark/pull/52645
     .exclude("SPARK-53942: changing the number of stateless shuffle partitions via config")
     .exclude("SPARK-53942: stateful shuffle partitions are retained from old checkpoint")
+  enableSuite[GlutenStreamingPlanVisibilitySuite]
+  enableSuite[GlutenVeloxNativeStateStoreProviderSuite]
+  enableSuite[GlutenVeloxNativeStatefulStreamingSuite]
+  enableSuite[GlutenVeloxNativeStreamingShowcaseSuite]
+  enableSuite[GlutenVeloxNativeStreamingTpchBenchmarkSuite]
+  enableSuite[GlutenVeloxNativeStreamingTpchStatefulBenchmarkSuite]
   enableSuite[GlutenStreamRealTimeModeAllowlistSuite]
     // TODO: fix on Spark-4.1 see https://github.com/apache/spark/pull/52891
     .exclude("rtm operator allowlist")

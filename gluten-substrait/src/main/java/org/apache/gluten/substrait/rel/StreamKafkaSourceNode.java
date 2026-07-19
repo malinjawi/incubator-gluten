@@ -59,6 +59,11 @@ public class StreamKafkaSourceNode implements SplitInfo {
   }
 
   @Override
+  public Kind kind() {
+    return Kind.STREAM_KAFKA;
+  }
+
+  @Override
   public ReadRel.StreamKafka toProtobuf() {
     ReadRel.StreamKafka.Builder builder = ReadRel.StreamKafka.newBuilder();
 

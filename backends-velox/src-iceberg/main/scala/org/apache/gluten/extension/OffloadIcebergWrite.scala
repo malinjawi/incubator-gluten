@@ -80,8 +80,9 @@ object OffloadIcebergWrite {
           OffloadIcebergOverwritePartitionsDynamic(),
           OffloadIcebergWriteToDataSourceV2()
         )
+        val conf = new GlutenConfig(c.sqlConf)
         HeuristicTransform.Simple(
-          Validators.newValidator(new GlutenConfig(c.sqlConf), offload),
+          Validators.newValidator(conf, offload, c.caller.isStreaming()),
           offload
         )
     }

@@ -18,6 +18,7 @@
 #include "VeloxBackend.h"
 #include "VeloxPlanConverter.h"
 #include "VeloxRuntime.h"
+#include "compute/kafka/KafkaConnector.h"
 #include "config/VeloxConfig.h"
 #include "utils/ConfigExtractor.h"
 #include "velox/connectors/hive/HiveConfig.h"
@@ -69,6 +70,10 @@ const std::string kWriteIOTime = "writeIOWallNanos";
 
 // others
 const std::string kHiveDefaultPartition = "__HIVE_DEFAULT_PARTITION__";
+
+std::string kafkaConnectorId(const VeloxConnectorIds& connectorIds) {
+  return connectorIds.kafka.empty() ? kafka::KafkaConnector::kKafkaConnectorName : connectorIds.kafka;
+}
 
 } // namespace
 
@@ -135,6 +140,14 @@ WholeStageResultIterator::WholeStageResultIterator(
   }
 
   for (const auto& scanInfo : scanInfos) {
+    if (auto kafkaSplitInfo = std::dynamic_pointer_cast<KafkaSplitInfo>(scanInfo)) {
+      std::vector<velox::exec::Split> scanSplits;
+      scanSplits.emplace_back(velox::exec::Split(
+          std::make_shared<kafka::KafkaConnectorSplit>(kafkaConnectorId(connectorIds_), *kafkaSplitInfo), -1));
+      splits_.emplace_back(std::move(scanSplits));
+      continue;
+    }
+
     // Get the information for TableScan.
     // Partition index in scan info is not used.
     const auto& paths = scanInfo->paths;
@@ -221,6 +234,8 @@ std::shared_ptr<velox::core::QueryCtx> WholeStageResultIterator::createNewVeloxQ
   connectorConfigs[connectorIds_.hive] = hiveSessionConfig;
   connectorConfigs[connectorIds_.delta] = hiveSessionConfig;
   connectorConfigs[connectorIds_.iterator] = hiveSessionConfig;
+  connectorConfigs[kafkaConnectorId(connectorIds_)] = hiveSessionConfig;
+  connectorConfigs[kIteratorConnectorId] = hiveSessionConfig;
 #ifdef GLUTEN_ENABLE_GPU
   if (!connectorIds_.cudfHive.empty()) {
     connectorConfigs[connectorIds_.cudfHive] = hiveSessionConfig;

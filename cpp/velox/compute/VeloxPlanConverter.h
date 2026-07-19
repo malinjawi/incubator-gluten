@@ -21,6 +21,7 @@
 #include <velox/core/PlanNode.h>
 #include <velox/exec/Split.h>
 
+#include "compute/SubstraitSplit.h"
 #include "compute/VeloxConnectorIds.h"
 #include "substrait/SubstraitToVeloxPlan.h"
 #include "substrait/plan.pb.h"
@@ -42,6 +43,10 @@ class VeloxPlanConverter {
   std::shared_ptr<const facebook::velox::core::PlanNode> toVeloxPlan(
       const ::substrait::Plan& substraitPlan,
       std::vector<::substrait::ReadRel_LocalFiles> localFiles);
+
+  std::shared_ptr<const facebook::velox::core::PlanNode> toVeloxPlan(
+      const ::substrait::Plan& substraitPlan,
+      std::vector<SubstraitSplit> splitPayloads);
 
   const std::unordered_map<facebook::velox::core::PlanNodeId, std::shared_ptr<SplitInfo>>& splitInfos() {
     return substraitVeloxPlanConverter_.splitInfos();

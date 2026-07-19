@@ -29,6 +29,8 @@ import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import org.apache.iceberg._
 import org.apache.iceberg.spark.source.IcebergWriteUtil
 
+import scala.util.control.NonFatal
+
 case class IcebergColumnarBatchDataWriter(
     writer: Long,
     jniWrapper: IcebergWriteJniWrapper,
@@ -42,8 +44,11 @@ case class IcebergColumnarBatchDataWriter(
     val mapper = new ObjectMapper()
     mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
   }
+  private var nativeCompleted = false
+  private var closed = false
 
   override def write(batch: ColumnarBatch): Unit = {
+    requireActive("write")
     // Pass the original batch to native code
     // The native code will use the schema (writeSchema) we provided during initialization
     // to determine which columns to write, effectively filtering out metadata columns
@@ -53,16 +58,45 @@ case class IcebergColumnarBatchDataWriter(
   }
 
   override def commit: WriterCommitMessage = {
-    val dataFiles = jniWrapper.commit(writer).map(d => parseDataFile(d, partitionSpec, sortOrder))
-    IcebergWriteUtil.commitDataFiles(dataFiles)
+    requireActive("commit")
+    val nativeCommitMessages = jniWrapper.commit(writer)
+    try {
+      val dataFiles = nativeCommitMessages.map(d => parseDataFile(d, partitionSpec, sortOrder))
+      val commitMessage = IcebergWriteUtil.commitDataFiles(dataFiles)
+      nativeCompleted = true
+      commitMessage
+    } catch {
+      case NonFatal(e) =>
+        cleanupCommittedFiles(e)
+        nativeCompleted = true
+        throw e
+    }
   }
 
   override def abort(): Unit = {
-    logInfo("Abort the ColumnarBatchDataWriter")
+    if (!closed && !nativeCompleted) {
+      logInfo("Abort the ColumnarBatchDataWriter")
+      jniWrapper.abort(writer)
+      nativeCompleted = true
+    }
   }
 
   override def close(): Unit = {
-    logDebug("Close the ColumnarBatchDataWriter")
+    if (!closed) {
+      logDebug("Close the ColumnarBatchDataWriter")
+      jniWrapper.close(writer)
+      closed = true
+    }
+  }
+
+  private def cleanupCommittedFiles(commitFailure: Throwable): Unit = {
+    try {
+      logWarning("Cleaning up native Iceberg files after commit message construction failed")
+      jniWrapper.cleanupCommittedFiles(writer)
+    } catch {
+      case NonFatal(cleanupFailure) =>
+        commitFailure.addSuppressed(cleanupFailure)
+    }
   }
 
   private def parseDataFile(json: String, spec: PartitionSpec, sortOrder: SortOrder): DataFile = {
@@ -88,6 +122,20 @@ case class IcebergColumnarBatchDataWriter(
   }
 
   override def currentMetricsValues(): Array[CustomTaskMetric] = {
+    requireOpen("read metrics")
     jniWrapper.metrics(writer).toCustomTaskMetrics
+  }
+
+  private def requireOpen(action: String): Unit = {
+    if (closed) {
+      throw new IllegalStateException(s"Cannot $action after native Iceberg writer is closed")
+    }
+  }
+
+  private def requireActive(action: String): Unit = {
+    requireOpen(action)
+    if (nativeCompleted) {
+      throw new IllegalStateException(s"Cannot $action after native Iceberg writer is completed")
+    }
   }
 }

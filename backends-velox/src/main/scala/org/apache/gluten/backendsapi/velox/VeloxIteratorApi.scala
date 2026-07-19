@@ -203,7 +203,7 @@ class VeloxIteratorApi extends IteratorApi with Logging {
     val splitInfoByteArray = inputPartition
       .asInstanceOf[GlutenPartition]
       .splitInfos
-      .map(splitInfo => splitInfo.toProtobuf.toByteArray)
+      .map(VeloxIteratorApi.encodeSplitInfo)
       .toArray
     val spillDirPath = SparkDirectoryUtil
       .get()
@@ -290,6 +290,19 @@ class VeloxIteratorApi extends IteratorApi with Logging {
 }
 
 object VeloxIteratorApi {
+  private val SplitEnvelopeMagic = Array[Byte]('G'.toByte, 'L'.toByte, 'S'.toByte, 'P'.toByte)
+  private val SplitEnvelopeVersion: Byte = 1
+
+  def encodeSplitInfo(splitInfo: SplitInfo): Array[Byte] = {
+    val payload = splitInfo.toProtobuf.toByteArray
+    val encoded = new Array[Byte](SplitEnvelopeMagic.length + 2 + payload.length)
+    System.arraycopy(SplitEnvelopeMagic, 0, encoded, 0, SplitEnvelopeMagic.length)
+    encoded(SplitEnvelopeMagic.length) = SplitEnvelopeVersion
+    encoded(SplitEnvelopeMagic.length + 1) = splitInfo.kind().id()
+    System.arraycopy(payload, 0, encoded, SplitEnvelopeMagic.length + 2, payload.length)
+    encoded
+  }
+
   // lookup table to translate '0' -> 0 ... 'F'/'f' -> 15
   private val unhexDigits = {
     val array = Array.fill[Byte](128)(-1)

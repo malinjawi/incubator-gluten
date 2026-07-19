@@ -22,7 +22,7 @@ import org.apache.gluten.extension._
 import org.apache.gluten.extension.columnar._
 import org.apache.gluten.extension.columnar.MiscColumnarRules.{PreventBatchTypeMismatchInTableCache, RemoveGlutenTableCacheColumnarToRow, RemoveTopmostColumnarToRow, RewriteSubqueryBroadcast}
 import org.apache.gluten.extension.columnar.V2WritePostRule
-import org.apache.gluten.extension.columnar.heuristic.{ExpandFallbackPolicy, HeuristicTransform}
+import org.apache.gluten.extension.columnar.heuristic.{ExpandFallbackPolicy, HeuristicTransform, StreamingQueryFallbackPolicy}
 import org.apache.gluten.extension.columnar.offload.{OffloadExchange, OffloadJoin, OffloadOthers}
 import org.apache.gluten.extension.columnar.rewrite._
 import org.apache.gluten.extension.columnar.transition.{InsertTransitions, RemoveTransitions}
@@ -32,8 +32,10 @@ import org.apache.gluten.extension.injector.GlutenInjector.LegacyInjector
 import org.apache.gluten.extension.joinagg.{ImplementJoinAggregate, PushAggregateThroughJoinBatch}
 import org.apache.gluten.sql.shims.SparkShimLoader
 
+import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution._
 import org.apache.spark.sql.execution.datasources.noop.GlutenNoopWriterRule
+import org.apache.spark.util.SparkReflectionUtil
 
 class VeloxRuleApi extends RuleApi {
   import VeloxRuleApi._
@@ -45,6 +47,13 @@ class VeloxRuleApi extends RuleApi {
 }
 
 object VeloxRuleApi {
+  private val VeloxNativeStreamingStatefulOperatorRuleClassName =
+    "org.apache.spark.sql.execution.streaming.operators.stateful." +
+      "VeloxNativeStreamingStatefulOperatorRule"
+
+  private object NoopSparkPlanRule extends Rule[SparkPlan] {
+    override def apply(plan: SparkPlan): SparkPlan = plan
+  }
 
   /**
    * Registers Spark rules or extensions, except for Gluten's columnar rules that are supposed to be
@@ -59,6 +68,7 @@ object VeloxRuleApi {
     injector.injectOptimizerRule(RewriteUnboundedWindow.apply)
     injector.injectOptimizerRule(PushAggregateThroughJoinBatch.apply)
     injector.injectPlannerStrategy(ImplementJoinAggregate.apply)
+    injector.injectQueryStagePrepRule(_ => veloxNativeStreamingStatefulOperatorRule())
 
     if (!BackendsApiManager.getSettings.enableJoinKeysRewrite()) {
       injector.injectPlannerStrategy(_ => org.apache.gluten.extension.GlutenJoinKeysCapture())
@@ -87,11 +97,12 @@ object VeloxRuleApi {
           c.session,
           c.caller.isBloomFilterStatFunction()))
     injector.injectPreTransform(_ => EliminateRedundantGetTimestamp)
+    injector.injectPreTransform(_ => veloxNativeStreamingStatefulOperatorRule())
 
     // Legacy: The legacy transform rule.
     val offloads = Seq(OffloadOthers(), OffloadExchange(), OffloadJoin()).map(_.toStrcitRule())
-    val validatorBuilder: GlutenConfig => Validator = conf =>
-      Validators.newValidator(conf, offloads)
+    val validatorBuilder: (GlutenConfig, Boolean) => Validator = (conf, isStreaming) =>
+      Validators.newValidator(conf, offloads, isStreaming)
     val rewrites =
       Seq(
         RewriteIn,
@@ -103,7 +114,7 @@ object VeloxRuleApi {
     injector.injectTransform(
       c =>
         HeuristicTransform.WithRewrites(
-          validatorBuilder(new GlutenConfig(c.sqlConf)),
+          validatorBuilder(new GlutenConfig(c.sqlConf), c.caller.isStreaming()),
           rewrites,
           offloads))
 
@@ -122,9 +133,17 @@ object VeloxRuleApi {
     injector.injectPostTransform(_ => CollectLimitTransformerRule())
     injector.injectPostTransform(_ => CollectTailTransformerRule())
     injector.injectPostTransform(_ => V2WritePostRule())
+    injector.injectPostTransform(_ => veloxNativeStreamingStatefulOperatorRule())
     injector.injectPostTransform(c => InsertTransitions.create(c.outputsColumnar, VeloxBatchType))
 
     // Gluten columnar: Fallback policies.
+    injector.injectFallbackPolicy(
+      c =>
+        p =>
+          StreamingQueryFallbackPolicy(
+            c.caller.isStreaming(),
+            new GlutenConfig(c.sqlConf),
+            p))
     injector.injectFallbackPolicy(c => p => ExpandFallbackPolicy(c.caller.isAqe(), p))
 
     // Gluten columnar: Post rules.
@@ -144,7 +163,20 @@ object VeloxRuleApi {
       c => PreventBatchTypeMismatchInTableCache(c.caller.isCache(), Set(VeloxBatchType)))
     injector.injectFinal(
       c => GlutenAutoAdjustStageResourceProfile(new GlutenConfig(c.sqlConf), c.session))
+    injector.injectFinal(_ => veloxNativeStreamingStatefulOperatorRule())
     injector.injectFinal(c => GlutenFallbackReporter(new GlutenConfig(c.sqlConf), c.session))
     injector.injectFinal(_ => RemoveFallbackTagRule())
+  }
+
+  private def veloxNativeStreamingStatefulOperatorRule(): Rule[SparkPlan] = {
+    if (!SparkReflectionUtil.isClassPresent(VeloxNativeStreamingStatefulOperatorRuleClassName)) {
+      NoopSparkPlanRule
+    } else {
+      Class
+        .forName(VeloxNativeStreamingStatefulOperatorRuleClassName)
+        .getDeclaredConstructor()
+        .newInstance()
+        .asInstanceOf[Rule[SparkPlan]]
+    }
   }
 }

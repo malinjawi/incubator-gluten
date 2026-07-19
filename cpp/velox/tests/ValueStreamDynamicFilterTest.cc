@@ -19,6 +19,9 @@
 
 #include "memory/VeloxColumnarBatch.h"
 #include "operators/plannodes/RowVectorStream.h"
+#include "operators/functions/RegistrationAllFunctions.h"
+#include "velox/exec/tests/utils/PlanBuilder.h"
+#include "velox/parse/TypeResolver.h"
 #include "velox/type/Filter.h"
 #include "velox/vector/DecodedVector.h"
 #include "velox/vector/FlatVector.h"
@@ -51,6 +54,8 @@ class ValueStreamDynamicFilterTest : public ::testing::Test, public VectorTestBa
  protected:
   static void SetUpTestCase() {
     memory::MemoryManager::testingSetInstance(memory::MemoryManager::Options{});
+    gluten::registerAllFunctions();
+    parse::registerTypeResolver();
   }
 
   void SetUp() override {
@@ -114,6 +119,59 @@ TEST_F(ValueStreamDynamicFilterTest, noFilterPassesAllRows) {
 
   auto ids = readAllInt64(task.get());
   ASSERT_EQ(ids, (std::vector<int64_t>{10, 20, 30}));
+}
+
+TEST_F(ValueStreamDynamicFilterTest, skipsEmptyBatchesWithinSplit) {
+  auto empty = makeRowVector({"id"}, {makeFlatVector<int64_t>(std::vector<int64_t>{})});
+  auto batch = makeRowVector({"id"}, {makeFlatVector<int64_t>({40, 50})});
+  auto outputType = asRowType(batch->type());
+  auto scanNode = makeTableScanNode("vs-empty", outputType);
+
+  auto queryCtx = core::QueryCtx::create();
+  auto task =
+      Task::create("test-empty-batches", core::PlanFragment{scanNode}, 0, queryCtx, Task::ExecutionMode::kSerial);
+
+  task->addSplit(scanNode->id(), Split{makeSplit({empty, batch, empty})});
+  task->noMoreSplits(scanNode->id());
+
+  auto ids = readAllInt64(task.get());
+  ASSERT_EQ(ids, (std::vector<int64_t>{40, 50}));
+}
+
+TEST_F(ValueStreamDynamicFilterTest, emptySplitProducesNoRows) {
+  auto outputType = ROW({"id"}, {BIGINT()});
+  auto scanNode = makeTableScanNode("vs-empty-split", outputType);
+
+  auto queryCtx = core::QueryCtx::create();
+  auto task =
+      Task::create("test-empty-split", core::PlanFragment{scanNode}, 0, queryCtx, Task::ExecutionMode::kSerial);
+
+  task->addSplit(scanNode->id(), Split{makeSplit({})});
+  task->noMoreSplits(scanNode->id());
+
+  auto ids = readAllInt64(task.get());
+  ASSERT_TRUE(ids.empty());
+}
+
+TEST_F(ValueStreamDynamicFilterTest, filterProjectOverValueStream) {
+  auto batch = makeRowVector({"id"}, {makeFlatVector<int64_t>({1, 2, 3})});
+  auto outputType = asRowType(batch->type());
+  auto scanNode = makeTableScanNode("vs-filter-project", outputType);
+  auto planNodeIdGenerator = std::make_shared<core::PlanNodeIdGenerator>();
+  auto planNode = exec::test::PlanBuilder(scanNode, planNodeIdGenerator, pool_.get())
+                      .filter("greaterthan(id, 1)")
+                      .project({"add(id, 1)"})
+                      .planNode();
+
+  auto queryCtx = core::QueryCtx::create();
+  auto task =
+      Task::create("test-filter-project", core::PlanFragment{planNode}, 0, queryCtx, Task::ExecutionMode::kSerial);
+
+  task->addSplit(scanNode->id(), Split{makeSplit({batch})});
+  task->noMoreSplits(scanNode->id());
+
+  auto ids = readAllInt64(task.get());
+  ASSERT_EQ(ids, (std::vector<int64_t>{3, 4}));
 }
 
 // Test that filtering works when filter is injected after first batch.
