@@ -47,6 +47,7 @@
 #include "memory/GlutenBufferedInputBuilder.h"
 #include "operators/functions/SparkExprToSubfieldFilterParser.h"
 #include "operators/plannodes/RowVectorStream.h"
+#include "operators/rollup/MultiGroupingSetAggregation.h"
 #include "shuffle/ArrowShuffleDictionaryWriter.h"
 #include "udf/UdfLoader.h"
 #include "utils/Exception.h"
@@ -62,7 +63,6 @@
 #include "velox/dwio/orc/reader/OrcReader.h"
 #include "velox/dwio/parquet/RegisterParquetReader.h"
 #include "velox/dwio/parquet/RegisterParquetWriter.h"
-#include "velox/exec/MultiGroupingSetAggregation.h"
 #include "velox/serializers/PrestoSerializer.h"
 
 DECLARE_bool(velox_exception_user_stacktrace_enabled);

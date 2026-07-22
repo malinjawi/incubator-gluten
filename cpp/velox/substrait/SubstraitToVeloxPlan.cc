@@ -22,8 +22,8 @@
 #include "jni/JniHashTable.h"
 #include "operators/hashjoin/HashTableBuilder.h"
 #include "operators/plannodes/RowVectorStream.h"
+#include "operators/rollup/GroupingSetAggregationNode.h"
 #include "velox/connectors/hive/HiveDataSink.h"
-#include "velox/exec/GroupingSetAggregationNode.h"
 #include "velox/exec/TableWriter.h"
 #include "velox/type/Type.h"
 

@@ -35,9 +35,9 @@ review-only (source read, correct by inspection, not executed in a running binar
 
 | # | Component | Path | State | Evidence / note |
 |---|---|---|---|---|
-| C1 | Velox operator — correctness | `velox/exec/MultiGroupingSetAggregation.cpp` | **[LV]** | 38/44 unit tests pass. `decimalSum` (q67's `spark_sum(decimal(7,2))→(sum,isEmpty)`), `avgDouble`, `avgDecimal` are differential-vs-reference and PASS. The 6 "failures" are all the *reference* Expand+kIntermediate comparison plan segfaulting/asserting — the fused side alone passes every one (forcedFlush 19819 rows, noMoreInputDuringDrain 60054, forcedAbandon 9951, zzBenchQ67Profile 1289371, aggregateVariableWidthUnderFlush 7811). **No fused-operator failure exists; no regression.** |
-| C2 | Operator — reclaim / arbitration safety | `MultiGroupingSetAggregation.cpp` (reclaim @900, reclaimableBytes @871) | **[LV]** | `canReclaim()==true`. `reclaim()` is Phase-1-only: frees retained-but-EMPTY tables via `resetTable(freeTable=true)`, zero allocations by construction so `reclaimedBytes ≥ 0`. Phase-2 drain removed. All 3 arbitration tests pass (`reclaimFixedWidth`, `reclaimStructIntermediate`, `reclaimVariableWidthExternalMemory`) — real `opPool->reclaim()` through `ScopedReclaimedBytesRecorder`+`VELOX_CHECK_GE`, no CHECK trip. |
-| C3 | Velox node — plan node | `velox/exec/GroupingSetAggregationNode.h` (serde @302/329) | **[LV]** (node) / **[RO]** (registerSerDe) | `planNodeSerdeRoundTrip` PASSES across rollup / no-bypass / CUBE shapes. Caveat: full `PlanNode::registerSerDe()` trips a folly F14 hardened-rehash assert **in the hand-linked test binary** — a link artifact, not a node defect. Confirm under the cluster's normal link. |
+| C1 | Gluten-local operator — correctness | `cpp/velox/operators/rollup/MultiGroupingSetAggregation.cc` | **[LV]** | 38/44 unit tests pass (identical before and after the relocation into Gluten's tree). `decimalSum` (q67's `spark_sum(decimal(7,2))→(sum,isEmpty)`), `avgDouble`, `avgDecimal` are differential-vs-reference and PASS. The 6 "failures" are all the *reference* Expand+kIntermediate comparison plan segfaulting/asserting — the fused side alone passes every one (forcedFlush 19819 rows, noMoreInputDuringDrain 60054, forcedAbandon 9951, zzBenchQ67Profile 1289371, aggregateVariableWidthUnderFlush 7811). **No fused-operator failure exists; no regression.** |
+| C2 | Operator — reclaim / arbitration safety | `cpp/velox/operators/rollup/MultiGroupingSetAggregation.cc` (reclaim @900, reclaimableBytes @871) | **[LV]** | `canReclaim()==true`. `reclaim()` is Phase-1-only: frees retained-but-EMPTY tables via `resetTable(freeTable=true)`, zero allocations by construction so `reclaimedBytes ≥ 0`. Phase-2 drain removed. All 3 arbitration tests pass (`reclaimFixedWidth`, `reclaimStructIntermediate`, `reclaimVariableWidthExternalMemory`) — real `opPool->reclaim()` through `ScopedReclaimedBytesRecorder`+`VELOX_CHECK_GE`, no CHECK trip. |
+| C3 | Gluten-local node — plan node | `cpp/velox/operators/rollup/GroupingSetAggregationNode.h` (serde @302/329) | **[LV]** (node) / **[RO]** (registerSerDe) | `planNodeSerdeRoundTrip` PASSES across rollup / no-bypass / CUBE shapes. Caveat: full `PlanNode::registerSerDe()` trips a folly F14 hardened-rehash assert **in the hand-linked test binary** — a link artifact, not a node defect. Confirm under the cluster's normal link. |
 | C4 | HashAggregation needsInput fix | `velox/exec/HashAggregation.h:51` | **[LV]** | `&& input_ == nullptr` prevents silently overwriting an undrained buffered batch → dropped rows. Real correctness fix. **Standalone — blast radius is EVERY aggregation** (see §6). |
 | C5 | Gluten Scala rule — lazy expand + fusible guard | `backends-velox/.../extension/LazyAggregateExpandRule.scala:279` | **[LV]** (compiles, formats) / **[RO]** (routing) | `test-compile` BUILD SUCCESS; `spotless:check` clean. The `singleColumnBuffers` guard (`aggBufferAttributes.length == 1`) is the **B1** gate: it keeps q67's decimal-sum off the fused path end-to-end. |
 | C6 | Gluten C++ — Substrait→Velox fused conversion | `cpp/velox/substrait/SubstraitToVeloxPlan.cc` (`toGroupingSetAggregation`) | **[UT]** | Cannot compile Gluten C++ on macOS. Correct by review; must be exercised on the cluster. |
@@ -81,9 +81,11 @@ The two open gates (B1 end-to-end, B2 fallback) both need the cluster's Gluten-C
   The Scala rule + `ExpandExecTransformer` tagging + the non-fused partial-merge path.
   Safe, needs no new native operator. This is the fallback substrate PR3 degrades onto.
 - **PR3 — Fused operator (`fusedGroupingSetAggregate`).**
-  The Velox `MultiGroupingSetAggregation` node/operator + serde + the
+  The Gluten-local `MultiGroupingSetAggregation` node/operator + serde (now living in
+  `cpp/velox/operators/rollup/`, compiled into Gluten's `libvelox`) + the
   `SubstraitToVeloxPlan.cc` fused conversion and B2 fallback net. Depends on PR2's tagging
-  and PR1 being present. Ships default-off.
+  and PR1 being present. Ships default-off. **No Velox fork needed for the operator** — it
+  is a Gluten-local custom operator (same pattern as the existing cudf operator).
 
 > Do not bundle PR1 into PR3. Its blast radius is disjoint and much larger; bundling makes
 > both harder to review and to roll back.
@@ -92,19 +94,27 @@ The two open gates (B1 end-to-end, B2 fallback) both need the cluster's Gluten-C
 
 Carry exactly these, as patches over the cluster's pinned Gluten + pinned Velox:
 
-1. **Velox side (into pinned Velox):**
-   - `velox/exec/MultiGroupingSetAggregation.cpp` / `.h` (new operator)
-   - `velox/exec/GroupingSetAggregationNode.h` (new node + serde)
-   - `velox/exec/HashAggregation.h` (the one-line needsInput fix)
-   - operator registration wiring (see §3)
-   - (optional, for local re-verification) `velox/exec/tests/MultiGroupingSetAggregationTest.cpp`
+1. **Velox side (into pinned Velox) — ONE patch only:**
+   - `docs/design/velox-patches/0001-hashagg-needsinput-fix.patch`
+     (`velox/exec/HashAggregation.{cpp,h}` — the one-line needsInput fix). This is the
+     **only** file that must be patched into Velox. The operator no longer travels as a
+     Velox patch (retired `0002`).
 2. **Gluten side (working tree already contains these):**
+   - `cpp/velox/operators/rollup/GroupingSetLattice.h`
+   - `cpp/velox/operators/rollup/GroupingSetAggregationNode.h` (node + serde)
+   - `cpp/velox/operators/rollup/MultiGroupingSetAggregation.h` / `.cc` (operator)
+   - `cpp/velox/CMakeLists.txt` (adds the operator `.cc` to `VELOX_SRCS`)
+   - `cpp/velox/tests/MultiGroupingSetAggregationTest.cc` + `cpp/velox/tests/CMakeLists.txt`
+     (operator unit test, `add_velox_test(velox_rollup_aggregation_test ...)`)
    - `backends-velox/.../extension/LazyAggregateExpandRule.scala`
    - `backends-clickhouse/.../extension/LazyAggregateExpandRule.scala` (kept in sync)
    - `backends-velox/.../config/VeloxConfig.scala` (the two flags)
    - `gluten-substrait/.../execution/ExpandExecTransformer.scala`
-   - `cpp/velox/substrait/SubstraitToVeloxPlan.cc` / `.h`
-   - `cpp/velox/compute/VeloxBackend.cc`
+   - `cpp/velox/substrait/SubstraitToVeloxPlan.cc` / `.h` (includes the new
+     `operators/rollup/GroupingSetAggregationNode.h`)
+   - `cpp/velox/compute/VeloxBackend.cc` (includes the new
+     `operators/rollup/MultiGroupingSetAggregation.h`; calls
+     `registerMultiGroupingSetAggregation()`)
 
 **Do NOT carry:** the `docs/design/` artifacts, the `FusedGroupingSetAggregateSuite.scala`
 scaffolding beyond what you run, or the retracted 3x perf headline. Note
@@ -118,45 +128,44 @@ do not invent a change there.
 The Mac could not build Gluten C++; on Linux it does. The macOS traps below **will not
 occur** on the cluster and are listed only so you don't re-debug them.
 
-### 3.1 Carry the operator into Gluten's pinned Velox
+### 3.1 The operator is Gluten-local — only patch 0001 touches Velox
 
-Gluten builds against a **pinned** Velox commit (a submodule / fetched tarball, not
-upstream HEAD). Choose one:
+The operator now lives **inside the Gluten tree** (`cpp/velox/operators/rollup/`), compiled
+into Gluten's own `libvelox` via `cpp/velox/CMakeLists.txt` — exactly like the existing
+cudf custom operator (`cpp/velox/operators/plannodes/CudfVectorStream.*`). It keeps
+namespace `facebook::velox::exec`, so the node type and the
+`registerMultiGroupingSetAggregation()` call site stay valid without any Velox change.
 
-- **Preferred for a trial — patch the pinned tree.** Apply the Velox-side files from §2 as
-  a patch on top of the exact pinned commit Gluten uses. Keep the patch under version
-  control next to the trial config so it is reproducible.
-- **Submodule branch.** If the cluster's Gluten consumes Velox as a git submodule, create a
-  branch off the pinned commit, commit the operator there, and point the submodule at it.
-  Do **not** bump the pin to upstream HEAD — that pulls in unrelated churn and voids the
-  local verification.
-
-Confirm the pin first:
+The **only** file that must be applied to Gluten's pinned Velox is the needsInput fix:
 
 ```bash
-# from the Gluten checkout
-git -C ep/build-velox/build/velox_ep rev-parse HEAD   # or the submodule path your build uses
-grep -rn "VELOX_.*SHA\|velox.*commit\|GITHUB_SHA" ep/build-velox/ | head
+# from the Gluten checkout, over the pinned Velox tree (submodule / fetched tarball)
+git -C ep/build-velox/build/velox_ep rev-parse HEAD   # confirm the pin first
+git -C ep/build-velox/build/velox_ep apply \
+  /path/to/gluten/docs/design/velox-patches/0001-hashagg-needsinput-fix.patch
 ```
 
-Verify the four Velox files land at the pinned commit and that
-`MultiGroupingSetAggregation.cpp` is in the `velox_exec` build target's source list (add it
-if the pinned tree's `CMakeLists.txt` doesn't already reference it).
+Do **not** bump the pin to upstream HEAD — that pulls in unrelated churn and voids the
+local verification. There is no operator patch to apply: `0002` has been retired (see
+`docs/design/velox-patches/README.md`).
 
 ### 3.2 Register the operator
 
-The operator must be registered so the planner can instantiate it. Confirm the
-registration call is present and reached during backend init:
+Registration is Gluten-local. `cpp/velox/compute/VeloxBackend.cc` calls
+`velox::exec::registerMultiGroupingSetAggregation()` during backend init (it includes
+`operators/rollup/MultiGroupingSetAggregation.h`). Confirm both the include and the call
+resolve after the relocation:
 
 ```bash
 grep -rn "MultiGroupingSetAggregation\|GroupingSetAggregation" \
-  cpp/velox/compute/VeloxBackend.cc velox/exec/
+  cpp/velox/compute/VeloxBackend.cc \
+  cpp/velox/substrait/SubstraitToVeloxPlan.cc \
+  cpp/velox/operators/rollup/
 ```
 
-`cpp/velox/compute/VeloxBackend.cc` is modified in the working tree — that is where Gluten
-wires backend-side registration. Ensure the operator's `registerSerDe()` (node C3) and any
-`Operator::registerOperator`/translator hook run inside Gluten's backend init, not only in
-the Velox test main.
+Ensure the operator's `registerSerDe()` (node C3) and the
+`registerMultiGroupingSetAggregation()` translator/serde hook run inside Gluten's backend
+init, not only in the operator test main.
 
 ### 3.3 Build Gluten native
 
@@ -215,7 +224,8 @@ Common session flags for "flag-ON":
 
 ### g1 — Unit + correctness suites green
 ```bash
-# Velox operator unit tests, each in its own process (matches local method)
+# Operator unit tests (Gluten target velox_rollup_aggregation_test), each in its
+# own process (matches local method). gtest_discover_tests exposes them by gtest name.
 ctest -R MultiGroupingSetAggregation --output-on-failure
 # Gluten Scala rule + transformer
 mvn test -Pbackends-velox -pl backends-velox \
@@ -417,11 +427,16 @@ requires closing all of these:
 
 ## APPENDIX — key paths
 
-Velox (into pinned Velox on the cluster):
-- `velox/exec/MultiGroupingSetAggregation.cpp` — operator (reclaim @900, reclaimableBytes @871)
-- `velox/exec/GroupingSetAggregationNode.h` — node + serde (@302/329)
-- `velox/exec/HashAggregation.h:51` — needsInput fix (PR1, standalone)
-- `velox/exec/tests/MultiGroupingSetAggregationTest.cpp` — unit tests (env hooks live here only)
+Gluten-local operator (`cpp/velox/operators/rollup/`, compiled into Gluten `libvelox`):
+- `cpp/velox/operators/rollup/MultiGroupingSetAggregation.cc` — operator (reclaim @900, reclaimableBytes @871)
+- `cpp/velox/operators/rollup/MultiGroupingSetAggregation.h`
+- `cpp/velox/operators/rollup/GroupingSetAggregationNode.h` — node + serde (@302/329)
+- `cpp/velox/operators/rollup/GroupingSetLattice.h`
+- `cpp/velox/tests/MultiGroupingSetAggregationTest.cc` — unit tests (env hooks live here only)
+
+Velox patch (into pinned Velox on the cluster) — the ONLY Velox change:
+- `docs/design/velox-patches/0001-hashagg-needsinput-fix.patch` — `velox/exec/HashAggregation.{cpp,h}` needsInput fix (PR1, standalone)
+- (retired) `0002-fused-grouping-set-operator.patch` — operator is now Gluten-local; see `velox-patches/README.md`
 
 Gluten (this working tree):
 - `backends-velox/.../extension/LazyAggregateExpandRule.scala:279` — B1 `singleColumnBuffers` guard

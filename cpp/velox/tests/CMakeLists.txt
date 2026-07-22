@@ -134,6 +134,11 @@ add_velox_test(
   VeloxToSubstraitTypeTest.cc)
 add_velox_test(spark_functions_test SOURCES SparkFunctionTest.cc
                FunctionTest.cc)
+# Fused grouping-set (rollup) operator test. The operator itself is compiled into
+# libvelox (Gluten) from operators/rollup/MultiGroupingSetAggregation.cc; this test
+# exercises it through the public GroupingSetAggregationNode via PlanBuilder::addNode.
+add_velox_test(velox_rollup_aggregation_test SOURCES
+               MultiGroupingSetAggregationTest.cc)
 add_velox_test(runtime_test SOURCES RuntimeTest.cc)
 add_velox_test(velox_memory_test SOURCES MemoryManagerTest.cc)
 add_velox_test(buffer_outputstream_test SOURCES BufferOutputStreamTest.cc)

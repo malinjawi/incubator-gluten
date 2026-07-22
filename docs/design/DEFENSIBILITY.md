@@ -26,11 +26,16 @@ branch: when the shape qualifies, the rewrite instead emits a marker on the Expa
 deleting the Expand and the merge stage entirely. The fused branch is off by default and
 is *not* ready.
 
-**Changeset B (Velox, upstream).** A new plan node `GroupingSetAggregationNode` and
-operator `MultiGroupingSetAggregation` that computes every grouping set in one pass, with
-a derivation lattice: each grouping set is aggregated from the smallest already-aggregated
-superset rather than from raw input, so `{a}` is derived from `{a,b}` instead of re-probing
-the raw stream. Also in Changeset B, and separable from it, is a two-line correctness fix
+**Changeset B (Gluten-local custom operator + one Velox patch).** A new plan node
+`GroupingSetAggregationNode` and operator `MultiGroupingSetAggregation` that computes every
+grouping set in one pass, with a derivation lattice: each grouping set is aggregated from
+the smallest already-aggregated superset rather than from raw input, so `{a}` is derived
+from `{a,b}` instead of re-probing the raw stream. **The operator now lives inside the
+Gluten tree** (`cpp/velox/operators/rollup/`, compiled into Gluten's `libvelox` and
+registered Gluten-locally via `registerMultiGroupingSetAggregation()`), mirroring the
+existing cudf custom-operator precedent — so it needs **no Velox fork**. It keeps namespace
+`facebook::velox::exec` so the node type and call sites stay valid. Also in Changeset B, and
+separable from it, is a two-line correctness fix
 to the existing upstream `HashAggregation` operator (`needsInput()` must return false while
 `input_` is held, plus a `VELOX_CHECK_NULL(input_)` in `addInput()`); without it the
 existing operator silently drops rows in the post-abandon and distinct-with-new-groups
@@ -282,11 +287,19 @@ growth, so its "exposure is at most one output batch" bound is unaccounted-for.
 `SharedArbitrator` fixtures, as `AggregationTest` already does. This is real work and belongs
 in its own change. **The fused branch must not go default-on until this exists.**
 
-**D4 — Changeset A is a hard fork-dependency on unmerged Velox.**
-`VeloxBackend.cc:190` calls `registerMultiGroupingSetAggregation()` unconditionally and
-`SubstraitToVeloxPlan.cc:26` includes `GroupingSetAggregationNode.h` unconditionally. Gluten
-C++ **will not compile against upstream Velox at all**. An ASF reviewer will block on this
-alone. It is the structural reason the PR must be split.
+**D4 — Fork-dependency on unmerged Velox. RESOLVED by relocating the operator into Gluten.**
+Previously `VeloxBackend.cc` included `velox/exec/MultiGroupingSetAggregation.h` and
+`SubstraitToVeloxPlan.cc` included `velox/exec/GroupingSetAggregationNode.h` — headers that
+existed only in a Velox fork, so Gluten C++ would not compile against upstream Velox at all.
+The operator now lives **inside Gluten** (`cpp/velox/operators/rollup/`), compiled into
+Gluten's `libvelox` and registered Gluten-locally, exactly like the cudf custom operator.
+The two include sites now point at `operators/rollup/…` (in-tree), and
+`registerMultiGroupingSetAggregation()` is defined in the relocated Gluten sources. Gluten
+C++ therefore compiles against **stock upstream Velox plus the single needsInput patch
+(0001)** — no operator fork. The retired operator patch (`0002`) is gone; see
+`docs/design/velox-patches/README.md`. The unconditional registration remains (the
+translator is inert unless a `GroupingSetAggregationNode` appears in the plan), so the
+split-PR argument still holds for *review* scope, but the hard compile-blocker is removed.
 
 *Related, FIXED:* `VeloxConfig.scala` documented "without it the marker is ignored and the
 plan degrades" — describing a build that cannot exist, because it does not link. The doc has
@@ -586,9 +599,17 @@ reviewer objection blocks both.
 **Nice-to-have:** shuffle-bytes assertion on the high-cardinality test; `Project(Filter(Expand))`
 no-op test.
 
-### PR 3 — Velox `GroupingSetAggregationNode` + `MultiGroupingSetAggregation`. **Not close.**
+### PR 3 — `GroupingSetAggregationNode` + `MultiGroupingSetAggregation`. **Not close (as an *upstream* Velox PR).**
 
-**Must-fix before opening upstream:**
+**Scope note after the relocation:** the operator now ships **Gluten-local**
+(`cpp/velox/operators/rollup/`, compiled into Gluten's `libvelox`, registered via
+`registerMultiGroupingSetAggregation()`), so **none of this checklist blocks the Gluten
+trial** — the Gluten trial needs only patch 0001 on Velox plus the in-tree operator. The
+list below is the *separate, later* effort of upstreaming the node/operator into Velox
+proper (which would let Gluten delete its local copy). It remains "not close" for that
+upstream goal; it is not on the critical path for shipping the feature in Gluten.
+
+**Must-fix before opening upstream (Velox PR only):**
 
 | item | effort |
 |---|---|
@@ -708,18 +729,22 @@ Gluten worktree
 - `backends-velox/src/main/scala/org/apache/gluten/config/VeloxConfig.scala`
 - `backends-velox/src/test/scala/org/apache/gluten/execution/FusedGroupingSetAggregateSuite.scala`
 - `gluten-substrait/src/main/scala/org/apache/gluten/execution/ExpandExecTransformer.scala`
-- `cpp/velox/substrait/SubstraitToVeloxPlan.{h,cc}`
-- `cpp/velox/compute/VeloxBackend.cc`
+- `cpp/velox/substrait/SubstraitToVeloxPlan.{h,cc}` — includes `operators/rollup/GroupingSetAggregationNode.h`
+- `cpp/velox/compute/VeloxBackend.cc` — includes `operators/rollup/MultiGroupingSetAggregation.h`
 - `backends-clickhouse/src/main/scala/org/apache/gluten/extension/LazyAggregateExpandRule.scala`
 
-Velox (`/Users/linjaboy/Documents/velox OSS/velox/velox/exec/`):
+Gluten-local operator (new — the relocated Velox operator, now compiled into Gluten `libvelox`):
 
-- `GroupingSetLattice.h`
-- `GroupingSetAggregationNode.h`
-- `MultiGroupingSetAggregation.{h,cpp}`
-- `HashAggregation.{h,cpp}` — the standalone fix
-- `CMakeLists.txt`
-- `tests/CMakeLists.txt`
+- `cpp/velox/operators/rollup/GroupingSetLattice.h`
+- `cpp/velox/operators/rollup/GroupingSetAggregationNode.h`
+- `cpp/velox/operators/rollup/MultiGroupingSetAggregation.{h,cc}`
+- `cpp/velox/CMakeLists.txt` — adds the operator `.cc` to `VELOX_SRCS`
+- `cpp/velox/tests/MultiGroupingSetAggregationTest.cc` + `cpp/velox/tests/CMakeLists.txt`
+- `docs/design/velox-patches/README.md` — records 0001 kept, 0002 retired
+
+Velox patch — the ONLY Velox change (`docs/design/velox-patches/0001-hashagg-needsinput-fix.patch`):
+
+- `velox/exec/HashAggregation.{h,cpp}` — the standalone needsInput fix
 - `tests/MultiGroupingSetAggregationTest.cpp`
 - `tests/AggregationTest.cpp` — the two regression tests for the standalone fix
 - `tests/Q67RollupBenchmarkTest.cpp` — **built by no CMakeLists**
