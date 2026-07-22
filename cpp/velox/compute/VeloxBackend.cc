@@ -62,6 +62,7 @@
 #include "velox/dwio/orc/reader/OrcReader.h"
 #include "velox/dwio/parquet/RegisterParquetReader.h"
 #include "velox/dwio/parquet/RegisterParquetWriter.h"
+#include "velox/exec/MultiGroupingSetAggregation.h"
 #include "velox/serializers/PrestoSerializer.h"
 
 DECLARE_bool(velox_exception_user_stacktrace_enabled);
@@ -185,6 +186,11 @@ void VeloxBackend::init(
     velox::cudf_velox::registerSparkAggregateFunctions("");
   }
 #endif
+
+  // The fused grouping-set aggregation operator. Registering the translator is inert unless a plan
+  // actually carries a GroupingSetAggregationNode, which only the Velox backend's
+  // LazyAggregateExpandRule produces, and only in its fused mode.
+  velox::exec::registerMultiGroupingSetAggregation();
 
   const auto spillThreadNum = backendConf_->get<uint32_t>(kSpillThreadNum, kSpillThreadNumDefaultValue);
   if (spillThreadNum > 0) {

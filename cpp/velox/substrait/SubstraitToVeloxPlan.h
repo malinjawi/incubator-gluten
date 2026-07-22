@@ -101,6 +101,37 @@ class SubstraitToVeloxPlanConverter {
   /// Used to convert Substrait ExpandRel into Velox PlanNode.
   core::PlanNodePtr toVeloxPlan(const ::substrait::ExpandRel& expandRel);
 
+  /// Used to convert an ExpandRel that the planner tagged with "isRollup=1"
+  /// into a fused GroupingSetAggregationNode.
+  ///
+  /// The tagged shape is the one emitted by the Velox backend's
+  /// LazyAggregateExpandRule in its fused mode:
+  ///
+  ///   ExpandRel(isRollup=1) <- AggregateRel(partial, finest grain) <- child
+  ///
+  /// The child aggregate already delivers ROW(k1..kn, acc1..accm), which is
+  /// exactly the input contract of GroupingSetAggregationNode, so the fused
+  /// node replaces the ExpandRel alone and keeps the child aggregate as its
+  /// source. Every grouping set's key mask and grouping-id value is read back
+  /// out of the ExpandRel's literal projections -- Spark's GROUPING_ID bit
+  /// order is never recomputed here.
+  ///
+  /// The node emits ROW(k1..kn, acc1..accm, gid) whereas the ExpandRel it
+  /// replaces emits ROW(k1..kn, gid, acc1..accm), so the result is wrapped in
+  /// a ProjectNode that restores the Expand's column order. That keeps the
+  /// fused path a drop-in replacement for anything the planner put above.
+  ///
+  /// \param expandRel the tagged ExpandRel.
+  /// \param childAggRel the ExpandRel's input, used only for its measures: the
+  ///        node needs BASE, unsuffixed aggregate function names and RAW input
+  ///        types, which the companion-rewritten names on an already-converted
+  ///        AggregationNode no longer carry.
+  /// \param childNode the already-converted child aggregate.
+  core::PlanNodePtr toGroupingSetAggregation(
+      const ::substrait::ExpandRel& expandRel,
+      const ::substrait::AggregateRel& childAggRel,
+      const core::PlanNodePtr& childNode);
+
   /// Used to convert Substrait GenerateRel into Velox PlanNode.
   core::PlanNodePtr toVeloxPlan(const ::substrait::GenerateRel& generateRel);
 

@@ -29,12 +29,24 @@ import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.plans.physical.{Partitioning, UnknownPartitioning}
 import org.apache.spark.sql.execution._
 
+import com.google.protobuf.StringValue
+
 import java.util.{ArrayList => JArrayList, List => JList}
 
+/**
+ * @param groupingSetAggregation
+ *   When true, this Expand sits directly on top of a partial aggregation at the finest grain and
+ *   its projections expand aggregation states rather than raw rows. The flag is passed to the
+ *   backend as an advanced-extension marker on the ExpandRel; a backend that ignores the marker
+ *   still produces correct (merely un-reduced) partial states, so the flag is a hint, not a
+ *   contract. Only the Velox backend's LazyAggregateExpandRule sets it, and only when
+ *   spark.gluten.sql.columnar.backend.velox.fusedGroupingSetAggregate.enabled is on.
+ */
 case class ExpandExecTransformer(
     projections: Seq[Seq[Expression]],
     output: Seq[Attribute],
-    child: SparkPlan)
+    child: SparkPlan,
+    groupingSetAggregation: Boolean = false)
   extends UnaryExecNode
   with UnaryTransformSupport {
 
@@ -81,7 +93,34 @@ case class ExpandExecTransformer(
     }
 
     if (!validation) {
-      RelBuilder.makeExpandRel(input, projectSetExprNodes, context, operatorId)
+      if (groupingSetAggregation) {
+        // Marker read by the native plan converter, which fuses this Expand and its child
+        // aggregation into a single grouping-set aggregation operator. childGrouped would advertise
+        // that the child delivers rows already grouped at the finest grain, letting the native
+        // operator skip the hash table for the all-keys-active set (its "bypass lane").
+        //
+        // DECISION (defensibility blocker B5): childGrouped is fixed at 0 -- the bypass lane is
+        // deliberately NOT engaged from Gluten, and no bypass speedup may be quoted for the
+        // integrated path. The child here is the FlushableHashAggregateExecTransformer emitted by
+        // LazyAggregateExpandRule; a flushable aggregate may abandon itself and stream rows
+        // through, so it does NOT reliably deliver pre-grouped rows and cannot honestly claim
+        // childGrouped=1. Honestly claiming the lane would require making the child a NON-flushable
+        // Regular aggregate, which cannot abandon -- trading away the abandon safety valve that
+        // protects high-cardinality keys (GLUTEN-7986). That trade is not safely determinable in
+        // the rule for arbitrary input cardinality, so we keep the safety valve and forgo the lane.
+        // The native side reads childGrouped= via configSetInOptimization, which only treats
+        // "childGrouped=1" as set, so emitting "childGrouped=0" leaves the native childGroupedSet
+        // as nullopt. The 2.29x figure a C++ harness measured for the lane in isolation is
+        // therefore NOT achievable through this path and must not appear as a headline number.
+        val optimization = BackendsApiManager.getTransformerApiInstance.packPBMessage(
+          StringValue.newBuilder
+            .setValue("isRollup=1\nchildGrouped=0\n")
+            .build)
+        val extensionNode = ExtensionBuilder.makeAdvancedExtension(optimization, null)
+        RelBuilder.makeExpandRel(input, projectSetExprNodes, extensionNode, context, operatorId)
+      } else {
+        RelBuilder.makeExpandRel(input, projectSetExprNodes, context, operatorId)
+      }
     } else {
       // Use a extension node to send the input types through Substrait plan for a validation.
       val inputTypeNodeList = new java.util.ArrayList[TypeNode]()

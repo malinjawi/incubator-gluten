@@ -23,6 +23,7 @@
 #include "operators/hashjoin/HashTableBuilder.h"
 #include "operators/plannodes/RowVectorStream.h"
 #include "velox/connectors/hive/HiveDataSink.h"
+#include "velox/exec/GroupingSetAggregationNode.h"
 #include "velox/exec/TableWriter.h"
 #include "velox/type/Type.h"
 
@@ -896,12 +897,313 @@ core::PlanNodePtr SubstraitToVeloxPlanConverter::toVeloxPlan(const ::substrait::
       childNode);
 }
 
+namespace {
+
+/// Returns the referenced field index if 'expr' is a direct struct-field selection.
+std::optional<uint32_t> selectionFieldIndex(const ::substrait::Expression& expr) {
+  if (!expr.has_selection() || !expr.selection().has_direct_reference()) {
+    return std::nullopt;
+  }
+  uint32_t fieldIndex = 0;
+  if (!SubstraitParser::parseReferenceSegment(expr.selection().direct_reference(), fieldIndex)) {
+    return std::nullopt;
+  }
+  return fieldIndex;
+}
+
+/// Returns the value if 'expr' is an integral literal. Spark's grouping id is a BIGINT since Spark
+/// 3.0, but i32 is accepted so the reader does not silently reject an older or narrowed planner.
+std::optional<int64_t> integerLiteralValue(const ::substrait::Expression& expr) {
+  if (!expr.has_literal()) {
+    return std::nullopt;
+  }
+  const auto& literal = expr.literal();
+  switch (literal.literal_type_case()) {
+    case ::substrait::Expression_Literal::LiteralTypeCase::kI32:
+      return literal.i32();
+    case ::substrait::Expression_Literal::LiteralTypeCase::kI64:
+      return literal.i64();
+    default:
+      return std::nullopt;
+  }
+}
+
+bool isNullLiteral(const ::substrait::Expression& expr) {
+  return expr.has_literal() &&
+      expr.literal().literal_type_case() == ::substrait::Expression_Literal::LiteralTypeCase::kNull;
+}
+
+} // namespace
+
+core::PlanNodePtr SubstraitToVeloxPlanConverter::toGroupingSetAggregation(
+    const ::substrait::ExpandRel& expandRel,
+    const ::substrait::AggregateRel& childAggRel,
+    const core::PlanNodePtr& childNode) {
+  using GroupingSetNode = facebook::velox::exec::GroupingSetAggregationNode;
+
+  const auto& inputType = childNode->outputType();
+  const int32_t numAggregates = childAggRel.measures().size();
+  const int32_t numInputColumns = static_cast<int32_t>(inputType->size());
+  VELOX_CHECK_GT(
+      numInputColumns,
+      numAggregates,
+      "A fused grouping-set aggregation needs at least one grouping key below the Expand.");
+  const int32_t numKeys = numInputColumns - numAggregates;
+
+  // Every projection of the tagged Expand is
+  //   [k1 | null, .., kn | null, gid literal, acc1, .., accm]
+  // so its width is fixed. A wider projection means the planner kept a grouping column that has no
+  // counterpart in the child aggregate's output (a constant grouping key, which the Expand masks to
+  // NULL per set). The fused node has no column to carry such a key, so refuse rather than guess.
+  const int32_t projectionWidth = numKeys + 1 + numAggregates;
+  const int32_t gidSlot = numKeys;
+  const int32_t numSets = expandRel.fields_size();
+  VELOX_CHECK_GT(numSets, 0, "A fused grouping-set aggregation needs at least one grouping set.");
+
+  // Slot j of the Expand's key region reads child channel keySlotToChannel[j]. The mapping is read
+  // out of the plan instead of assumed to be the identity.
+  std::vector<int32_t> keySlotToChannel(numKeys, -1);
+  std::vector<GroupingSetNode::Set> groupingSets;
+  groupingSets.reserve(numSets);
+
+  for (int32_t setIdx = 0; setIdx < numSets; ++setIdx) {
+    const auto& duplicates = expandRel.fields(setIdx).switching_field().duplicates();
+    VELOX_CHECK_EQ(
+        duplicates.size(),
+        projectionWidth,
+        "Expand projection {} of a fused grouping-set aggregation has {} expressions, expected {}.",
+        setIdx,
+        duplicates.size(),
+        projectionWidth);
+
+    GroupingSetNode::Set set;
+    set.keyIsActive.assign(numKeys, false);
+
+    for (int32_t slot = 0; slot < numKeys; ++slot) {
+      const auto& expr = duplicates[slot];
+      const auto channel = selectionFieldIndex(expr);
+      if (channel.has_value()) {
+        VELOX_CHECK_LT(
+            static_cast<int32_t>(*channel),
+            numKeys,
+            "Expand key slot {} of a fused grouping-set aggregation reads an aggregate column.",
+            slot);
+        if (keySlotToChannel[slot] == -1) {
+          keySlotToChannel[slot] = static_cast<int32_t>(*channel);
+        } else {
+          VELOX_CHECK_EQ(
+              keySlotToChannel[slot],
+              static_cast<int32_t>(*channel),
+              "Expand key slot {} of a fused grouping-set aggregation is not stable across sets.",
+              slot);
+        }
+        set.keyIsActive[*channel] = true;
+      } else {
+        VELOX_CHECK(
+            isNullLiteral(expr),
+            "Expand key slot {} of a fused grouping-set aggregation is neither a field nor a null literal.",
+            slot);
+      }
+    }
+
+    // The grouping id is supplied verbatim by the planner. Recomputing Spark's GROUPING_ID bitmask
+    // here would tie the native side to a Spark-version-dependent bit order.
+    const auto gid = integerLiteralValue(duplicates[gidSlot]);
+    VELOX_CHECK(
+        gid.has_value(),
+        "Expand slot {} of a fused grouping-set aggregation must be an integral grouping-id literal.",
+        gidSlot);
+    set.gid = *gid;
+
+    // The aggregate columns pass through every projection unchanged and in order.
+    for (int32_t i = 0; i < numAggregates; ++i) {
+      const auto channel = selectionFieldIndex(duplicates[gidSlot + 1 + i]);
+      VELOX_CHECK(
+          channel.has_value() && static_cast<int32_t>(*channel) == numKeys + i,
+          "Aggregate column {} is not passed through unchanged by Expand projection {}.",
+          i,
+          setIdx);
+    }
+
+    groupingSets.emplace_back(std::move(set));
+  }
+
+  for (int32_t slot = 0; slot < numKeys; ++slot) {
+    VELOX_CHECK_NE(
+        keySlotToChannel[slot],
+        -1,
+        "Expand key slot {} of a fused grouping-set aggregation is a null literal in every set.",
+        slot);
+  }
+  {
+    std::unordered_set<int32_t> seenChannels(keySlotToChannel.begin(), keySlotToChannel.end());
+    VELOX_CHECK_EQ(
+        seenChannels.size(),
+        static_cast<size_t>(numKeys),
+        "Expand key slots of a fused grouping-set aggregation are not a permutation of the child's keys.");
+  }
+
+  std::vector<core::FieldAccessTypedExprPtr> groupingKeys;
+  groupingKeys.reserve(numKeys);
+  for (int32_t i = 0; i < numKeys; ++i) {
+    groupingKeys.emplace_back(
+        std::make_shared<core::FieldAccessTypedExpr>(inputType->childAt(i), inputType->nameOf(i)));
+  }
+
+  // Rebuild the aggregate list from the child's Substrait measures rather than from the converted
+  // AggregationNode: the node contract requires the BASE, unsuffixed Velox function name and the
+  // RAW argument types, while the converted child carries companion-suffixed names ("sum_partial").
+  std::vector<std::string> aggregateNames;
+  std::vector<core::AggregationNode::Aggregate> aggregates;
+  aggregateNames.reserve(numAggregates);
+  aggregates.reserve(numAggregates);
+  for (int32_t i = 0; i < numAggregates; ++i) {
+    const auto& measure = childAggRel.measures(i);
+    VELOX_CHECK(
+        !measure.has_filter() || measure.filter().ByteSizeLong() == 0,
+        "A fused grouping-set aggregation does not support masked aggregates.");
+    const auto& aggFunction = measure.measure();
+    const auto baseFuncName = SubstraitParser::findVeloxFunction(functionMap_, aggFunction.function_reference());
+    // OPEN (untested assumption): the accumulator column type the child aggregate actually
+    // produces -- built Spark-side by VeloxIntermediateData.getIntermediateTypeNode, which wraps
+    // multi-field intermediates in a STRUCT -- must equal what GroupingSetAggregationNode derives
+    // via resolveIntermediateType(baseFuncName, rawInputTypes) from the pair computed on the next
+    // two lines. The node VELOX_CHECKs the two against each other, so a disagreement is a loud
+    // query failure rather than a wrong answer, but no query has ever been run through this path
+    // and the agreement has not been checked for any function. Decimal sum is the likeliest first
+    // break: its intermediate is a (sum, isEmpty) struct assembled by row_constructor Spark-side.
+    auto rawInputTypes =
+        SubstraitParser::sigToTypes(SubstraitParser::findFunctionSpec(functionMap_, aggFunction.function_reference()));
+
+    const auto accChannel = numKeys + i;
+    const auto& accType = inputType->childAt(accChannel);
+    // The operator resolves accumulator channels positionally; this argument exists so the plan
+    // prints and validates like any other aggregate.
+    std::vector<core::TypedExprPtr> aggParams{
+        std::make_shared<core::FieldAccessTypedExpr>(accType, inputType->nameOf(accChannel))};
+    aggregates.emplace_back(core::AggregationNode::Aggregate{
+        std::make_shared<const core::CallTypedExpr>(accType, std::move(aggParams), baseFuncName),
+        std::move(rawInputTypes),
+        /*mask=*/nullptr,
+        {},
+        {}});
+    aggregateNames.emplace_back(fmt::format("gsagg_{}_{}", planNodeId_, i));
+  }
+
+  // The bypass lane: the child aggregate delivers rows already grouped at the finest grain, so the
+  // all-keys-active set needs no hash table of its own. Only claimed when the planner says the
+  // child aggregate cannot abandon itself mid-stream; a flushable partial aggregate may switch to
+  // passing rows through, which would break the claim. A violated hint costs downstream rows rather
+  // than correctness, but it is not asserted for free.
+  std::optional<int32_t> childGroupedSet;
+  if (SubstraitParser::configSetInOptimization(expandRel.advanced_extension(), "childGrouped=")) {
+    for (int32_t i = 0; i < numSets; ++i) {
+      if (groupingSets[i].numActiveKeys() == numKeys) {
+        childGroupedSet = i;
+        break;
+      }
+    }
+    VELOX_CHECK(
+        childGroupedSet.has_value(),
+        "childGrouped=1 was set but no grouping set covers all {} keys.",
+        numKeys);
+  }
+
+  auto groupingSetNode = std::make_shared<GroupingSetNode>(
+      nextPlanNodeId(),
+      std::move(groupingKeys),
+      std::move(groupingSets),
+      std::move(aggregateNames),
+      std::move(aggregates),
+      childGroupedSet,
+      childNode);
+
+  // OPEN (metrics): this rel is the only one in the converter that consumes TWO plan node ids
+  // (the GroupingSetAggregationNode above, the ProjectNode below) where every other rel consumes
+  // one. Two consequences, neither fixed here. (1) MetricsUtil walks the native plan assuming one
+  // operator per rel, so from this rel upwards the operator -> rel association is shifted by one
+  // and Expand's reported metrics belong to the Project, not the aggregation. (2) The column names
+  // below are makeNodeName(planNodeId_, ...) evaluated AFTER nextPlanNodeId() already advanced for
+  // the fused node, so they carry the ProjectNode's own id. That is self-consistent (the node
+  // emitting the names owns the id, exactly as the vanilla ExpandNode path does) and is deliberate
+  // -- do not "fix" it to the fused node's id without re-checking the vanilla path's convention.
+  //
+  // Restore the Expand's column order: ROW(k1..kn, acc1..accm, gid) -> ROW(keys, gid, accs).
+  const auto& fusedType = groupingSetNode->outputType();
+  std::vector<std::string> names;
+  std::vector<core::TypedExprPtr> expressions;
+  names.reserve(projectionWidth);
+  expressions.reserve(projectionWidth);
+  const auto addField = [&](int32_t channel) {
+    expressions.emplace_back(
+        std::make_shared<core::FieldAccessTypedExpr>(fusedType->childAt(channel), fusedType->nameOf(channel)));
+  };
+  for (int32_t slot = 0; slot < numKeys; ++slot) {
+    addField(keySlotToChannel[slot]);
+  }
+  addField(static_cast<int32_t>(groupingSetNode->gidChannel()));
+  for (int32_t i = 0; i < numAggregates; ++i) {
+    addField(numKeys + i);
+  }
+  for (int32_t idx = 0; idx < projectionWidth; ++idx) {
+    names.emplace_back(SubstraitParser::makeNodeName(planNodeId_, idx));
+  }
+  return std::make_shared<core::ProjectNode>(
+      nextPlanNodeId(), std::move(names), std::move(expressions), std::move(groupingSetNode));
+}
+
 core::PlanNodePtr SubstraitToVeloxPlanConverter::toVeloxPlan(const ::substrait::ExpandRel& expandRel) {
   core::PlanNodePtr childNode;
   if (expandRel.has_input()) {
     childNode = toVeloxPlan(expandRel.input());
   } else {
     VELOX_FAIL("Child Rel is expected in ExpandRel.");
+  }
+
+  if (expandRel.has_advanced_extension() &&
+      SubstraitParser::configSetInOptimization(expandRel.advanced_extension(), "isRollup=")) {
+    // FALLBACK NET (defensibility blocker B2). The isRollup marker is a HINT, not a contract. The
+    // JVM rule (LazyAggregateExpandRule in its fused mode) attaches it only for plan shapes it
+    // believes the fused GroupingSetAggregationNode accepts, but that predicate (shapeFusible plus
+    // the duplicate-mask guard) is a hand-maintained Scala mirror of the native invariants enforced
+    // below in toGroupingSetAggregation (its VELOX_CHECKs) and in the node constructor. The marker
+    // is also withheld during Gluten's doValidate(), so the ordinary fallback-to-vanilla-Spark
+    // mechanism does NOT cover this path: without the guard below, any drift between the Scala
+    // mirror and the native checks -- or any shape the mirror does not yet exclude -- would turn a
+    // native VELOX_CHECK into an unrecoverable task failure.
+    //
+    // Degrading to a plain ExpandNode is ALWAYS semantically safe. The fused node's only job is to
+    // pre-merge the grouping sets before the shuffle; a plain ExpandNode over the same finest-grain
+    // partial states (childNode) emits the identical (key, gid, acc) rows, merely un-reduced. The
+    // post-shuffle FINAL aggregation merges them by (all keys, gid) regardless, and Final-mode
+    // merging is associative over the duplicated partial buffers, so the answer is unchanged. The
+    // only cost is shuffle volume (GLUTEN-7986). This is exactly the plan the non-fused three-stage
+    // rewrite produces, minus its pre-shuffle partial-merge stage -- which the JVM rule already
+    // dropped when it chose the fused shape, so nothing above this Expand needs adjusting: the
+    // degraded ExpandNode's output schema (positions and types of ROW(k1..kn, gid, acc1..accm)) is
+    // identical to the fused ProjectNode's, and parents select child columns by position.
+    //
+    // CLUSTER-VERIFY: this file cannot be compiled in the current environment. The catch type, the
+    // fall-through, and the degraded plan's correctness must be confirmed on a real Spark/Gluten
+    // cluster -- specifically, a query whose shape trips one of the native checks (e.g. avg or a
+    // decimal sum, whose multi-column buffers the JVM rule currently excludes up front) must return
+    // correct results via this fallback rather than failing the task.
+    if (expandRel.input().has_aggregate()) {
+      try {
+        return toGroupingSetAggregation(expandRel, expandRel.input().aggregate(), childNode);
+      } catch (const VeloxException& e) {
+        LOG(WARNING) << "Fused grouping-set aggregation is not applicable to this Expand; falling "
+                        "back to a plain Expand (correct, but higher shuffle volume). Reason: "
+                     << e.what();
+      }
+    } else {
+      LOG(WARNING) << "Expand tagged isRollup=1 does not read from an aggregation; falling back to "
+                      "a plain Expand.";
+    }
+    // Fall through to the ordinary ExpandNode conversion below. planNodeId_ may have advanced by one
+    // if toGroupingSetAggregation threw after allocating the fused node's id; the resulting gap is
+    // harmless because plan node ids need only be unique, and the ExpandNode names its own columns
+    // from the current planNodeId_ so the naming stays self-consistent.
   }
 
   const auto& inputType = childNode->outputType();
