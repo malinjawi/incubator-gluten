@@ -1,0 +1,35 @@
+diff --git a/velox/exec/HashAggregation.cpp b/velox/exec/HashAggregation.cpp
+index fb1b247db..02d6abb5f 100644
+--- a/velox/exec/HashAggregation.cpp
++++ b/velox/exec/HashAggregation.cpp
+@@ -190,2 +190,7 @@ void HashAggregation::addInput(RowVectorPtr input) {
+ void HashAggregation::addInput(RowVectorPtr input) {
++  // needsInput() returns false while input_ is set, so the driver must drain
++  // the previous batch via getOutput() before feeding another. Fail loudly if
++  // that contract is violated rather than silently overwriting and dropping
++  // input_.
++  VELOX_CHECK_NULL(input_);
+   if (!pushdownChecked_) {
+diff --git a/velox/exec/HashAggregation.h b/velox/exec/HashAggregation.h
+index d2c7f7fec..17153bebb 100644
+--- a/velox/exec/HashAggregation.h
++++ b/velox/exec/HashAggregation.h
+@@ -51,3 +51,17 @@ class HashAggregation : public Operator {
+   bool needsInput() const override {
+-    return !noMoreInput_ && !partialFull_;
++    // Guard on 'input_ == nullptr': HashAggregation buffers a single input
++    // batch in 'input_' in two states -- after partial aggregation has been
++    // abandoned (addInput() passes the batch through via toIntermediate()) and
++    // in distinct mode when the batch produced new groups. In both states
++    // addInput() overwrites 'input_' unconditionally. Without this guard, when
++    // a downstream operator applies backpressure (returns needsInput()=false
++    // while it still has buffered output to drain), the Driver walks upstream
++    // and feeds this operator again, and addInput() silently overwrites the
++    // undrained batch, dropping its rows.
++    //
++    // Invariant: while 'input_' holds an undrained batch this operator declines
++    // input, so every batch handed to addInput() is emitted by exactly one
++    // subsequent getOutput() call. Mirrors the single-buffer pattern in
++    // RowNumber/HashProbe/MergeJoin/Expand.
++    return !noMoreInput_ && !partialFull_ && input_ == nullptr;
+   }

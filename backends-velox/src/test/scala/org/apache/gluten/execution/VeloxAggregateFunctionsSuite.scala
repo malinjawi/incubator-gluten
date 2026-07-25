@@ -1297,8 +1297,9 @@ class VeloxAggregateFunctionsFlushSuite extends VeloxAggregateFunctionsSuite {
     }
   }
 
-  test("flushable aggregate rule - double sum when floatingPointMode is strict") {
+  test("flushable aggregate rule - floating sum state when floatingPointMode is strict") {
     withSQLConf(
+      SQLConf.ANSI_ENABLED.key -> "false",
       VeloxConfig.MAX_PARTIAL_AGGREGATION_MEMORY.key -> "100",
       VeloxConfig.COLUMNAR_VELOX_RESIZE_BATCHES_SHUFFLE_INPUT.key -> "false",
       GlutenConfig.COLUMNAR_MAX_BATCH_SIZE.key -> "2",
@@ -1318,6 +1319,14 @@ class VeloxAggregateFunctionsFlushSuite extends VeloxAggregateFunctionsSuite {
                     plan.isInstanceOf[RegularHashAggregateExecTransformer]
                   }) == 2)
             }
+        }
+        runQueryAndCompare("select c2, avg(cast(c1 as bigint)) from t1 group by c2") {
+          df =>
+            assert(
+              getExecutedPlan(df).count(
+                plan => {
+                  plan.isInstanceOf[RegularHashAggregateExecTransformer]
+                }) == 2)
         }
       }
     }

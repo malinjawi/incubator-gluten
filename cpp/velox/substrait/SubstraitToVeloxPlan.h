@@ -101,6 +101,48 @@ class SubstraitToVeloxPlanConverter {
   /// Used to convert Substrait ExpandRel into Velox PlanNode.
   core::PlanNodePtr toVeloxPlan(const ::substrait::ExpandRel& expandRel);
 
+  /// Used to convert an ExpandRel that the planner tagged with "isRollup=1"
+  /// into a fused GroupingSetAggregationNode.
+  ///
+  /// The tagged shapes are the ones emitted by the Velox backend's
+  /// LazyAggregateExpandRule in its fused mode:
+  ///
+  ///   ExpandRel(isRollup=1) <- AggregateRel(partial, finest grain) <- child
+  ///   ExpandRel(isRollup=1) <- ProjectRel(extract partial buffers)
+  ///                         <- AggregateRel(partial, finest grain) <- child
+  ///
+  /// Velox represents each aggregate's partial state in one accumulator
+  /// column. Spark represents some buffers, notably avg and decimal sum, as
+  /// multiple columns. HashAggregateExecTransformer therefore inserts the
+  /// second shape's ProjectRel to extract a ROW accumulator into Spark's
+  /// flattened buffer columns. The fused node must consume the packed
+  /// AggregateRel output, not the flattened ProjectRel output.
+  ///
+  /// Every grouping set's key mask and grouping-id value is read back out of
+  /// the ExpandRel's literal projections -- Spark's GROUPING_ID bit order is
+  /// never recomputed here. A final ProjectNode restores the Expand's column
+  /// order. For the second shape it also replays the extraction ProjectRel
+  /// expressions over the fused node's packed accumulator columns, preserving
+  /// Spark's exact flattened buffer schema and casts.
+  ///
+  /// \param expandRel the tagged ExpandRel.
+  /// \param childAggRel the ExpandRel's input, used only for its measures: the
+  ///        node needs BASE, unsuffixed aggregate function names and RAW input
+  ///        types, which the companion-rewritten names on an already-converted
+  ///        AggregationNode no longer carry.
+  /// \param childAggregateNode the already-converted AggregateRel. For the
+  ///        ProjectRel shape this is the converted ProjectNode's source.
+  /// \param expandInputNode the already-converted direct child of ExpandRel.
+  ///        Its output type is the schema referenced by Expand's projections.
+  /// \param extractionProject the standard buffer-extraction ProjectRel, or
+  ///        nullptr for a direct AggregateRel input.
+  core::PlanNodePtr toGroupingSetAggregation(
+      const ::substrait::ExpandRel& expandRel,
+      const ::substrait::AggregateRel& childAggRel,
+      const core::PlanNodePtr& childAggregateNode,
+      const core::PlanNodePtr& expandInputNode,
+      const ::substrait::ProjectRel* extractionProject = nullptr);
+
   /// Used to convert Substrait GenerateRel into Velox PlanNode.
   core::PlanNodePtr toVeloxPlan(const ::substrait::GenerateRel& generateRel);
 

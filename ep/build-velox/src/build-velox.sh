@@ -208,12 +208,45 @@ if [ "$VELOX_HOME" == "" ]; then
   VELOX_HOME="$CURRENT_DIR/../build/velox_ep"
 fi
 
+function apply_required_hash_aggregation_patch {
+  local patch_file="$CURRENT_DIR/modify_hash_aggregation_input_buffer.patch"
+  local header_file="$VELOX_HOME/velox/exec/HashAggregation.h"
+  local source_file="$VELOX_HOME/velox/exec/HashAggregation.cpp"
+
+  if grep -Eq \
+    '^[[:space:]]*return !noMoreInput_ && !partialFull_ && input_ == nullptr;[[:space:]]*$' \
+    "$header_file" &&
+    grep -Eq '^[[:space:]]*VELOX_CHECK_NULL\(input_\);[[:space:]]*$' "$source_file"; then
+    echo "Required HashAggregation input-buffer fix is already present."
+    return
+  fi
+
+  if git -C "$VELOX_HOME" apply --check "$patch_file"; then
+    git -C "$VELOX_HOME" apply "$patch_file"
+    echo "Applied required HashAggregation input-buffer fix."
+  else
+    echo "Required HashAggregation input-buffer fix is absent and the pinned patch does not apply." >&2
+    echo "Refusing to build a Velox library that may drop buffered partial-aggregation input." >&2
+    exit 1
+  fi
+
+  grep -Eq \
+    '^[[:space:]]*return !noMoreInput_ && !partialFull_ && input_ == nullptr;[[:space:]]*$' \
+    "$header_file" &&
+    grep -Eq '^[[:space:]]*VELOX_CHECK_NULL\(input_\);[[:space:]]*$' "$source_file" || {
+      echo "HashAggregation input-buffer verification failed after patching." >&2
+      exit 1
+    }
+}
+
 if [ "$OS" == 'Darwin' ]; then
   export INSTALL_PREFIX="${INSTALL_PREFIX:-${VELOX_HOME}/deps-install}"
   if [[ "$INSTALL_PREFIX" == "/usr/local" || "$INSTALL_PREFIX" == /usr/local/* ]]; then
     echo "INFO: INSTALL_PREFIX=$INSTALL_PREFIX is under /usr/local; keeping /usr/local visible to CMake." >&2
   fi
 fi
+
+apply_required_hash_aggregation_patch
 
 echo "Start building Velox..."
 echo "CMAKE Arguments:"

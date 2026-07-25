@@ -105,6 +105,27 @@ class SubstraitContext extends Serializable {
     relId += 1
   }
 
+  /**
+   * Stop charging the most recently registered Rel to an operator without reusing its Rel id.
+   *
+   * The Rel still exists in the Substrait tree. This is used when native conversion moves that
+   * Rel's physical work into a composite parent operator and the metrics slot must follow the
+   * physical operator instead of the original Substrait owner.
+   */
+  def unregisterLastRelFromOperator(operatorId: JLong): Unit = {
+    if (!operatorToRelsMap.containsKey(operatorId)) {
+      throw new InvalidParameterException(s"Operator $operatorId has no registered Rel.")
+    }
+    val rels = operatorToRelsMap.get(operatorId)
+    if (rels.isEmpty) {
+      throw new InvalidParameterException(s"Operator $operatorId has no registered Rel.")
+    }
+    rels.remove(rels.size() - 1)
+    if (rels.isEmpty) {
+      operatorToRelsMap.remove(operatorId)
+    }
+  }
+
   /** Add the relId and register to operator later */
   def nextRelId(): JLong = {
     val id = this.relId

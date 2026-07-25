@@ -374,6 +374,12 @@ class VeloxMetricsApi extends MetricsApi with Logging {
       "numMemoryAllocations" -> SQLMetrics.createMetric(
         sparkContext,
         "number of memory allocations"),
+      "flushRowCount" -> SQLMetrics.createMetric(
+        sparkContext,
+        "number of grouping-set rows emitted under memory pressure"),
+      "abandonedPartialAggregationRows" -> SQLMetrics.createMetric(
+        sparkContext,
+        "number of rows after grouping-set aggregation abandonment"),
       "loadLazyVectorTime" -> SQLMetrics.createNanoTimingMetric(
         sparkContext,
         "time of loading lazy vectors")

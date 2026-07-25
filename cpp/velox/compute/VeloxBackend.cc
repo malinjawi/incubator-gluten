@@ -46,6 +46,7 @@
 #include "jni/JniFileSystem.h"
 #include "memory/GlutenBufferedInputBuilder.h"
 #include "operators/functions/SparkExprToSubfieldFilterParser.h"
+#include "operators/plannodes/MultiGroupingSetAggregation.h"
 #include "operators/plannodes/RowVectorStream.h"
 #include "shuffle/ArrowShuffleDictionaryWriter.h"
 #include "udf/UdfLoader.h"
@@ -185,6 +186,11 @@ void VeloxBackend::init(
     velox::cudf_velox::registerSparkAggregateFunctions("");
   }
 #endif
+
+  // The fused grouping-set aggregation operator. Registering the translator is inert unless a plan
+  // actually carries a GroupingSetAggregationNode, which only the Velox backend's
+  // LazyAggregateExpandRule produces, and only in its fused mode.
+  velox::exec::registerMultiGroupingSetAggregation();
 
   const auto spillThreadNum = backendConf_->get<uint32_t>(kSpillThreadNum, kSpillThreadNumDefaultValue);
   if (spillThreadNum > 0) {

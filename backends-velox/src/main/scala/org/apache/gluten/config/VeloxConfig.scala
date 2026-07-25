@@ -62,6 +62,18 @@ class VeloxConfig(conf: SQLConf) extends GlutenConfig(conf) {
   def enableVeloxFlushablePartialAggregation: Boolean =
     getConf(VELOX_FLUSHABLE_PARTIAL_AGGREGATION_ENABLED)
 
+  def enableVeloxLazyAggregateExpand: Boolean =
+    getConf(VELOX_LAZY_AGGREGATE_EXPAND_ENABLED)
+
+  def enableVeloxFusedGroupingSetAggregate: Boolean =
+    getConf(VELOX_FUSED_GROUPING_SET_AGGREGATE_ENABLED)
+
+  def maxVeloxFusedGroupingSets: Int =
+    getConf(VELOX_FUSED_GROUPING_SET_AGGREGATE_MAX_GROUPING_SETS)
+
+  def enableVeloxFusedGroupingSetAggregateFinestSetBypass: Boolean =
+    getConf(VELOX_FUSED_GROUPING_SET_AGGREGATE_FINEST_SET_BYPASS_ENABLED)
+
   def enableBroadcastBuildRelationInOffheap: Boolean =
     getConf(VELOX_BROADCAST_BUILD_RELATION_USE_OFFHEAP)
 
@@ -430,6 +442,64 @@ object VeloxConfig extends ConfigRegistry {
       )
       .booleanConf
       .createWithDefault(true)
+
+  val VELOX_LAZY_AGGREGATE_EXPAND_ENABLED =
+    buildConf("spark.gluten.sql.columnar.backend.velox.lazyAggregateExpand.enabled")
+      .doc(
+        "Experimental. For aggregation over grouping sets (rollup/cube), aggregate at the " +
+          "finest grain below the Expand operator first, then expand only the intermediate " +
+          "aggregation states and merge them before shuffle. This avoids aggregating one copy " +
+          "of every input row per grouping set and is beneficial when the number of distinct " +
+          "full-grouping-key combinations is much smaller than the input row count. Relies on " +
+          "flushable partial aggregation to stay adaptive on high-cardinality grouping keys; " +
+          "ignored when spark.gluten.sql.columnar.backend.velox.flushablePartialAggregation" +
+          "=false."
+      )
+      .booleanConf
+      .createWithDefault(false)
+
+  val VELOX_FUSED_GROUPING_SET_AGGREGATE_ENABLED =
+    buildConf("spark.gluten.sql.columnar.backend.velox.fusedGroupingSetAggregate.enabled")
+      .doc(
+        "Experimental. Requires spark.gluten.sql.columnar.backend.velox.lazyAggregateExpand" +
+          ".enabled=true. Replaces the rewritten Expand and partial-merge stage with Gluten's " +
+          "native grouping-set aggregation operator. The operator derives each grouping set " +
+          "from the smallest computed superset. Shapes rejected by the Scala eligibility check " +
+          "keep the partial-merge stage; native validation may instead fall back to a plain " +
+          "Expand. Multi-column Spark partial buffers, such as avg and sum over decimal, are " +
+          "restored from Velox's packed accumulator state after the fused operator."
+      )
+      .experimental()
+      .booleanConf
+      .createWithDefault(false)
+
+  val VELOX_FUSED_GROUPING_SET_AGGREGATE_MAX_GROUPING_SETS =
+    buildConf("spark.gluten.sql.columnar.backend.velox.fusedGroupingSetAggregate.maxGroupingSets")
+      .doc(
+        "Maximum number of distinct grouping sets accepted by the experimental fused " +
+          "grouping-set aggregation operator. Larger shapes retain the ordinary Expand and " +
+          "partial-merge path. The bound limits per-set hash-table state and lets native " +
+          "parent lookup use one machine-word candidate bitmap."
+      )
+      .experimental()
+      .intConf
+      .checkValue(v => v >= 1 && v <= 64, "must be between 1 and 64")
+      .createWithDefault(16)
+
+  val VELOX_FUSED_GROUPING_SET_AGGREGATE_FINEST_SET_BYPASS_ENABLED =
+    buildConf(
+      "spark.gluten.sql.columnar.backend.velox.fusedGroupingSetAggregate.finestSetBypass.enabled")
+      .doc(
+        "Experimental. When fused grouping-set aggregation is enabled, allow the native operator " +
+          "to forward the finest grouping set directly from the child partial aggregate instead " +
+          "of hashing it again. The child is flushable and can abandon aggregation, so enabling " +
+          "this option does not guarantee one row per finest key. Duplicate partial states " +
+          "remain mergeable by the final aggregate, but the performance trade-off requires " +
+          "workload validation."
+      )
+      .experimental()
+      .booleanConf
+      .createWithDefault(false)
 
   val MAX_PARTIAL_AGGREGATION_MEMORY =
     buildConf("spark.gluten.sql.columnar.backend.velox.maxPartialAggregationMemory")

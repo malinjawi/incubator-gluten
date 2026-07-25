@@ -21,6 +21,7 @@
 #include "VariantToVectorConverter.h"
 #include "jni/JniHashTable.h"
 #include "operators/hashjoin/HashTableBuilder.h"
+#include "operators/plannodes/GroupingSetAggregationNode.h"
 #include "operators/plannodes/RowVectorStream.h"
 #include "velox/connectors/hive/HiveDataSink.h"
 #include "velox/exec/TableWriter.h"
@@ -896,12 +897,399 @@ core::PlanNodePtr SubstraitToVeloxPlanConverter::toVeloxPlan(const ::substrait::
       childNode);
 }
 
+namespace {
+
+/// Returns the referenced field index if 'expr' is a direct struct-field selection.
+std::optional<uint32_t> selectionFieldIndex(const ::substrait::Expression& expr) {
+  if (!expr.has_selection() || !expr.selection().has_direct_reference()) {
+    return std::nullopt;
+  }
+  uint32_t fieldIndex = 0;
+  if (!SubstraitParser::parseReferenceSegment(expr.selection().direct_reference(), fieldIndex)) {
+    return std::nullopt;
+  }
+  return fieldIndex;
+}
+
+/// Returns the value if 'expr' is an i64 literal. GroupingSetAggregationNode's
+/// gid channel is BIGINT, so accepting a narrower literal here would change the
+/// tagged Expand's output schema. Older or narrowed plans use the plain-Expand
+/// fallback instead.
+std::optional<int64_t> groupingIdLiteralValue(const ::substrait::Expression& expr) {
+  if (!expr.has_literal() ||
+      expr.literal().literal_type_case() != ::substrait::Expression_Literal::LiteralTypeCase::kI64) {
+    return std::nullopt;
+  }
+  return expr.literal().i64();
+}
+
+bool isNullLiteral(const ::substrait::Expression& expr) {
+  return expr.has_literal() &&
+      expr.literal().literal_type_case() == ::substrait::Expression_Literal::LiteralTypeCase::kNull;
+}
+
+} // namespace
+
+core::PlanNodePtr SubstraitToVeloxPlanConverter::toGroupingSetAggregation(
+    const ::substrait::ExpandRel& expandRel,
+    const ::substrait::AggregateRel& childAggRel,
+    const core::PlanNodePtr& childAggregateNode,
+    const core::PlanNodePtr& expandInputNode,
+    const ::substrait::ProjectRel* extractionProject) {
+  using GroupingSetNode = facebook::velox::exec::GroupingSetAggregationNode;
+
+  VELOX_CHECK_NOT_NULL(
+      std::dynamic_pointer_cast<const core::AggregationNode>(childAggregateNode),
+      "A fused grouping-set aggregation must consume a converted AggregateRel.");
+
+  const auto& aggregateType = childAggregateNode->outputType();
+  const auto& expandInputType = expandInputNode->outputType();
+  const int32_t numAggregates = childAggRel.measures().size();
+  VELOX_CHECK_GT(numAggregates, 0, "A fused grouping-set aggregation needs at least one aggregate measure.");
+  const int32_t numAggregateColumns = static_cast<int32_t>(aggregateType->size());
+  VELOX_CHECK_GT(
+      numAggregateColumns,
+      numAggregates,
+      "A fused grouping-set aggregation needs at least one grouping key below the Expand.");
+  const int32_t numKeys = numAggregateColumns - numAggregates;
+  VELOX_CHECK_LE(numKeys, 64, "A fused grouping-set aggregation supports at most 64 grouping keys.");
+
+  const int32_t numExpandInputColumns = static_cast<int32_t>(expandInputType->size());
+  VELOX_CHECK_GE(
+      numExpandInputColumns,
+      numKeys + numAggregates,
+      "A fused grouping-set aggregation expected at least {} Expand input columns, but got {}.",
+      numKeys + numAggregates,
+      numExpandInputColumns);
+  const int32_t numBufferColumns = numExpandInputColumns - numKeys;
+
+  if (extractionProject != nullptr) {
+    VELOX_CHECK(
+        extractionProject->has_input() && extractionProject->input().has_aggregate(),
+        "The buffer-extraction ProjectRel must read directly from the child AggregateRel.");
+    VELOX_CHECK_EQ(
+        extractionProject->expressions_size(),
+        numExpandInputColumns,
+        "The buffer-extraction ProjectRel has {} expressions, expected {}.",
+        extractionProject->expressions_size(),
+        numExpandInputColumns);
+    VELOX_CHECK(
+        extractionProject->common().emit_kind_case() == ::substrait::RelCommon::EmitKindCase::kEmit,
+        "The buffer-extraction ProjectRel must emit only its appended expressions.");
+    const auto& emit = extractionProject->common().emit();
+    VELOX_CHECK_EQ(
+        emit.output_mapping_size(),
+        numExpandInputColumns,
+        "The buffer-extraction ProjectRel emits {} columns, expected {}.",
+        emit.output_mapping_size(),
+        numExpandInputColumns);
+    for (int32_t i = 0; i < numExpandInputColumns; ++i) {
+      VELOX_CHECK_EQ(
+          emit.output_mapping(i),
+          numAggregateColumns + i,
+          "The buffer-extraction ProjectRel emit mapping is not the standard aggregate-buffer extraction shape.");
+    }
+    for (int32_t i = 0; i < numKeys; ++i) {
+      const auto channel = selectionFieldIndex(extractionProject->expressions(i));
+      VELOX_CHECK(
+          channel.has_value() && *channel == static_cast<uint32_t>(i),
+          "Buffer-extraction ProjectRel expression {} must preserve grouping key channel {}.",
+          i,
+          i);
+    }
+  } else {
+    VELOX_CHECK_EQ(
+        numBufferColumns, numAggregates, "A direct AggregateRel input must expose one accumulator column per measure.");
+  }
+
+  // Every projection of the tagged Expand is
+  //   [k1 | null, .., kn | null, gid literal, buffer1, .., bufferB].
+  // B equals the number of aggregate measures for a direct AggregateRel, but
+  // can be larger when ProjectRel extracts a multi-field accumulator.
+  const int32_t projectionWidth = numKeys + 1 + numBufferColumns;
+  const int32_t gidSlot = numKeys;
+  const int32_t numSets = expandRel.fields_size();
+  VELOX_CHECK_GT(numSets, 0, "A fused grouping-set aggregation needs at least one grouping set.");
+  const auto maxGroupingSets = veloxCfg_->get<int32_t>(
+      kFusedGroupingSetAggregateMaxGroupingSets, kFusedGroupingSetAggregateMaxGroupingSetsDefault);
+  VELOX_CHECK_GE(maxGroupingSets, 1, "The fused grouping-set maximum must be positive.");
+  VELOX_CHECK_LE(
+      maxGroupingSets,
+      facebook::velox::exec::kMaxGroupingSets,
+      "The fused grouping-set maximum must not exceed {}.",
+      facebook::velox::exec::kMaxGroupingSets);
+  VELOX_CHECK_LE(
+      numSets,
+      maxGroupingSets,
+      "A fused grouping-set aggregation has {} sets, exceeding the configured maximum {}.",
+      numSets,
+      maxGroupingSets);
+
+  // Slot j of the Expand's key region reads child channel keySlotToChannel[j]. The mapping is read
+  // out of the plan instead of assumed to be the identity.
+  std::vector<int32_t> keySlotToChannel(numKeys, -1);
+  std::vector<facebook::velox::exec::GroupingSetSpec> groupingSets;
+  groupingSets.reserve(numSets);
+
+  for (int32_t setIdx = 0; setIdx < numSets; ++setIdx) {
+    const auto& duplicates = expandRel.fields(setIdx).switching_field().duplicates();
+    VELOX_CHECK_EQ(
+        duplicates.size(),
+        projectionWidth,
+        "Expand projection {} of a fused grouping-set aggregation has {} expressions, expected {}.",
+        setIdx,
+        duplicates.size(),
+        projectionWidth);
+
+    facebook::velox::exec::GroupingSetSpec set;
+
+    for (int32_t slot = 0; slot < numKeys; ++slot) {
+      const auto& expr = duplicates[slot];
+      const auto channel = selectionFieldIndex(expr);
+      if (channel.has_value()) {
+        VELOX_CHECK_LT(
+            *channel,
+            static_cast<uint32_t>(numKeys),
+            "Expand key slot {} of a fused grouping-set aggregation reads an aggregate column.",
+            slot);
+        if (keySlotToChannel[slot] == -1) {
+          keySlotToChannel[slot] = static_cast<int32_t>(*channel);
+        } else {
+          VELOX_CHECK_EQ(
+              keySlotToChannel[slot],
+              static_cast<int32_t>(*channel),
+              "Expand key slot {} of a fused grouping-set aggregation is not stable across sets.",
+              slot);
+        }
+        set.activeKeysMask |= facebook::velox::exec::GroupingSetMask{1} << *channel;
+      } else {
+        VELOX_CHECK(
+            isNullLiteral(expr),
+            "Expand key slot {} of a fused grouping-set aggregation is neither a field nor a null literal.",
+            slot);
+      }
+    }
+
+    // The grouping id is supplied verbatim by the planner. Recomputing Spark's GROUPING_ID bitmask
+    // here would tie the native side to a Spark-version-dependent bit order.
+    const auto gid = groupingIdLiteralValue(duplicates[gidSlot]);
+    VELOX_CHECK(
+        gid.has_value(),
+        "Expand slot {} of a fused grouping-set aggregation must be an i64 grouping-id literal.",
+        gidSlot);
+    set.groupingId = *gid;
+
+    // Spark buffer columns pass through every projection unchanged and in order.
+    for (int32_t i = 0; i < numBufferColumns; ++i) {
+      const auto channel = selectionFieldIndex(duplicates[gidSlot + 1 + i]);
+      VELOX_CHECK(
+          channel.has_value() && *channel == static_cast<uint32_t>(numKeys + i),
+          "Aggregate buffer column {} is not passed through unchanged by Expand projection {}.",
+          i,
+          setIdx);
+    }
+
+    groupingSets.emplace_back(std::move(set));
+  }
+
+  for (int32_t slot = 0; slot < numKeys; ++slot) {
+    VELOX_CHECK_NE(
+        keySlotToChannel[slot],
+        -1,
+        "Expand key slot {} of a fused grouping-set aggregation is a null literal in every set.",
+        slot);
+  }
+  {
+    std::unordered_set<int32_t> seenChannels(keySlotToChannel.begin(), keySlotToChannel.end());
+    VELOX_CHECK_EQ(
+        seenChannels.size(),
+        static_cast<size_t>(numKeys),
+        "Expand key slots of a fused grouping-set aggregation are not a permutation of the child's keys.");
+  }
+
+  std::vector<facebook::velox::exec::GroupingSetMask> groupingSetMasks;
+  groupingSetMasks.reserve(groupingSets.size());
+  for (const auto& set : groupingSets) {
+    groupingSetMasks.push_back(set.activeKeysMask);
+  }
+  const auto derivationPlan = facebook::velox::exec::buildDerivationPlan(groupingSetMasks);
+  const auto numRoots =
+      std::count(derivationPlan.parent.begin(), derivationPlan.parent.end(), facebook::velox::exec::kRawInputParent);
+  VELOX_CHECK_EQ(
+      numRoots, 1, "A fused grouping-set aggregation requires one derivation root, but this shape has {}.", numRoots);
+
+  std::vector<core::FieldAccessTypedExprPtr> groupingKeys;
+  groupingKeys.reserve(numKeys);
+  for (int32_t i = 0; i < numKeys; ++i) {
+    groupingKeys.emplace_back(
+        std::make_shared<core::FieldAccessTypedExpr>(aggregateType->childAt(i), aggregateType->nameOf(i)));
+  }
+
+  // Rebuild the aggregate list from the child's Substrait measures rather than from the converted
+  // AggregationNode: the node contract requires the BASE, unsuffixed Velox function name and the
+  // RAW argument types, while the converted child carries companion-suffixed names ("sum_partial").
+  std::vector<std::string> aggregateNames;
+  std::vector<core::AggregationNode::Aggregate> aggregates;
+  aggregateNames.reserve(numAggregates);
+  aggregates.reserve(numAggregates);
+  for (int32_t i = 0; i < numAggregates; ++i) {
+    const auto& measure = childAggRel.measures(i);
+    VELOX_CHECK(
+        !measure.has_filter() || measure.filter().ByteSizeLong() == 0,
+        "A fused grouping-set aggregation does not support masked aggregates.");
+    const auto& aggFunction = measure.measure();
+    VELOX_CHECK(
+        aggFunction.phase() == ::substrait::AGGREGATION_PHASE_INITIAL_TO_INTERMEDIATE,
+        "A fused grouping-set aggregation requires INITIAL_TO_INTERMEDIATE child measures.");
+    VELOX_CHECK(
+        aggFunction.invocation() != ::substrait::AggregateFunction::AGGREGATION_INVOCATION_DISTINCT,
+        "A fused grouping-set aggregation does not support DISTINCT child measures.");
+    VELOX_CHECK_EQ(
+        aggFunction.sorts_size(), 0, "A fused grouping-set aggregation does not support ordered child measures.");
+    const auto baseFuncName = SubstraitParser::findVeloxFunction(functionMap_, aggFunction.function_reference());
+    // The node resolves the intermediate type from this base name and the raw
+    // input types, then verifies it matches the child accumulator channel.
+    auto rawInputTypes =
+        SubstraitParser::sigToTypes(SubstraitParser::findFunctionSpec(functionMap_, aggFunction.function_reference()));
+
+    const auto accChannel = numKeys + i;
+    const auto& accType = aggregateType->childAt(accChannel);
+    // The operator resolves accumulator channels positionally; this argument exists so the plan
+    // prints and validates like any other aggregate.
+    std::vector<core::TypedExprPtr> aggParams{
+        std::make_shared<core::FieldAccessTypedExpr>(accType, aggregateType->nameOf(accChannel))};
+    aggregates.emplace_back(core::AggregationNode::Aggregate{
+        std::make_shared<const core::CallTypedExpr>(accType, std::move(aggParams), baseFuncName),
+        std::move(rawInputTypes),
+        /*mask=*/nullptr,
+        {},
+        {}});
+    aggregateNames.emplace_back(fmt::format("gsagg_{}_{}", planNodeId_, i));
+  }
+
+  // The optional bypass lane forwards the all-keys-active set without another hash pass. A
+  // flushable child can still emit duplicate, mergeable partial states after abandonment; the
+  // downstream final aggregate combines them. Accept the old childGrouped marker for plan
+  // compatibility, but new plans use the more accurate finestSetBypass name.
+  std::optional<int32_t> childGroupedSet;
+  if (SubstraitParser::configSetInOptimization(expandRel.advanced_extension(), "finestSetBypass=") ||
+      SubstraitParser::configSetInOptimization(expandRel.advanced_extension(), "childGrouped=")) {
+    for (int32_t i = 0; i < numSets; ++i) {
+      if (groupingSets[i].numActiveKeys() == numKeys) {
+        childGroupedSet = i;
+        break;
+      }
+    }
+    VELOX_CHECK(
+        childGroupedSet.has_value(), "finestSetBypass=1 was set but no grouping set covers all {} keys.", numKeys);
+  }
+
+  auto groupingSetNode = std::make_shared<GroupingSetNode>(
+      nextPlanNodeId(),
+      std::move(groupingKeys),
+      std::move(groupingSets),
+      std::move(aggregateNames),
+      std::move(aggregates),
+      childGroupedSet,
+      childAggregateNode);
+
+  // The tagged Expand reserves two native metric slots: one for this node and
+  // one for the schema-restoring Project below. The projected column names use
+  // the ProjectNode's id, matching the ordinary Expand conversion.
+
+  // Restore the Expand's column order. For multi-column Spark buffers, replay
+  // the extraction expressions against ROW(keys, packed accumulators, gid)
+  // before inserting gid between the keys and flattened buffers.
+  const auto& fusedType = groupingSetNode->outputType();
+  std::vector<std::string> names;
+  std::vector<core::TypedExprPtr> expressions;
+  names.reserve(projectionWidth);
+  expressions.reserve(projectionWidth);
+  const auto addField = [&](int32_t channel) {
+    expressions.emplace_back(
+        std::make_shared<core::FieldAccessTypedExpr>(fusedType->childAt(channel), fusedType->nameOf(channel)));
+  };
+  if (extractionProject == nullptr) {
+    for (int32_t slot = 0; slot < numKeys; ++slot) {
+      addField(keySlotToChannel[slot]);
+    }
+    addField(static_cast<int32_t>(groupingSetNode->gidChannel()));
+    for (int32_t i = 0; i < numAggregates; ++i) {
+      addField(numKeys + i);
+    }
+  } else {
+    std::vector<core::TypedExprPtr> extractedExpressions;
+    extractedExpressions.reserve(numExpandInputColumns);
+    for (int32_t i = 0; i < numExpandInputColumns; ++i) {
+      auto expression = exprConverter_->toVeloxExpr(extractionProject->expressions(i), fusedType);
+      VELOX_CHECK(
+          expression->type()->equivalent(*expandInputType->childAt(i)),
+          "Replayed buffer-extraction expression {} has type {}, expected {}.",
+          i,
+          expression->type()->toString(),
+          expandInputType->childAt(i)->toString());
+      extractedExpressions.emplace_back(std::move(expression));
+    }
+    for (int32_t slot = 0; slot < numKeys; ++slot) {
+      expressions.emplace_back(extractedExpressions[keySlotToChannel[slot]]);
+    }
+    addField(static_cast<int32_t>(groupingSetNode->gidChannel()));
+    for (int32_t i = 0; i < numBufferColumns; ++i) {
+      expressions.emplace_back(extractedExpressions[numKeys + i]);
+    }
+  }
+  for (int32_t idx = 0; idx < projectionWidth; ++idx) {
+    names.emplace_back(SubstraitParser::makeNodeName(planNodeId_, idx));
+  }
+  return std::make_shared<core::ProjectNode>(
+      nextPlanNodeId(), std::move(names), std::move(expressions), std::move(groupingSetNode));
+}
+
 core::PlanNodePtr SubstraitToVeloxPlanConverter::toVeloxPlan(const ::substrait::ExpandRel& expandRel) {
   core::PlanNodePtr childNode;
   if (expandRel.has_input()) {
     childNode = toVeloxPlan(expandRel.input());
   } else {
     VELOX_FAIL("Child Rel is expected in ExpandRel.");
+  }
+
+  const bool isTaggedRollup = expandRel.has_advanced_extension() &&
+      SubstraitParser::configSetInOptimization(expandRel.advanced_extension(), "isRollup=");
+  if (isTaggedRollup) {
+    // The marker is an optimization hint. Scala guards the common unsupported
+    // shapes, while these native checks remain the source of truth. If either
+    // side rejects the optimization, a plain Expand preserves the same
+    // (keys, gid, partial states) schema and the final aggregation still merges
+    // the states correctly; only pre-shuffle reduction is lost.
+    try {
+      if (expandRel.input().has_aggregate()) {
+        return toGroupingSetAggregation(expandRel, expandRel.input().aggregate(), childNode, childNode);
+      }
+      if (expandRel.input().has_project() && expandRel.input().project().has_input() &&
+          expandRel.input().project().input().has_aggregate()) {
+        const auto projectNode = std::dynamic_pointer_cast<const core::ProjectNode>(childNode);
+        VELOX_CHECK_NOT_NULL(projectNode, "The converted buffer-extraction ProjectRel did not produce a ProjectNode.");
+        VELOX_CHECK_EQ(
+            projectNode->sources().size(), 1, "The converted buffer-extraction ProjectRel must have one source.");
+        return toGroupingSetAggregation(
+            expandRel,
+            expandRel.input().project().input().aggregate(),
+            projectNode->sources().front(),
+            childNode,
+            &expandRel.input().project());
+      }
+      VELOX_FAIL(
+          "Expand tagged isRollup=1 does not read from an AggregateRel or a buffer-extraction "
+          "ProjectRel over AggregateRel.");
+    } catch (const VeloxException& e) {
+      LOG(WARNING) << "Fused grouping-set aggregation is not applicable to this Expand; falling "
+                      "back to a plain Expand (correct, but higher shuffle volume). Reason: "
+                   << e.what();
+    }
+    // Fall through to the ordinary ExpandNode conversion below. planNodeId_ may have advanced by one
+    // if toGroupingSetAggregation threw after allocating the fused node's id; the resulting gap is
+    // harmless because plan node ids need only be unique, and the ExpandNode names its own columns
+    // from the current planNodeId_ so the naming stays self-consistent.
   }
 
   const auto& inputType = childNode->outputType();
@@ -934,7 +1322,23 @@ core::PlanNodePtr SubstraitToVeloxPlanConverter::toVeloxPlan(const ::substrait::
     names.push_back(SubstraitParser::makeNodeName(planNodeId_, idx));
   }
 
-  return std::make_shared<core::ExpandNode>(nextPlanNodeId(), projectSetExprs, std::move(names), childNode);
+  auto expandNode = std::make_shared<core::ExpandNode>(nextPlanNodeId(), projectSetExprs, std::move(names), childNode);
+  if (isTaggedRollup && expandRel.input().has_aggregate()) {
+    // A tagged Expand owns two native metric slots. Fused conversion naturally produces the
+    // grouping-set node and its schema-restoring Project. Preserve that contract on direct-shape
+    // fallback by adding a lightweight identity Project above the plain Expand.
+    const auto& outputType = expandNode->outputType();
+    std::vector<std::string> identityNames(outputType->names().begin(), outputType->names().end());
+    std::vector<core::TypedExprPtr> identityExpressions;
+    identityExpressions.reserve(outputType->size());
+    for (int32_t i = 0; i < outputType->size(); ++i) {
+      identityExpressions.emplace_back(
+          std::make_shared<core::FieldAccessTypedExpr>(outputType->childAt(i), outputType->nameOf(i)));
+    }
+    return std::make_shared<core::ProjectNode>(
+        nextPlanNodeId(), std::move(identityNames), std::move(identityExpressions), std::move(expandNode));
+  }
+  return expandNode;
 }
 
 namespace {

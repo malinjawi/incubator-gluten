@@ -97,6 +97,7 @@ macro(add_duckdb)
   else()
     message(STATUS "Found DuckDB library from ${DuckDB_DIR}")
     target_link_libraries(facebook::velox INTERFACE duckdb_static)
+    target_include_directories(facebook::velox INTERFACE ${DuckDB_INCLUDE_DIRS})
   endif()
 endmacro()
 
@@ -177,6 +178,9 @@ set(VELOX_SRCS
     operators/functions/RegistrationAllFunctions.cc
     operators/functions/RowConstructorWithNull.cc
     operators/functions/SparkExprToSubfieldFilterParser.cc
+    operators/plannodes/GroupingSetAggregationNode.cc
+    operators/plannodes/GroupingSetLattice.cc
+    operators/plannodes/MultiGroupingSetAggregation.cc
     operators/plannodes/RowVectorStream.cc
     operators/hashjoin/HashTableBuilder.cc
     operators/reader/FileReaderIterator.cc

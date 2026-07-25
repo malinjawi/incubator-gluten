@@ -36,6 +36,40 @@ function(add_velox_test TEST_EXEC)
   gtest_discover_tests(${TEST_EXEC} DISCOVERY_MODE PRE_TEST)
 endfunction()
 
+# Builds a test against the monolithic Velox archive without loading Gluten's
+# libvelox shared library. Mixing the two gives the process two copies of
+# Velox's global registries and makes registration depend on link order.
+function(add_velox_static_test TEST_EXEC)
+  set(options)
+  set(one_value_args)
+  set(multi_value_args SOURCES VELOX_SOURCES)
+  cmake_parse_arguments(ARG "${options}" "${one_value_args}"
+                        "${multi_value_args}" ${ARGN})
+
+  if(NOT ARG_SOURCES)
+    message(FATAL_ERROR "No sources specified for test ${TEST_EXEC}")
+  endif()
+
+  add_executable(${TEST_EXEC} ${ARG_SOURCES} ${ARG_VELOX_SOURCES}
+                              ${VELOX_TEST_COMMON_SRCS})
+  get_target_property(VELOX_INCLUDE_DIRECTORIES velox
+                      INTERFACE_INCLUDE_DIRECTORIES)
+  get_target_property(VELOX_LINK_LIBRARIES velox LINK_LIBRARIES)
+  target_include_directories(
+    ${TEST_EXEC} PRIVATE ${CMAKE_SOURCE_DIR}/velox ${CMAKE_SOURCE_DIR}/src
+                         ${VELOX_INCLUDE_DIRECTORIES})
+  if(GLUTEN_VELOX_ENABLE_PARQUET)
+    target_compile_definitions(${TEST_EXEC} PRIVATE VELOX_ENABLE_PARQUET)
+  endif()
+  target_link_libraries(
+    ${TEST_EXEC}
+    PRIVATE ${VELOX_LINK_LIBRARIES}
+            ${GLUTEN_ROARING_LINK_LIBRARY}
+            GTest::gtest
+            GTest::gtest_main)
+  gtest_discover_tests(${TEST_EXEC} DISCOVERY_MODE PRE_TEST)
+endfunction()
+
 if(ENABLE_GPU)
   function(import_library TARGET_NAME LIB_PATH)
     if(NOT EXISTS ${LIB_PATH})
@@ -134,6 +168,14 @@ add_velox_test(
   VeloxToSubstraitTypeTest.cc)
 add_velox_test(spark_functions_test SOURCES SparkFunctionTest.cc
                FunctionTest.cc)
+# Gluten-local grouping-set node, lattice, and operator coverage.
+add_velox_static_test(
+  velox_rollup_aggregation_test
+  SOURCES MultiGroupingSetAggregationTest.cc
+  VELOX_SOURCES
+          ${CMAKE_SOURCE_DIR}/velox/operators/plannodes/GroupingSetAggregationNode.cc
+          ${CMAKE_SOURCE_DIR}/velox/operators/plannodes/GroupingSetLattice.cc
+          ${CMAKE_SOURCE_DIR}/velox/operators/plannodes/MultiGroupingSetAggregation.cc)
 add_velox_test(runtime_test SOURCES RuntimeTest.cc)
 add_velox_test(velox_memory_test SOURCES MemoryManagerTest.cc)
 add_velox_test(buffer_outputstream_test SOURCES BufferOutputStreamTest.cc)

@@ -30,6 +30,9 @@ class ExpandMetricsUpdater(val metrics: Map[String, SQLMetric]) extends MetricsU
       metrics("wallNanos") += operatorMetrics.wallNanos
       metrics("peakMemoryBytes") += operatorMetrics.peakMemoryBytes
       metrics("numMemoryAllocations") += operatorMetrics.numMemoryAllocations
+      metrics("flushRowCount") += operatorMetrics.flushRowCount
+      metrics("abandonedPartialAggregationRows") +=
+        operatorMetrics.abandonedPartialAggregationRows
       metrics("loadLazyVectorTime") += operatorMetrics.loadLazyVectorTime
     }
   }

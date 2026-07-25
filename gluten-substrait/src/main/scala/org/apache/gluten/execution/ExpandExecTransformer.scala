@@ -29,12 +29,26 @@ import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.plans.physical.{Partitioning, UnknownPartitioning}
 import org.apache.spark.sql.execution._
 
+import com.google.protobuf.StringValue
+
 import java.util.{ArrayList => JArrayList, List => JList}
 
+/**
+ * @param groupingSetAggregation
+ *   When true, this Expand sits directly on top of a partial aggregation at the finest grain and
+ *   expands intermediate states rather than raw rows. The Velox backend's LazyAggregateExpandRule
+ *   sets the flag to request Gluten's native grouping-set aggregation operator. The marker is an
+ *   optimization hint; falling back to an ordinary Expand remains correct.
+ * @param groupingSetFinestSetBypass
+ *   When true, also tell the native grouping-set operator that it may forward the finest grouping
+ *   set without hashing it again. This only has an effect when groupingSetAggregation is true.
+ */
 case class ExpandExecTransformer(
     projections: Seq[Seq[Expression]],
     output: Seq[Attribute],
-    child: SparkPlan)
+    child: SparkPlan,
+    groupingSetAggregation: Boolean = false,
+    groupingSetFinestSetBypass: Boolean = false)
   extends UnaryExecNode
   with UnaryTransformSupport {
 
@@ -55,8 +69,7 @@ case class ExpandExecTransformer(
     BackendsApiManager.getMetricsApiInstance.genExpandTransformerMetricsUpdater(metrics)
   }
 
-  // The GroupExpressions can output data with arbitrary partitioning, so set it
-  // as UNKNOWN partitioning
+  // Expand expressions can change the input partitioning.
   override def outputPartitioning: Partitioning = UnknownPartitioning(0)
 
   def getRelNode(
@@ -81,9 +94,19 @@ case class ExpandExecTransformer(
     }
 
     if (!validation) {
-      RelBuilder.makeExpandRel(input, projectSetExprNodes, context, operatorId)
+      if (groupingSetAggregation) {
+        val finestSetBypass = if (groupingSetFinestSetBypass) 1 else 0
+        val optimization = BackendsApiManager.getTransformerApiInstance.packPBMessage(
+          StringValue.newBuilder
+            .setValue(s"isRollup=1\nfinestSetBypass=$finestSetBypass\n")
+            .build)
+        val extensionNode = ExtensionBuilder.makeAdvancedExtension(optimization, null)
+        RelBuilder.makeExpandRel(input, projectSetExprNodes, extensionNode, context, operatorId)
+      } else {
+        RelBuilder.makeExpandRel(input, projectSetExprNodes, context, operatorId)
+      }
     } else {
-      // Use a extension node to send the input types through Substrait plan for a validation.
+      // Send input types through the Substrait plan for validation.
       val inputTypeNodeList = new java.util.ArrayList[TypeNode]()
       for (attr <- originalInputAttributes) {
         inputTypeNodeList.add(ConverterUtils.getTypeNode(attr.dataType, attr.nullable))
@@ -123,6 +146,12 @@ case class ExpandExecTransformer(
     val operatorId = context.nextOperatorId(this.nodeName)
     val currRel =
       getRelNode(context, projections, child.output, operatorId, childCtx.root, validation = false)
+    if (groupingSetAggregation) {
+      // Native conversion replaces this one ExpandRel with two physical operators:
+      // GroupingSetAggregation plus its schema-restoring Project. For multi-column aggregate
+      // buffers this second slot is transferred from the child's extraction ProjectRel.
+      context.registerRelToOperator(operatorId)
+    }
     assert(currRel != null, "Expand Rel should be valid")
     TransformContext(output, currRel)
   }
