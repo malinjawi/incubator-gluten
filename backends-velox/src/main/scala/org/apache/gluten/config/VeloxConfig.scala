@@ -68,6 +68,12 @@ class VeloxConfig(conf: SQLConf) extends GlutenConfig(conf) {
   def enableVeloxFusedGroupingSetAggregate: Boolean =
     getConf(VELOX_FUSED_GROUPING_SET_AGGREGATE_ENABLED)
 
+  def maxVeloxFusedGroupingSets: Int =
+    getConf(VELOX_FUSED_GROUPING_SET_AGGREGATE_MAX_GROUPING_SETS)
+
+  def enableVeloxFusedGroupingSetAggregateFinestSetBypass: Boolean =
+    getConf(VELOX_FUSED_GROUPING_SET_AGGREGATE_FINEST_SET_BYPASS_ENABLED)
+
   def enableBroadcastBuildRelationInOffheap: Boolean =
     getConf(VELOX_BROADCAST_BUILD_RELATION_USE_OFFHEAP)
 
@@ -456,18 +462,41 @@ object VeloxConfig extends ConfigRegistry {
     buildConf("spark.gluten.sql.columnar.backend.velox.fusedGroupingSetAggregate.enabled")
       .doc(
         "Experimental. Requires spark.gluten.sql.columnar.backend.velox.lazyAggregateExpand" +
-          ".enabled=true. Takes the lazy-aggregate-expand rewrite one step further: instead of " +
-          "emitting a partial-merge aggregate above the Expand, the Expand is tagged so that " +
-          "the native planner fuses it and the finest-grain aggregate below it into a single " +
-          "grouping-set aggregation operator. That operator derives each grouping set from the " +
-          "smallest already-computed superset instead of re-reading the finest-grain states " +
-          "once per set. Requires a Velox build that provides the operator: Gluten's native " +
-          "library references it unconditionally, so a build without it does not link. The " +
-          "rewrite is also skipped (falling back to the partial-merge stage) for aggregates " +
-          "whose partial buffer spans more than one column, i.e. avg and sum over decimal."
+          ".enabled=true. Replaces the rewritten Expand and partial-merge stage with Gluten's " +
+          "native grouping-set aggregation operator. The operator derives each grouping set " +
+          "from the smallest computed superset. Shapes rejected by the Scala eligibility check " +
+          "keep the partial-merge stage; native validation may instead fall back to a plain " +
+          "Expand. Multi-column Spark partial buffers, such as avg and sum over decimal, are " +
+          "restored from Velox's packed accumulator state after the fused operator."
       )
-      // Kept out of the generated configuration doc until the native operator ships in Gluten's
-      // pinned Velox.
+      .experimental()
+      .booleanConf
+      .createWithDefault(false)
+
+  val VELOX_FUSED_GROUPING_SET_AGGREGATE_MAX_GROUPING_SETS =
+    buildConf("spark.gluten.sql.columnar.backend.velox.fusedGroupingSetAggregate.maxGroupingSets")
+      .doc(
+        "Maximum number of distinct grouping sets accepted by the experimental fused " +
+          "grouping-set aggregation operator. Larger shapes retain the ordinary Expand and " +
+          "partial-merge path. The bound limits per-set hash-table state and lets native " +
+          "parent lookup use one machine-word candidate bitmap."
+      )
+      .experimental()
+      .intConf
+      .checkValue(v => v >= 1 && v <= 64, "must be between 1 and 64")
+      .createWithDefault(16)
+
+  val VELOX_FUSED_GROUPING_SET_AGGREGATE_FINEST_SET_BYPASS_ENABLED =
+    buildConf(
+      "spark.gluten.sql.columnar.backend.velox.fusedGroupingSetAggregate.finestSetBypass.enabled")
+      .doc(
+        "Experimental. When fused grouping-set aggregation is enabled, allow the native operator " +
+          "to forward the finest grouping set directly from the child partial aggregate instead " +
+          "of hashing it again. The child is flushable and can abandon aggregation, so enabling " +
+          "this option does not guarantee one row per finest key. Duplicate partial states " +
+          "remain mergeable by the final aggregate, but the performance trade-off requires " +
+          "workload validation."
+      )
       .experimental()
       .booleanConf
       .createWithDefault(false)

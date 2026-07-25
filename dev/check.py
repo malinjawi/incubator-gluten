@@ -18,6 +18,7 @@ import argparse
 from collections import OrderedDict
 import os
 import regex
+import shlex
 import subprocess
 import sys
 
@@ -26,6 +27,11 @@ import util
 
 EXTENSIONS = "cpp,cc,h,inc,prolog"
 SCRIPTS = util.script_path()
+LICENSE_HEADER = os.path.join(SCRIPTS, "license-header.py")
+if not os.path.isfile(LICENSE_HEADER):
+    LICENSE_HEADER = os.path.join(
+        os.path.dirname(SCRIPTS), ".github", "workflows", "util", "license-header.py"
+    )
 
 
 def get_diff(file, formatted):
@@ -158,7 +164,8 @@ def header_command(commit, files, fix):
     options = "-vk" if fix == "show" else "-i"
 
     status, stdout, stderr = util.run(
-        f"{SCRIPTS}/license-header.py {options} -", input=files
+        f"{shlex.quote(LICENSE_HEADER)} {options} -",
+        input=files,
     )
 
     if stdout != "":

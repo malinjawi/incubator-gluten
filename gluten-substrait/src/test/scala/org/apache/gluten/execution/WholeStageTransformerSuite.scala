@@ -70,7 +70,9 @@ abstract class WholeStageTransformerSuite
       .map(_.name)
       .map {
         table =>
-          val tableDir = getClass.getResource(resourcePath).getFile
+          // URL#getFile leaves spaces percent-encoded (for example,
+          // "velox%20OSS"), which produces a non-existent local path.
+          val tableDir = new File(getClass.getResource(resourcePath).toURI)
           val tablePath = new File(tableDir, table).getAbsolutePath
           val tableDF = spark.read.format(fileFormat).load(tablePath)
           tableDF.createOrReplaceTempView(table)

@@ -17,7 +17,7 @@
 # limitations under the License.
 #
 
-GLUTEN_ROOT=$(cd $(dirname -- $0)/..; pwd -P)
+GLUTEN_ROOT=$(cd "$(dirname -- "$0")/.." && pwd -P)
 
 EXTRA_RESOURCE_DIR=$GLUTEN_ROOT/gluten-core/target/generated-resources
 BUILD_INFO="$EXTRA_RESOURCE_DIR"/gluten-build-info.properties
@@ -37,17 +37,22 @@ function echo_revision_info() {
 }
 
 function echo_velox_revision_info() {
-  BACKEND_HOME=$1
-  echo gcc_version=$(strings $GLUTEN_ROOT/cpp/build/releases/libgluten.so | grep "GCC:" | head -n 1)
+  local gluten_library="$GLUTEN_ROOT/cpp/build/releases/libgluten.so"
+  BACKEND_HOME="$1"
+  if [ -f "$gluten_library" ]; then
+    echo gcc_version=$(strings "$gluten_library" | grep "GCC:" | head -n 1)
+  else
+    echo gcc_version=
+  fi
   echo velox_branch=$(git -C "$BACKEND_HOME" rev-parse --abbrev-ref HEAD)
   echo velox_revision=$(git -C "$BACKEND_HOME" rev-parse HEAD)
   echo velox_revision_time=$(git -C "$BACKEND_HOME" show -s --format=%ci HEAD)
 }
 
 function echo_clickhouse_revision_info() {
-  echo ch_org=$(cat $GLUTEN_ROOT/cpp-ch/clickhouse.version | grep -oP '(?<=^CH_ORG=).*')
-  echo ch_branch=$(cat $GLUTEN_ROOT/cpp-ch/clickhouse.version | grep -oP '(?<=^CH_BRANCH=).*')
-  echo ch_commit=$(cat $GLUTEN_ROOT/cpp-ch/clickhouse.version | grep -oP '(?<=^CH_COMMIT=).*')
+  echo ch_org=$(cat "$GLUTEN_ROOT/cpp-ch/clickhouse.version" | grep -oP '(?<=^CH_ORG=).*')
+  echo ch_branch=$(cat "$GLUTEN_ROOT/cpp-ch/clickhouse.version" | grep -oP '(?<=^CH_BRANCH=).*')
+  echo ch_commit=$(cat "$GLUTEN_ROOT/cpp-ch/clickhouse.version" | grep -oP '(?<=^CH_COMMIT=).*')
 }
 
 function read_cmake_cache_value() {

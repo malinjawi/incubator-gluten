@@ -1,11 +1,18 @@
-# Fused Rollup Operator for the Gluten Velox backend (Phase 3 design draft)
+# Fused Rollup Operator for the Gluten Velox backend (historical Phase 3 draft)
 
-Status: **draft for review** — grounded in real Velox/Gluten APIs, but not expected to compile
-untouched. Open questions are called out explicitly rather than papered over.
+Status: **historical prototype design, retained for audit context**. The
+`docs/design/Rollup*` source files discussed here are non-building proof-of-concept
+artifacts, not the implementation. The production operator is Gluten-local under
+`cpp/velox/operators/plannodes/`:
+`GroupingSetAggregationNode.{h,cc}`, `GroupingSetLattice.{h,cc}`, and
+`MultiGroupingSetAggregation.{h,cc}`. Current readiness and deployment caveats live in
+`DEFENSIBILITY.md` and `DEPLOYMENT_RUNBOOK.md`; production source wins over this draft
+where the design evolved.
 
 Author's note: items marked **STILL OPEN** could not be settled from a direct repo read. Items
 marked **RESOLVED** were open in an earlier revision and have since been checked against the real
-Velox and Gluten sources. §11 lists both, plus the defects found and fixed during review.
+Velox and Gluten sources available when this prototype was written. §11 lists both, plus the
+defects found and fixed during that review.
 
 ---
 
@@ -44,8 +51,11 @@ materialises the amplified stream at all.
 Prior art worth naming: Databricks Photon ships a fused `PhotonGroupingAggWithRollup` operator
 (visible in a real q67 plan), and Gluten's own ClickHouse backend already has a two-port fused
 lazy-expand operator at `cpp-ch/local-engine/Operator/AdvancedExpandStep.cpp`. The hierarchical
-derivation strategy is the classic smallest-parent rule from Agarwal et al., *On the Computation of
-Multidimensional Aggregates* (VLDB 1996).
+derivation fallback is the classic smallest-parent rule from Agarwal et al., *On the Computation of
+Multidimensional Aggregates* (VLDB 1996). The native lattice API also accepts optional per-set row
+estimates and prefers the strict-superset parent expected to emit fewer rows; the current Gluten
+planner does not yet transport reliable subset NDV estimates, so production uses the deterministic
+smallest-parent fallback.
 
 ---
 
@@ -199,10 +209,14 @@ Each state therefore flows down the hierarchy exactly once. After level `L` is f
 walks finest to grand total and the operator is finished when level 0 has been drained and every
 queue is empty.
 
-**Bounded-memory caveat (honest):** draining level `L` into level `L-1` can transiently grow level
-`L-1`. In the worst case `G_{L-1} = G_L` (no reduction between adjacent levels) and level `L-1`
-grows to the size of the table we are freeing, so total footprint does not exceed roughly two live
-tables. In practice rollup levels reduce steeply. The abandon valve below is the backstop.
+**Memory caveat (current correction to this historical draft):** the operator can own one live
+table for every non-bypassed, non-abandoned grouping set. Its retained aggregate state is therefore
+`O(sum_i(G_i * W_i))`, where `G_i` is the live group count and `W_i` is that level's state width;
+it is not bounded to two tables. Draining level `L` into level `L-1` can also make extracted output
+vectors and parent growth coexist temporarily. Proactive soft/shared-target flushes, descendant
+hard-cap checks, and per-level abandonment control this state, but input batches, hash-table
+capacity jumps, and extraction buffers mean they are scheduling limits rather than a strict
+allocator cap. There is no live-state spill or reclaim path.
 
 ### 3.4 Per-level abandon valve
 
@@ -229,14 +243,24 @@ Abandoning level `L` pushes its input volume down to level `L-1`, which is the s
 three-operator plan has by construction, so the fused operator degrades gracefully to "no worse than
 today" rather than falling off a cliff.
 
-Budget growth reuses `maybeIncreasePartialAggregationMemoryUsage`'s policy: double the per-level
-limit up to `max_extended_partial_aggregation_memory`, guarded by `pool()->maybeReserve`.
+Each non-bypassed grouping set keeps the ordinary
+`max_partial_aggregation_memory` soft threshold, so low-cardinality coarse sets
+are not starved merely because several tables exist. Post-flush growth still
+doubles a node's threshold up to
+`max_extended_partial_aggregation_memory`.
+Explicit pool reservation is operator-coordinated: it reuses already-unused
+reservation and requests only headroom useful before the shared target. This
+avoids paying Velox's 8 MiB reservation quantum once per small node-local
+growth.
 
-**STILL OPEN (§11 item 1) — budget partitioning.** `max_partial_aggregation_memory` defaults to 16 MB for a
-*single* table. With up to `n` live tables, do we (a) give each level the full budget, (b) split the
-budget `n` ways, or (c) give each level the full budget but track a shared operator-level ceiling and
-flush the finest full level when the sum is exceeded? I lean (c) — coarse levels are tiny and would
-be starved by (b) — but this needs a decision and probably a new config key.
+The extended limit is also the target for the sum of all flushable
+grouping-set allocations, including global aggregate state. This is a
+scheduling target, not a strict allocator cap: a whole input batch, hash-table
+capacity jump, or parent drain batch can temporarily overshoot it. At every safe
+boundary the operator drains local hard/soft violations first, then the largest
+eligible set, until another input batch can be accepted without actionable
+over-target state. A global pressure drain emits its mergeable intermediate row
+and calls `resetGlobalAggregation()` before accepting more input.
 
 ### 3.5 Worked example (q67-shaped)
 
@@ -522,7 +546,8 @@ get a test asserting the plan *did not* use `RollupNode`.
 
 ## 9. Rollout
 
-1. Operator + node + translator behind `spark.gluten.sql.columnar.backend.velox.fusedRollup.enabled`,
+1. Operator + node + translator behind
+   `spark.gluten.sql.columnar.backend.velox.fusedGroupingSetAggregate.enabled`,
    default **false**. Correctness tests green.
 2. Benchmark: q67-shaped synthetic first (the LazyAggregateExpandRule baseline must be measured too, not assumed), then full TPC-DS SF1000.
    Publish per-level `aggregationPct` alongside the timing so the win is explainable.

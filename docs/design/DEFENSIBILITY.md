@@ -1,6 +1,8 @@
 # Fused grouping-set aggregation — defensibility document
 
-**Status:** not mergeable as a single change. Splits into three PRs, one of which is ready today.
+**Status:** historical readiness audit from 2026-07-22, with a current disposition updated
+2026-07-25. Historical measurements remain labeled as such; current production files,
+tests, and `DEPLOYMENT_RUNBOOK.md` are authoritative.
 **Audience:** Apache Gluten / Velox reviewers, and engineering management.
 **Date of record:** 2026-07-22. Every measurement below was taken on the tree at that date.
 
@@ -8,6 +10,18 @@ This document is written to be read adversarially. Section 5 lists everything kn
 wrong with the work, ranked, before any reviewer has to find it. If you find a defect that
 is not in section 5, that is a reporting failure and the rest of this document should be
 treated with proportionally more suspicion.
+
+**Current disposition (2026-07-25).** The former D1 routing defect is fixed: Spark
+multi-column partial buffers, including decimal sum's `(sum, isEmpty)` state, pass through
+the extraction `ProjectRel`, are reconstructed as packed Velox accumulator state, and are
+restored above the fused node. The q67-shaped native differential passes with bypass off
+and on; standard native tests are **54/54** and the pressure selection is **61/61**.
+Finest-set bypass is independently selectable and defaults off. This is enough to package
+a controlled Linux q67 canary, **not** to claim production readiness. Linux must still
+prove end-to-end q67 identity, pressure behavior, AQE behavior, and performance. Fallback
+plan conversion is locally covered; fallback execution and metric ownership remain gates
+before broad rollout. The pinned macOS Spark/JNI runtime aborts in Folly F14 on the same
+query shape even with both features off, so that platform cannot clear the execution gate.
 
 ---
 
@@ -24,14 +38,14 @@ branch: when the shape qualifies, the rewrite instead emits a marker on the Expa
 (`isRollup=1`) which the Substrait→Velox converter (`SubstraitToVeloxPlan.cc`,
 `toGroupingSetAggregation`) collapses into a single Velox `GroupingSetAggregationNode`,
 deleting the Expand and the merge stage entirely. The fused branch is off by default and
-is *not* ready.
+is ready only for the controlled Linux canary described in the deployment runbook.
 
 **Changeset B (Gluten-local custom operator + one Velox patch).** A new plan node
 `GroupingSetAggregationNode` and operator `MultiGroupingSetAggregation` that computes every
 grouping set in one pass, with a derivation lattice: each grouping set is aggregated from
 the smallest already-aggregated superset rather than from raw input, so `{a}` is derived
 from `{a,b}` instead of re-probing the raw stream. **The operator now lives inside the
-Gluten tree** (`cpp/velox/operators/rollup/`, compiled into Gluten's `libvelox` and
+Gluten tree** (`cpp/velox/operators/plannodes/`, compiled into Gluten's `libvelox` and
 registered Gluten-locally via `registerMultiGroupingSetAggregation()`), mirroring the
 existing cudf custom-operator precedent — so it needs **no Velox fork**. It keeps namespace
 `facebook::velox::exec` so the node type and call sites stay valid. Also in Changeset B, and
@@ -54,35 +68,37 @@ buffering states.
 | C3 | The derivation lattice reduces hash probes below the vanilla flat fan-out. | Structural, from the plan: a rollup of n sets probes n tables of geometrically shrinking cardinality instead of n tables each fed the full raw stream. | Probe counts from the same harness. |
 | C4 | The three-stage rewrite (non-fused) is semantically equivalent to the original plan. | All shapes admitted by `LazyAggregateExpandRule`'s guards. | Result-comparison tests in `LazyAggregateExpandSuite.scala`; argument in section 4. |
 | C5 | The `HashAggregation::needsInput()` fix repairs a live row-loss bug in upstream Velox. | Upstream `HashAggregation`, independent of everything else here. | Revert it and `flushCorrectnessSmallBudget` drops rows. Two regression tests added to `AggregationTest.cpp`. |
-| C6 | The exactly-once invariant of the fused operator holds: no grouping set's table is fed while its own output iterator is live, and no node is drained twice. | The operator's drain state machine. | Audited path-by-path (section 4.2). Not broken by any of the 34 tests. |
+| C6 | The exactly-once invariant of the fused operator holds: no grouping set's table is fed while its own output iterator is live, and no node is drained twice. | The operator's drain state machine. | Audited path-by-path (section 4.2) and exercised by the native standard and pressure suites. |
 
 ### 2.2 What is explicitly NOT claimed
 
 Read this list before quoting any number.
 
-- **Nothing has ever executed inside real Gluten.** Not one query. The Gluten C++ side has
-  never been compiled on the machine where this work was done. Every Gluten-side test is
-  planning-only; `FusedGroupingSetAggregateSuite.scala` says so in its own header comment.
-  The first real Gluten plan the fused path meets will fail (see D1).
+- **Nothing had executed inside real Gluten at the date of record.** That historical fact
+  explains the original D1 miss. Since then Gluten C++ has compiled and linked locally,
+  q67-shaped planning reaches native-plan construction, and native differential coverage
+  is green. A valid Linux Spark/JNI q67 execution is still outstanding.
 - **C1 is not an end-to-end q67 number.** It is one pipeline stage in a hand-fed C++
   harness that never goes through Gluten's `getAggRel`. End-to-end q67 speedup is unmeasured.
   There is no claim about it.
-- **C1's 3.0–3.5x is the *bypass* arm, and the bypass lane is dead through Gluten.** The
-  JVM hardcodes `childGrouped=0` (`ExpandExecTransformer.scala`), and
-  `SubstraitParser::configSetInOptimization` (`SubstraitParser.cc:285`) only returns true
-  when the character after the key is `1`. So `childGroupedSet` is always `nullopt` in the
-  integrated path. **The number that corresponds to Changeset A as written is the
-  `NO_BYPASS` arm: 5,312ms vs 6,768–7,909ms vanilla, i.e. ~1.27–1.49x on that stage.** Any
-  presentation that quotes 3.0–3.5x for the integrated path is wrong. This was found by
-  review, not by measurement, and it is disclosed here rather than left to a reviewer.
-- **No performance number in this document was re-verified during the verification pass.**
-  Gluten C++ cannot be compiled on this machine. C1, C2 and C3 stand or fall on
-  reproduction by a third party (section 7).
-- **No claim of production readiness for the fused branch.** It is off by default,
-  experimental, and has a known hard-crash class (D1).
-- **No claim that memory is bounded.** The operator's documented "ceiling" is advisory and
-  is measurably overshot (D8).
-- **No claim that `reclaim()` works.** It has never executed (D10).
+- **C1's 3.0–3.5x is the historical *bypass* arm, not an integrated q67 claim.** At the
+  date of record the JVM hardcoded `childGrouped=0`, so the only comparable integrated
+  design arm was `NO_BYPASS`: 5,312ms vs 6,768–7,909ms vanilla, or ~1.27–1.49x on that
+  standalone stage. The implementation now emits `finestSetBypass=0|1` from an independent
+  default-off setting, but that does not retroactively turn the old harness number into an
+  end-to-end Gluten result. Remeasure both settings on Linux.
+- **No historical performance number in this document was re-verified during the
+  verification pass.** Gluten C++ now compiles locally, but C1, C2 and C3 still stand or
+  fall on a controlled cluster reproduction (section 7).
+- **No claim of production readiness for the fused branch.** It is off by default and
+  experimental. D1 is fixed, while q67 execution and D2 cluster-verification remain gates.
+- **No claim of a strict hard memory bound.** The operator enforces an
+  operator-wide flush target at safe scheduling boundaries, but a full input
+  batch, hash-table capacity jump, or parent drain batch can temporarily
+  overshoot it (D8).
+- **No claim that reclaim makes live state spillable.** It only releases
+  retained allocations from empty tables. The arbitration tests prove callback
+  safety and result identity, but the latest runs reclaimed zero bytes (D3).
 
 ---
 
@@ -165,10 +181,11 @@ Two supporting facts carry it:
 *buffers*, so the same partial state reaches the Final aggregate once per grouping set it
 belongs to. Final-mode merging is associative and commutative over these buffers, so
 merging duplicated buffers at different grains yields the same result as aggregating the
-raw rows at each grain. This is why an *ignored* marker (a build without the operator) is a
-**performance cliff, not a wrong answer** — the plan degrades to un-merged partial states
-which the Final stage still merges correctly. State this explicitly in the PR; it is the
-first question a reviewer asks.
+raw rows at each grain. This is why rejecting the marker and taking the native fallback is
+a **performance cliff, not a wrong answer** — the plan degrades to un-merged partial states
+which the Final stage still merges correctly. The current deployment always compiles the
+operator from Gluten's own tree; Velox does not supply it. State the fallback property
+explicitly in the PR; it is the first question a reviewer asks.
 
 **gid is never recomputed.** Spark's `GROUPING_ID` bit order is version-dependent, and a
 masked NULL is indistinguishable from a data NULL once written. So the gid literal from the
@@ -182,15 +199,16 @@ for the null encoding.
 | Trap | Handling | Tested |
 |---|---|---|
 | **NULL from a rolled-up key vs. NULL in the data** | Never distinguished by the operator. gid carries the distinction and is passed through untouched; masked slots are literal nulls on the wire (`literal_type_case() == kNull`). | Result-comparison tests in `LazyAggregateExpandSuite`. |
-| **gid / mask / level indexing** | Independently re-verified. Scala emits `[k1..k_{N-1}, gid, buf...]`; `shapeFusible` pins the literal slot at index `N-1`; C++ derives `gidSlot = numKeys`. Consistent, no off-by-one. `set.keyIsActive` is indexed by child channel; the output ProjectNode reorders by `keySlotToChannel[slot]`; consistent under an arbitrary permutation, not just identity. | Structural review + `MultiGroupingSetAggregationTest`. |
+| **gid / mask / level indexing** | Independently re-verified. Scala emits `[k1..k_{N-1}, gid, buf...]`; `shapeFusible` pins the literal slot at index `N-1`; C++ derives `gidSlot = numKeys`. Consistent, no off-by-one. `GroupingSetSpec::activeKeysMask` is indexed by child channel; the output ProjectNode reorders by `keySlotToChannel[slot]`; consistent under an arbitrary permutation, not just identity. | Structural review + `MultiGroupingSetAggregationTest`. |
 | **Empty input** | `receivedInput_` is set *below* the zero-row early return, so it means "at least one row seen". This is what prevents the global (grand-total) node emitting a spurious identity row for an empty input. JVM side has a `bottomGroupingKeys.isEmpty` guard. | `LazyAggregateExpandSuite` "degenerate grouping sets". |
-| **Duplicate grouping sets** | Rejected. Enforced in the node constructor **and now at the `buildDerivationPlan` boundary** (a `VELOX_CHECK` was added, since the function is an inline free function in an installed public header whose precondition previously lived in a different file). JVM mirrors the check. | `latticeRejectsDuplicateMasks` (new); "duplicate grouping sets keep duplicate result rows". |
+| **Duplicate grouping sets** | Rejected. Enforced in the node constructor and at the `buildDerivationPlan` boundary. The lattice helper is declared in `GroupingSetLattice.h` and implemented in `GroupingSetLattice.cc`; JVM mirrors the check. | `latticeRejectsDuplicateMasks`; "duplicate grouping sets keep duplicate result rows". |
 | **Aggregate filter clauses (`FILTER (WHERE …)`)** | Excluded. `aggExpr.filter.isDefined` bails the rule; C++ `VELOX_CHECK`s that no measure has a filter. | "aggregate filter clause" test. |
 | **DISTINCT aggregates** | Excluded by `isDistinct` guard. The `RewriteDistinctAggregates` look-alike Expand is separately rejected because its aggregate functions reference expand-created attributes. | "single count distinct" / "multiple count distinct" — but see D14, these tests are weak. |
-| **Float non-associativity** | Under strict mode, float/double `sum` is excluded, mirroring `FlushableHashAggregateRule` policy. | "floating point sum … strict mode". |
+| **Float non-associativity** | Under strict mode, float/double `sum` and every `avg` with a float/double sum buffer are excluded, mirroring `FlushableHashAggregateRule` policy. This includes `avg` over integral input because Spark accumulates it in DOUBLE. | Strict floating-point planner tests for both sum and integral average. |
+| **Measure-less grouping sets** | Kept on the ordinary Expand + merge path. Velox treats a zero-aggregate `GroupingSet` as distinct aggregation, whose extraction contract this merge-only operator does not implement. Scala refuses the marker, while the converter and native node reject zero measures defensively. | Planner fallback test + `zeroAggregatesRejected`. |
 | **AQE re-invocation / idempotency** | `initialInputBufferOffset == 0` guard. Every emitted merge stage carries offset ≥ 1; the fused path emits no Regular agg at all. Reasoning verified correct. | **Not tested.** See D15. |
 | **Slot instability across projections** | `buildReplaceAttributeMap` used `collectFirst`, silently ignoring a second, different attribute in the same slot. **Fixed:** all non-literal entries at a slot must now be `semanticEquals`; a disagreeing slot is dropped rather than guessed. Latent, not live — no query was found that reaches it. | Not directly tested (no reaching query exists). |
-| **Exactly-once drain** | `plan_.order` is popcount-descending and a parent is a strict superset, so a parent's rank is strictly greater and `drainStack_` is a strict root-to-leaf path. `flushReason` returns `kNone` for a draining node and `pushDrain` re-checks `!draining`. No node is fed while its iterator is live; no node is pushed twice. The final sweep visits each node once, after every ancestor. | Audited exhaustively; not breakable by any of the 34 tests. |
+| **Exactly-once drain** | `plan_.order` is popcount-descending and a parent is a strict superset, so descendants have strictly greater rank. Nested drains are pushed in that order; siblings may be parked together, but the stack remains rank-ordered and bounded by the set count. `pushDrain` rejects an already-draining node. No node is fed while its iterator is live; the final sweep visits each node once, after every ancestor. | Structural audit + native pressure tests. |
 | **Use-after-move / dangling vectors** | Zero-copy `project()`/`derive()` sharing is protected by `use_count`-based reallocation in `prepareForReuse`; `extractGroups` copies out-of-line strings into vector-owned buffers, so `close()` resetting the grouping sets cannot dangle a queued batch. | Audited. |
 
 ### 4.3 What the correctness audit found *sound* and worth stating affirmatively
@@ -221,136 +239,126 @@ left in the code at the cited site and nothing else was done.
 
 ### Blockers
 
-**D1 — The fused path hard-fails on any aggregate with a multi-column partial buffer. FIXED (by exclusion).**
-`HashAggregateExecTransformer.scala:91-95` (`extractStructNeeded`) returns true whenever a
-Partial-mode function has `aggBufferAttributes.size > 1`, and `:415-418` then wraps the
-AggregateRel in a **ProjectRel**. The tagged Expand's Substrait input is therefore not an
-AggregateRel, and `SubstraitToVeloxPlan.cc:1163-1167`'s
-`VELOX_CHECK(expandRel.input().has_aggregate(), ...)` fires — as a `VeloxRuntimeError` that
-kills the task, not a fallback, because the marker is withheld during validation.
-This hits `avg` (buffer `(sum, count)`) and `sum` over `DecimalType` (buffer
-`(sum, isEmpty)`) — **always**, not occasionally.
+**D1 — Multi-column partial buffers did not reach the fused path. FIXED in source and
+verified through native-plan construction plus native differential tests.**
+The original audit correctly found that Spark wraps a partial aggregate in a buffer-
+extraction **ProjectRel** whenever an aggregate has multiple buffer attributes. That
+excluded `avg` and decimal `sum`, including q67's `sum(ss_sales_price)`, from a converter
+that accepted only a direct `AggregateRel`.
 
-**TPC-DS q67 aggregates `sum(ss_sales_price)` over `decimal(7,2)`. The flagship benchmark
-query is in the broken class.** This was structurally invisible to every measurement taken,
-because the C++ harness hand-builds its plan and never goes through `getAggRel`.
+The current rule no longer applies the single-column exclusion. Native conversion accepts
+either a direct `AggregateRel` or the standard extraction `ProjectRel` over one. It
+reconstructs each aggregate's packed Velox intermediate type, runs
+`GroupingSetAggregation`, then replays the extraction project above the fused node to
+restore Spark's flattened buffer schema and expected gid position. Native checks pin the
+projection form, column mapping, and exact types; an unsupported tagged shape takes D2's
+soft fallback.
 
-*Fix applied:* `shapeFusible` now additionally requires
-`aggregateExpressions.forall(_.aggregateFunction.aggBufferAttributes.length == 1)`. Two
-regression tests added to `FusedGroupingSetAggregateSuite` (avg; decimal sum) asserting no
-marker is emitted and the merge stage is kept. **This excludes q67 and most of the value
-from the fused path.** The OPEN comment records that consequence. The real fix — teaching
-the C++ side to see through the extract-struct ProjectRel and re-pack flattened columns — is
-substantial work and interacts with the unverified `resolveIntermediateType` agreement.
+Evidence now covers the original gap directly:
 
-*Note on a related report:* a secondary arithmetic error at `.cc:945` (`numAggregates =
-measures().size()` counts aggregate expressions M, while the child emits flattened buffer
-columns B) is real but **not independently reachable** — `extractStructNeeded()` and `B > M`
-are the same predicate, so the `has_aggregate()` check always fires first. It is one defect,
-not two. Do not describe it as "a second silent catastrophic bug".
+- focused Spark planning/native-plan inspection routes an eight-key, nine-level,
+  nullable-decimal q67 shape to `GroupingSetAggregation` with no `Expand`;
+- the native q67 differential uses Spark's decimal `(sum, isEmpty)` intermediate across
+  multiple input batches and passes against Expand+kIntermediate with bypass off and on;
+- the full native standard and pressure selections pass 54/54 and 61/61;
+- the no-bypass q67 shape at a 4 KiB grouping-set budget matches its 1 GiB baseline and
+  records repeated pressure drains across the nine-level chain;
+- a focused regression abandons an internal rollup level, crosses a live
+  descendant's hard cap through that pass-through level, and proves result identity.
 
-**D2 — Validation/transform divergence removes Gluten's fallback net. OPEN.**
+The remaining q67 gate is a matched Linux Spark/JNI execution and result comparison. The
+local macOS runtime's Folly F14 abort is not a D1 failure because the same query shape aborts
+with lazy and fused both off.
+
+**D2 — Native soft fallback. IMPLEMENTED; cluster execution remains open.**
 `ExpandExecTransformer.scala` emits the marker only when `validation = false`, deliberately
-(the comment says so). `toGroupingSetAggregation` contains **13 `VELOX_CHECK`s**
-(`SubstraitToVeloxPlan.cc:947, 961, 971, 986, 994, 1002, 1012, 1021, 1032, 1040, 1062, 1106,
-1165`), every one of which is therefore an unrecoverable task failure with no plan-level
-recovery. The rule compensates by re-implementing three native invariants in Scala
-(duplicate-mask check, permutation check, masked-aggregate check) — three hand-maintained
-mirrors of a native contract, none covered by an executing test. Any drift is a production
-query failure. D1 is the first instance; it will not be the last.
+(the comment says so). Native conversion now catches `VeloxException` from the fused-shape
+checks and falls through to a schema-compatible plain `ExpandNode`. The downstream final
+aggregation merges the same partial states, so rejection costs pre-shuffle reduction rather
+than correctness. Scala keeps cheap eligibility mirrors to avoid tagging shapes native code
+will reject. Metric ownership was also audited for both layouts: direct-child fallback
+inserts its identity slot, while extraction-Project fallback retains the ordinary project
+and Expand slots; the JVM parent does not double-own extraction metrics. Focused coverage
+now retains a tagged Spark plan, lowers only the native grouping-set limit, and observes
+plain Expand conversion for both direct and extraction-Project layouts. The remaining gate
+executes that fixture on Linux and confirms the warning, result, and metric association.
 
-*Not fixed, deliberately.* The cheaper of the two fixes — have the native side degrade to a
-plain `ExpandNode` instead of `VELOX_CHECK` when the shape is not fusible, which also
-removes the need for all three Scala mirrors — lives in Gluten C++, which cannot be compiled
-on this machine. Shipping an unverified change there would be worse than shipping none.
-A precise OPEN at `LazyAggregateExpandRule.scala:335` names both options.
-**This is the single most defensible objection a reviewer will raise and it cannot be
-argued away.**
-
-**D3 — `reclaim()` has never executed, by any test, ever. OPEN.**
-~200 lines (`MultiGroupingSetAggregation.cpp:988-1183`) plus `phase2ReclaimSafe_`,
-`reclaiming_`, `startSize` resumption and `folly::makeGuard` unwinding. `FlushReason`
-instrumentation across every test individually: `kEndOfInput` 21, `kHardCap` 4,
-`kSoftBudget` 1, `kOperatorCeiling` 1, **`kReclaim` 0**, **`kAbandoned` 0**. Meanwhile
-`canReclaim()` returns `true` unconditionally, so the arbitrator **will** call this in
-production, and getting it wrong trips `VELOX_CHECK_GE(reclaimedBytes, 0)` — which fails the
-*query*, not the reclaim.
-
-Worse, Phase 1 is provably vacuous: `GroupingSet::getOutput` calls
-`table_->clear(freeTable=true)` before returning false, so `allocatedBytes()` is already 0 at
-every drain completion. Phase 1 hunts for `numRows() == 0 && allocatedBytes() > 0`, which is
-unsatisfiable; measured `reclaimPhase1Hits = 0` in every run. And `phase2ReclaimSafe_`
-inspects only *extraction* types — it says nothing about cascade-driven descendant-table
-growth, so its "exposure is at most one output batch" bound is unaccounted-for.
-
-*Next step:* an arbitration test using `memory::testingRunArbitration()` and the
-`SharedArbitrator` fixtures, as `AggregationTest` already does. This is real work and belongs
-in its own change. **The fused branch must not go default-on until this exists.**
+**D3 — Reclaim callback safety. FIXED; effective reclamation is not demonstrated.**
+The earlier drain-under-arbitration design was removed. `reclaimableBytes()` and `reclaim()`
+now consider only retained allocations on empty, idle grouping sets, including
+an empty global cycle. Reclaim never extracts live state or feeds descendants,
+so it is non-allocating by construction.
+`reclaimFixedWidth`, `reclaimStructIntermediate`, and
+`reclaimVariableWidthExternalMemory` pause the task, invoke the operator pool reclaimer, and
+compare finalized output with a non-reclaimed run. The latest standard and pressure runs
+recorded callback invocations but zero reclaimed bytes in every case. Therefore these tests
+prove callback safety and result identity, not that the production arbitrator can recover
+memory. Proactive flushes and descendant hard caps are the implemented memory-control
+mechanism; effective live-state reclaim would require a separate design.
 
 **D4 — Fork-dependency on unmerged Velox. RESOLVED by relocating the operator into Gluten.**
 Previously `VeloxBackend.cc` included `velox/exec/MultiGroupingSetAggregation.h` and
 `SubstraitToVeloxPlan.cc` included `velox/exec/GroupingSetAggregationNode.h` — headers that
 existed only in a Velox fork, so Gluten C++ would not compile against upstream Velox at all.
-The operator now lives **inside Gluten** (`cpp/velox/operators/rollup/`), compiled into
+The operator now lives **inside Gluten** (`cpp/velox/operators/plannodes/`), compiled into
 Gluten's `libvelox` and registered Gluten-locally, exactly like the cudf custom operator.
-The two include sites now point at `operators/rollup/…` (in-tree), and
+The two include sites now point at `operators/plannodes/…` (in-tree), and
 `registerMultiGroupingSetAggregation()` is defined in the relocated Gluten sources. Gluten
-C++ therefore compiles against **stock upstream Velox plus the single needsInput patch
-(0001)** — no operator fork. The retired operator patch (`0002`) is gone; see
+C++ therefore compiles against the pinned Velox revision with only the single needsInput
+patch (`ep/build-velox/src/modify_hash_aggregation_input_buffer.patch`) — no operator fork.
+The retired operator patch (`0002`) is gone; see
 `docs/design/velox-patches/README.md`. The unconditional registration remains (the
 translator is inert unless a `GroupingSetAggregationNode` appears in the plan), so the
 split-PR argument still holds for *review* scope, but the hard compile-blocker is removed.
 
 *Related, FIXED:* `VeloxConfig.scala` documented "without it the marker is ignored and the
-plan degrades" — describing a build that cannot exist, because it does not link. The doc has
-been rewritten to say so, and to state the multi-column-buffer exclusion from D1.
+plan degrades," implying an optional operator supplied by Velox. The operator is now
+Gluten-local, marker rejection is handled by the native fallback, and the config describes
+restoration of multi-column Spark buffers rather than excluding them.
 
-**D5 — The plan node is in the wrong namespace and the wrong file, for a reason. (From the API review; not re-verified.)**
-`GroupingSetAggregationNode` is `facebook::velox::exec`, declared in `exec/`, deriving from
-`core::PlanNode`. Every production Velox node is `core::`-namespaced in `core/PlanNode.h`;
-the only other out-of-`core` nodes are internal scaffolding and a doc example. It cannot move
-because its constructor calls `resolveIntermediateType(...)` from the member-initializer
-list, which requires a populated aggregate function registry and forces
-`#include "velox/exec/AggregateFunctionRegistry.h"` into a node header — an `exec/ → core/`
-layering inversion. `AggregationNode`'s ctor touches no registry.
+**D5 — The plan node retains an upstream namespace/construction issue.**
+`GroupingSetAggregationNode` is now declared in Gluten's
+`cpp/velox/operators/plannodes/GroupingSetAggregationNode.h`, but it remains in
+`facebook::velox::exec` while deriving from `core::PlanNode`. That is acceptable for the
+Gluten-local custom-node precedent; it would still be an objection to moving the node
+upstream, where production plan nodes are `core::`-namespaced in `core/PlanNode.h`.
 
-The header pre-concedes this objection. Pre-conceding is not retiring. The correct answer is
-for the **translator** to build the `CallTypedExpr` with the right intermediate type, as
-`AggregationNode` at `kIntermediate` already does, and for the node to trust it. Same class:
-`outputType_` also reads `source->outputType()`, which no other Velox node does and which
-makes the node un-rebuildable; use `groupingKeys[i]->type()` instead (the nullability essay
-in the header is correct, and it means the reason for reading the source type is gone).
-
-Knock-on gaps in the same family, all real, all must-fix before an upstream PR: no `Builder`;
-no `accept(PlanNodeVisitor&, …)` override; no `addSummaryDetails` override (the default
-truncates, and `addDetails` emits an unbounded per-set bitstring loop, so a wide CUBE
-summary is garbage); **no serde** — `serialize()` throws, which is a permanent hole in
-`PlanNodeSerdeTest` and **breaks distributed execution**, since Prestissimo ships plan
-fragments as serialized JSON; and `VELOX_CHECK` used where the codebase uses
-`VELOX_USER_CHECK` for planner-supplied invariants.
+The header itself is now lightweight: registry-dependent implementation moved to
+`GroupingSetAggregationNode.cc`, and `outputType_` is derived from the grouping expressions
+and aggregate definitions rather than the source schema. The constructor still calls
+`resolveIntermediateType(...)`, so deserialization and construction require a populated
+aggregate registry. An upstream design should move that resolution into the translator.
+The Gluten-local node already has serde and source-contract validation. A separate upstream
+version would still need normal core integration such as a Builder, visitor support,
+summary details, core serde registration, and user-facing checks for planner invariants.
 
 ### Confirmed, non-blocking
 
-**D6 — The bypass lane is dead through Gluten. Not a code defect. OPEN comment added.**
-Covered in section 2.2. The C++ is correct; the *claim* built on it was not. Recovering it
-requires making the bottom aggregate a *non*-flushable Regular aggregate (which cannot
-abandon), trading the abandon safety valve for the bypass lane. That is a real design fork
-worth choosing deliberately rather than defaulting into. The OPEN at the marker site records
-the measured 2.29x and the trade.
+**D6 — The bypass lane was disabled through Gluten. FIXED as an independent,
+default-off policy.**
+`VeloxConfig` now exposes
+`fusedGroupingSetAggregate.finestSetBypass.enabled`; the transformer emits
+`finestSetBypass=0|1`, and native conversion selects the full-key grouping set when enabled.
+The bottom aggregate remains flushable and may emit duplicate partial states or abandon.
+That does not break correctness: the final aggregate can merge those states, and native
+coverage explicitly exercises flushed and abandoned upstream input. It can change work and
+memory distribution, so the first Linux canary keeps bypass off and treats bypass on as a
+separate performance arm.
 
 **D7 — Runtime stats were numerically meaningless. FIXED.**
 `Operator::addRuntimeStat` accumulates into `RuntimeMetric::sum`, and `recordNodeStats` runs
 per drain cycle passing **running totals**. Over k cycles the reported sum is ≈ k·total/2 —
 measured 155 drains on one node in `noMoreInputDuringDrain`, inflating `gsagg.set1.inputRows`
-~78x. `.inputRows`, `.outputRows`, `.flushTimes` and `gsagg.reclaim.count` switched to
-`setRuntimeStat`. `.flushRowCount` / `.aggregationPct` / `.hashTableBytes` left on
-`addRuntimeStat` — those are genuine per-cycle samples and match upstream `HashAggregation`.
+~78x. The pinned Velox API has `addRuntimeStat`, not `setRuntimeStat`, so `.inputRows` and
+`.outputRows` now add per-cycle deltas, while `.flushTimes` and `gsagg.reclaim.count` add one
+per event. `.flushRowCount` / `.aggregationPct` / `.hashTableBytes` remain genuine per-cycle
+samples and match upstream `HashAggregation`.
 
-**D8 — `operatorBudgetCeilingBytes_` is not a ceiling. Comment FIXED; mechanism OPEN.**
-Documented as "Ceiling on the SUM of all live tables"; enforced nowhere.
-`overOperatorCeiling()` is only *sampled* in `flushReason()`, `addInput` arms at most one
-drain per batch, and the cascade checks only `kHardCap`. Measured peak total node bytes
-against the ceiling on `flushCorrectnessSmallBudget`:
+**D8 — `operatorBudgetCeilingBytes_` was not a ceiling. FIXED as an explicit
+flush-target contract.** The old implementation sampled a global predicate in
+`flushReason()`, armed at most one drain per input batch, and accepted another
+batch immediately after that drain. Historical measurements against that
+implementation were:
 
 | ceiling | peak bytes | overshoot |
 |---|---|---|
@@ -361,76 +369,79 @@ against the ceiling on `flushCorrectnessSmallBudget`:
 | 64 KB | 10,353,824 | 158x |
 | 4 KB | 13,257,088 | 3237x |
 
-Other tests reach 5248x (`noMoreInputDuringDrain`), 2774x
-(`aggregateVariableWidthUnderFlush`), 1345x (`forcedFlush`). Honest framing: **at the Velox
-default `max_extended_partial_aggregation_memory` of 16 MB the operator stays inside budget
-on this workload; it degrades without bound below ~4 MB.** The `kHardCapMultiple = 4` escape
-hatch cannot bound anything sub-MB because `HashTable` slot-array growth is power-of-two
-granular — a single node was measured holding 2,424,832 bytes against a 4,096-byte soft
-budget. The docstring is now "advisory" and records the measurement and the ~256 KB global
-node floor. Not enforcing it now, because enforcement changes flush behaviour and needs its
-own measurement.
+Other tests reached 5248x (`noMoreInputDuringDrain`), 2774x
+(`aggregateVariableWidthUnderFlush`), and 1345x (`forcedFlush`). The replacement
+is deliberately named `operatorFlushTargetBytes_`, and
+`maybeStartPressureDrain()` is re-run after every top-level pressure drain before
+`needsInput()` can become true. It first honors local hard/soft limits; if only
+the shared target is exceeded it drains the largest eligible table. The
+remaining approximation is explicit: the shared target is sampled after input
+batches and top-level drains, while every live table reached through a recursive
+derivation batch is checked against its descendant hard cap. This includes a live
+grandchild behind a dynamically abandoned pass-through level. Hash-table capacity
+changes remain granular.
+`gsagg.peakSampledFlushableBytes` and `gsagg.maxTargetOvershootBytes` expose
+safe-boundary samples; they are not total operator-memory peaks and can miss a
+transient cascade peak.
 
-**D9 — The global node's memory is permanently unreclaimable and counts toward the ceiling. OPEN.**
-Measured 262,144 bytes that no path frees: `resetTable()` is a no-op on it,
-`resetGlobalAggregation()` is deliberately never called, reclaim Phase 1 skips it — but
-`totalNodeBytes()` includes it. So whenever the budget is below ~256 KB,
-`overOperatorCeiling()` is permanently true for the operator's life, which permanently
-disables `maybeGrowBudget`, forces `shouldFreeTable` true, and returns `kOperatorCeiling` for
-every non-empty node on every check. That is exactly the flush-every-batch cliff the
-`shouldFreeTable` comment claims to have fixed. Either exclude global nodes from
-`totalNodeBytes()` or state the floor. Currently: floor stated.
+**D9 — The global node was outside operator pressure. FIXED.**
+`flushableNodeBytes()` now includes every live grouping set. A global set is
+pressure-drainable because its output is an intermediate aggregate state: emit
+one row, then call Velox's `resetGlobalAggregation()` before the next input
+cycle. This bounds variable-width grand-total states such as `array_agg` under
+the same shared target instead of allowing them to grow until end of input.
 
-**D10 — `shouldFreeTable()` is dead code and its 24 lines of comment describe impossible states.**
+**D10 — `shouldFreeTable()` was dead code. FIXED.**
 Same chain as D3: `clear(freeTable=true)` already ran, so by the time `completeNodeDrain`
-reaches `resetTable(freeTable)` the table is gone and the argument cannot matter. Runtime
+reached `resetTable(freeTable)` the table was gone and the argument could not matter. Runtime
 proof: across `forcedFlush` (41 resets), `noMoreInputDuringDrain` (159),
 `flushCorrectnessSmallBudget` (83), **every reset of a node with `numActive() > 0` found
 `allocatedBytes() == 0`**. The "CEILING SELF-PERPETUATION" and "ZERO-ROW-BUT-STILL-FULL"
-comments describe states that cannot arise on the drain path.
+comments described states that cannot arise on the drain path. The helper and
+its unreachable enum reasons are deleted; completion now explicitly frees
+non-global tables and resets global state.
 
 **D11 — Dead abandoned-state branch. FIXED.**
-`abandoned = true` is written only at `.cpp:597` (`maybeAbandonAfterDrain`, called from
-`completeNodeDrain:951`), which drops `groupingSet` eight lines later at `:964`. So
+`abandoned = true` is written by `maybeAbandonAfterDrain`, called from
+`completeNodeDrain`, which drops `groupingSet` before returning. So
 `{abandoned && groupingSet != nullptr}` never survives, and `feedNode`'s 12-line branch was
-unreachable behind the `groupingSet == nullptr` check at `:489`. Its comment described a
+unreachable behind the `groupingSet == nullptr` check. Its comment described a
 `flushReason() == kAbandoned` pickup mechanism **that does not exist** — a reviewer reading
 it concludes the author does not know their own state machine. Branch replaced with
-`VELOX_DCHECK(!node.abandoned)` and an accurate comment. `kAbandoned` annotated as currently
-unreachable but retained as a fail-safe, because `maybeGrowBudget` genuinely reads
-`abandoned` inside the window.
+`VELOX_DCHECK(!node.abandoned)` and an accurate comment. The unreachable
+`kAbandoned` reason was removed; `maybeGrowBudget` still reads the live
+`abandoned` flag during completion.
 
 **D12 — Lattice preconditions were unenforced at the function boundary. FIXED.**
-`buildDerivationPlan` is an inline free function in an installed public header;
-duplicate-mask rejection lived only in the node ctor, and `bypass` was never required to be
-a lattice root. A bypassed non-root would forward its parent's already-aggregated rows
+`buildDerivationPlan` is a public helper implemented in `GroupingSetLattice.cc`;
+duplicate-mask rejection once lived only in the node constructor, and `bypass` was not
+required to be a lattice root. A bypassed non-root would forward its parent's aggregated rows
 verbatim tagged with its own gid — correct but silently degenerate, and one planner change
 away from a large silent row blow-up. `VELOX_CHECK`s added for both. New tests:
 `latticeRejectsDuplicateMasks`, `latticeRejectsBypassOfANonRoot`, `latticeRejectsEmptyMasks`,
 `latticeNonAdjacentParent` (a branch `latticeCubePicksSmallestParent` structurally cannot
 reach), `latticeWideMasks` (bits 61–63). All 5 pass.
 
-**D13 — `kOperatorCeiling` drains the topologically-first node, not the largest.**
-The predicate is global but attached to an arbitrary node. On a prefix rollup this is benign
-(popcount-descending order puts the biggest table first); it breaks on an antichain or on
-skewed cardinalities, where draining a small node cascades *more* rows into the descendants
-that triggered the ceiling. `kHardCap` eventually rescues it, so it is not a livelock — the
-ceiling mechanism just does no useful work in that regime.
+**D13 — The shared-target branch drained the topologically first node, not
+the largest. FIXED.** Local hard/soft pressure remains parent-first because
+draining a parent also supplies its descendants. Shared-target pressure is now
+a separate O(S) selection that chooses the largest eligible live grouping-set
+allocation, with topological order as the deterministic tie-break.
 
-**D14 — `maybeGrowBudget` reserves per-node and never releases.**
-Calls `pool()->maybeReserve(grown - node.maxPartialBytes)` **per node**, where upstream
-`HashAggregation` reserves once for one grouping set. The doublings sum to
-≈ `maxExtended - maxPartial` per node, held simultaneously across n nodes, and
-`pool()->release()` is only called inside `reclaim()`, which never runs (D3). With 9 sets and
-a 16 MB extended budget that is ~140 MB of reservation against a documented 16 MB ceiling.
-Directly contradicts the header's own rationale.
+**D14 — `maybeGrowBudget` reserved independently per node. FIXED.** Node-local
+soft thresholds remain independent so tiny coarse sets are not starved, but
+explicit pool reservation is now coordinated at operator scope. Before calling
+`maybeReserve`, the operator subtracts the pool's existing unused reservation
+and caps useful headroom at `operatorFlushTargetBytes_`. This matters because
+Velox rounds every `maybeReserve` request to an 8 MiB quantum: later small
+doublings now reuse that first quantum instead of pinning one quantum per node.
+`gsagg.growthReservationCalls` and `gsagg.growthReservationBytes` report the
+actual calls and rounded reservation deltas.
 
-**D15 — Wasted work and a hidden side effect in the cascade.**
-`if (flushReason(child) == FlushReason::kHardCap)` — `flushReason` is neither const nor
-cheap: it calls `overOperatorCeiling()` → `totalNodeBytes()` → `allocatedBytes()` over every
-node, for every child, on every drain batch; and `isPartialFull()` can trigger a **rehash**
-as a side effect. The result is discarded unless it is exactly `kHardCap`. Test the hard cap
-directly. Same O(n²)-per-batch pattern in `addInput`'s pressure scan.
+**D15 — Wasted work and a hidden side effect in the cascade. FIXED.**
+The cascade now calls the side-effect-free `exceedsHardCap(child)` predicate directly, and
+the top-level pressure scan carries one allocation snapshot through the pass. If
+`isPartialFull()` rehashes a node, the snapshot is adjusted by that node's allocation delta.
 
 **D16 — `prepareForReuse` never reuses anything.** The RowVector is always uniquely owned so
 the reuse branch is taken, but every child is shared downstream so every child is
@@ -440,31 +451,28 @@ zero-copy `project()` and the bypass lane memory-safe. That argument is currentl
 implied.
 
 **D17 — Test CMakeLists bin-packing shifted. FIXED.**
-`MultiGroupingSetAggregationTest.cpp` was inserted at position 7 of group2, making it 11
+`MultiGroupingSetAggregationTest.cc` was inserted at position 7 of group2, making it 11
 files and shifting every subsequent file. Moved to the end with a comment explaining the
 positional invariant. Three `velox/exec/CMakeLists.txt` entries also moved to their correct
 alphabetical slots.
 
-**D18 — `Q67RollupBenchmarkTest.cpp` is in no `CMakeLists.txt`. OPEN.**
-It has only ever been compiled by hand. **A file no CI can build is not evidence** — this is
-the file behind claims C1, C2 and C3. Wiring it as a test would put a 1.4 GB external
-dependency in a hermetic test target; the right home is `velox/benchmarks/` with
-`velox_add_benchmark`. Documented in the file header rather than guessed at.
+**D18 — Benchmark hygiene. PARTIALLY FIXED.**
+The historical external `Q67RollupBenchmarkTest.cpp` behind claims C1–C3 was compiled by
+hand and remains an audit artifact, not CI evidence. The Gluten test file retains a smaller
+q67-profile microbenchmark as `DISABLED_q67ProfileBenchmark`, so it no longer runs in the
+default unit suite. A publishable performance claim still needs a real benchmark target
+and an end-to-end Gluten measurement.
 
-**D19 — Debug scaffolding must go before merge.**
-`getenv("GSAGG_DEBUG")` / `getenv("GSAGG_FLATTEN")` in `initialize()`, the `dbgFlatten_`
-deep-copy in `project()`, `dbgDump()` and its `fprintf(stderr)` block, and four
-`steady_clock::now()` pairs on the hot path (`project()` runs per output batch — 8 clock
-reads per drain batch). `mutable int64_t dbgProjectNanos_` mutated from a `const` method is a
-further smell. *Worth keeping:* the `dbg*Rows` four-lane ledger — it is what localised the
-silent row loss behind the `HashAggregation::needsInput()` fix, increments are per-batch, and
-the cost is unmeasurable. Promote it to real `addRuntimeStat` counters (with D7 fixed).
+**D19 — Debug scaffolding. FIXED in the Gluten-local source.**
+The external prototype contained environment-controlled deep copies, stderr dumps, and
+hot-path clocks. None remains in the Gluten-local operator. Supported diagnostics are
+runtime statistics; environment hooks are confined to the test file.
 
-**D20 — Lattice doc claims the wrong `n`.**
-`"O(n^2) mask comparisons; n <= 64 in any realistic plan"` — `n` is `masks.size()`, the
-number of **grouping sets**, not keys. The 64 bound is on keys. `CUBE(10)` is 1024 sets, ~1M
-comparisons. The conclusion (acceptable, runs once in `initialize()`) survives; the stated
-reasoning is false, and a hostile reviewer will use it to question the rest of the header.
+**D20 — Lattice cardinality documentation. FIXED by the concise split header.**
+The old header confused the number of grouping sets with the 64-key mask bound. The split
+header no longer makes that claim. Parent lookup now ranks candidates once and intersects
+per-key 64-bit candidate bitmaps, so construction is `O(S * K + S log S)` with no pairwise
+set scan.
 
 **D21 — Naming.** Node is `GroupingSetAggregationNode`; operator is
 `MultiGroupingSetAggregation`. Velox pairs `ExpandNode`/`Expand`, `GroupIdNode`/`GroupId`.
@@ -497,35 +505,52 @@ aggregation, so it is not a new liability — but have the answer ready.
 
 ### 5.1 Test state, with attribution
 
-**Measured on the current tree, each test in its own process:**
+**Historical measurement before this cleanup, each test in its own process:**
 
 | | before this verification pass | after |
 |---|---|---|
 | `MultiGroupingSetAggregationTest` | 29 total, **23 pass, 6 fail** | 34 total, **28 pass, 6 fail** |
 
-All 5 new lattice tests pass. Nothing was weakened or deleted.
+Those five lattice tests all passed at that point. This table is audit history, not the
+current gate.
 
-**The 6 failures are pre-existing upstream `Expand + kIntermediate` reference-plan crashes,
-not fused-operator defects.** They abort with `Type mismatch: BIGINT vs. ARRAY<BIGINT>` at
-`VectorHasher.h:188`, in the context `Operator: Aggregation[4]` — a plain `Aggregation`,
-i.e. the *comparison* plan, not `GroupingSetAggregation`. That attribution is confirmed;
-they are still 6 red tests and a reviewer will ask.
+**Current authoritative result:** the isolated native standard run passes **54/54**, and
+the pressure selection passes **61/61**, excluding only
+`DISABLED_q67ProfileBenchmark`. That pressure run includes the formerly disabled
+regressions against the patched pinned build. The q67-shaped differential covers
+multi-column decimal buffers and both bypass settings. A second enabled q67-shaped
+regression compares the nine-level, nullable/string-key, Spark-decimal, no-bypass path at a
+4 KiB budget with its 1 GiB baseline and asserts real pressure drains plus lifetime metrics.
+The suite also includes direct rejection of zero-aggregate native nodes and the
+internal-abandonment/transitive-hard-cap regression. Do not carry the six historical failures
+forward as present blockers.
 
-**Two earlier counts circulating about this tree are wrong. Do not quote them.**
+**Two other historical counts circulating about the old tree are also wrong. Do not quote
+them.**
 "22 pass / 6 fail" (from an older facts sheet) and "27 tests, 26 pass, 1 fail" (from the
-operator review, taken against a partially-reverted tree) are both wrong. The numbers above
-are the measured ones.
+operator review, taken against a partially-reverted tree) are both wrong. Use 54/54 and
+61/61 for the current tree.
 
-**Untested paths, ranked by risk:**
-1. `reclaim()` — zero coverage (D3).
-2. Any *executing* fused-path test. `FusedGroupingSetAggregateSuite` is planning-only by its
-   own admission. An executing test would have caught D1 on the first run.
+**Remaining test gaps, ranked by risk:**
+1. A matched Linux end-to-end q67 execution that proves the fused route is selected and
+   byte-identical across baseline, Stage 1-only, and Stage 2. Compare the complete inner
+   rollup as well as the checked-in query's limited top-100 result. Local native-plan
+   inspection proves routing, but the pinned macOS Spark/JNI baseline aborts in Folly F14
+   even with both flags off.
+2. Executing B2 fallback and metric ownership on Linux. Local coverage now retains a tagged
+   plan, lowers only the native grouping-set limit, and proves that direct and
+   buffer-extraction-Project layouts both convert to plain Expand. It does not yet execute
+   the rejected plan or verify runtime metric association.
 3. AQE-enabled re-invocation / idempotency. Every plan-shape test that matters disables AQE.
-4. Explicit assertion that the rewritten subtree's `output` equals the original aggregate's
-   `output` — the rule's central invariant is asserted only in a comment.
-5. `Project(Filter(Expand))` shape (expected no-op).
+4. `Project(Filter(Expand))` shape (expected no-op).
 
-**Tests that do not test their name (D14-class, JVM side):**
+The output-contract test now compares each physical plan with its own analyzed output across
+name, type, nullability, expression id, qualifier, metadata, and column order. It does not
+compare expression ids across two separately analyzed queries, which would be invalid because
+Spark allocates fresh ids per analysis.
+
+**Historical JVM test weaknesses recorded on 2026-07-22 (re-audit before claiming they are
+fixed):**
 - `LazyAggregateExpandSuite:186` "single count distinct rewrites the dedup aggregate" —
   asserts only that *some* lazy expand fired. With two Expands in the plan it never checks
   which one. Would pass if the wrong Expand were rewritten.
@@ -544,8 +569,6 @@ sets keep duplicate result rows", "avg buffers are merged, not averaged".
 
 Recorded so nobody re-litigates them:
 
-- *"`<algorithm>` is included but unused in `GroupingSetLattice.h`"* — false; `std::stable_sort`
-  is used at `:100-105`.
 - *"`velox/exec/CMakeLists.txt` alphabetical ordering is broken"* — the list is already
   non-alphabetical upstream (`ExchangeSource.cpp`, `SerializedPage.cpp`, `Expand.cpp`). The
   local placement was still wrong and was fixed, but "violates a house invariant" overstates it.
@@ -592,7 +615,7 @@ reviewer objection blocks both.
 | Strip the unconditional `registerMultiGroupingSetAggregation()` / header include from Gluten C++ (D4) | 30m |
 | Narrow `copyTagsFrom` to the tags actually intended | 1h |
 | Fix the three tests that do not test their name (5.1) | 3h |
-| Add the missing `output`-equality assertion for the rule's central invariant | 1h |
+| ~~Add the missing `output`-equality assertion for the rule's central invariant~~ | done — exact name/type/nullability/exprId/qualifier/metadata/order coverage |
 | Add an AQE-enabled idempotency test | 2h |
 | PR body must state: correctness argument (4.1), the over-restrictive guards (§5), the ANSI overflow-detection note | 1h |
 
@@ -602,30 +625,28 @@ no-op test.
 ### PR 3 — `GroupingSetAggregationNode` + `MultiGroupingSetAggregation`. **Not close (as an *upstream* Velox PR).**
 
 **Scope note after the relocation:** the operator now ships **Gluten-local**
-(`cpp/velox/operators/rollup/`, compiled into Gluten's `libvelox`, registered via
+(`cpp/velox/operators/plannodes/`, compiled into Gluten's `libvelox`, registered via
 `registerMultiGroupingSetAggregation()`), so **none of this checklist blocks the Gluten
-trial** — the Gluten trial needs only patch 0001 on Velox plus the in-tree operator. The
-list below is the *separate, later* effort of upstreaming the node/operator into Velox
-proper (which would let Gluten delete its local copy). It remains "not close" for that
-upstream goal; it is not on the critical path for shipping the feature in Gluten.
+trial** — the Gluten trial needs only the canonical HashAggregation patch on Velox plus the
+in-tree operator. The list below is the *separate, later* effort of upstreaming the
+node/operator into Velox proper (which would let Gluten delete its local copy). It remains
+"not close" for that upstream goal; it is not on the critical path for shipping the feature
+in Gluten.
 
 **Must-fix before opening upstream (Velox PR only):**
 
 | item | effort |
 |---|---|
 | Move the intermediate-type resolution into the translator; stop calling `resolveIntermediateType` from the node ctor (D5) | 1–2d |
-| Derive `outputType_` from `groupingKeys[i]->type()`, not `source->outputType()` (D5) | 4h |
-| Move node to `core::` / `core/PlanNode.h` (unblocked by the two above) (D5) | 4h |
+| Move node to `core::` / `core/PlanNode.h` after removing registry-dependent construction (D5) | 4h |
 | Add `Builder`, `accept(PlanNodeVisitor&)`, `addSummaryDetails` (D5) | 1d |
-| Implement serde + register in `PlanNodeSerdeTest` — **blocks Prestissimo** (D5) | 2d |
+| Move the existing custom serde registration into core and add `PlanNodeSerdeTest` coverage (D5) | 1d |
 | `VELOX_CHECK` → `VELOX_USER_CHECK` for planner-supplied invariants (D5) | 1h |
-| Remove all debug scaffolding; promote the `dbg*Rows` ledger to runtime stats (D19) | 4h |
-| Fix the lattice `n` documentation (D20) | 15m |
-| Delete `shouldFreeTable`'s impossible-state comments; either delete the function or document that it is a no-op on the drain path (D10) | 2h |
-| Wire `Q67RollupBenchmarkTest.cpp` into `velox/benchmarks/` with `velox_add_benchmark`, or delete it (D18) | 4h |
-| Resolve or attribute the 6 failing tests in the PR body | 2h |
+| ~~Delete `shouldFreeTable` and its impossible-state comments (D10)~~ | done |
+| Move the disabled q67-profile microbenchmark into a real benchmark target or delete it (D18) | 4h |
+| Document the seven disabled pressure regressions and their upstream blockers in the PR body | 2h |
 | Pick one naming stem (D21) | 1h |
-| Replace `Set{keyIsActive, gid}` with `Set{mask, gid}`, deriving `activeKeys` once in the operator — removes three encodings of one fact and makes the 64-key bound structural (B9) | 1d |
+| ~~Replace `Set{keyIsActive, gid}` with `GroupingSetSpec{activeKeysMask, groupingId}`, deriving `activeKeys` once in the operator — removes three encodings of one fact and makes the 64-key bound structural (B9)~~ | done |
 | Declare the barrier/spill capability regression in the PR body (§3.4) | 30m |
 
 *Do not* let a reviewer talk you out of keeping `gid` as opaque planner data. That decision
@@ -635,27 +656,33 @@ is correct and well-argued.
 
 | item | effort |
 |---|---|
-| An arbitration test for `reclaim()` using `memory::testingRunArbitration()` (D3) | 3–5d |
-| Make Phase 1 non-vacuous or delete it; account for cascade-driven descendant-table growth in `phase2ReclaimSafe_` (D3) | 2–3d |
-| Either enforce `operatorBudgetCeilingBytes_` in the cascade or keep it advisory and document the floor — currently advisory (D8) | 2d if enforcing |
-| Exclude global nodes from `totalNodeBytes()` or state the ~256 KB floor (D9) | 1d |
-| Release per-node reservations outside `reclaim()` (D14) | 1d |
-| Drain the largest node, not the topologically first, under `kOperatorCeiling` (D13) | 1d |
-| Test the hard cap directly instead of calling `flushReason` in the cascade (D15) | 2h |
+| Exercise the pressure path in the target deployment environment; require result identity, no OOM, the fused native operator, and positive `flushRowCount` and/or `gsagg.operatorTargetFlushes`. Treat reclaim count/bytes as informational until effective reclamation exists (D3) | 1d |
+| ~~Replace the misleading memory ceiling with a safe-boundary flush target (D8)~~ | done |
+| ~~Make global aggregate state pressure-drainable and include it in target accounting (D9)~~ | done |
+| ~~Coordinate node-local growth reservations against operator-wide headroom (D14)~~ | done |
+| ~~Drain the largest eligible table under shared-target pressure (D13)~~ | done |
+| ~~Test the hard cap directly instead of calling `flushReason` in the cascade (D15)~~ | done |
 
-### PR 4 — the fused branch. **Blocked on PR 3 landing.**
+### PR 4 — the fused branch. **Source-ready for a controlled Linux canary; blocked from
+production/default-on.**
 
-Do not open until: PR 3 is upstream; D1 is properly fixed (see through the extract-struct
-ProjectRel, not just excluded — the exclusion removes q67 and most of the value); D2 is
-resolved in favour of **native soft-degrade to a plain `ExpandNode`**, which also deletes all
-three Scala mirrors; the bypass-lane fork (D6) is decided deliberately; and **something has
-executed inside real Gluten.**
+Upstream Velox does **not** need to provide or link the operator before this PR: PR 3 carries
+the operator in Gluten. D1 is now fixed by seeing through the extraction `ProjectRel` and
+restoring multi-column Spark buffers; D2 soft-degrades to a plain `ExpandNode`; and D6 is an
+independent default-off bypass setting. Before broader rollout, a matched Linux package must
+execute q67 flag-on/off, exercise D2 while checking metric ownership, survive constrained
+memory, and provide repeatable performance evidence. The exact measured Stage 1 node ID is
+needed for performance attribution, not to establish fused correctness.
 
 ---
 
 ## 7. HOW TO REPRODUCE EVERY NUMBER
 
-### 7.1 Velox build and test
+### 7.1 Historical standalone Velox build and test
+
+The commands below reproduce the pre-relocation audit environment. They are not the current
+build route and do not mean Velox must ship the operator. The production operator is built
+and tested from Gluten; use `DEPLOYMENT_RUNBOOK.md` for the current path.
 
 ```bash
 cd "/Users/linjaboy/Documents/velox OSS/velox"
@@ -702,21 +729,29 @@ cd "/Users/linjaboy/Documents/velox OSS/incubator-gluten/.claude/worktrees/glute
 # JDK 17 required — the default Zulu 8 breaks scalac -release.
 export JAVA_HOME=$(/usr/libexec/java_home -v 17)
 
-mvn -Pspark-4.0 -Pscala-2.13 -Pbackends-velox test-compile   # exit 0; scalastyle "Found 0 errors"
-mvn -Pspark-4.0 -Pscala-2.13 -pl backends-velox,gluten-substrait spotless:check   # exit 0
+./build/mvn -Pspark-4.0 -Pscala-2.13 -Pbackends-velox test-compile   # exit 0; scalastyle "Found 0 errors"
+./build/mvn -Pspark-4.0 -Pscala-2.13 -pl backends-velox,gluten-substrait spotless:check   # exit 0
 ```
 
-Gluten C++ **cannot** be built on the machine of record; that is why D4 exists and why no
-integrated number appears in this document.
+Gluten C++ now builds on the Apple-Silicon machine of record through
+`dev/build-rollup-native.sh`; the current native results are 54/54 standard and 61/61
+pressure, with q67-shaped differential coverage in both bypass modes. Focused Spark
+planning reaches a nine-set `GroupingSetAggregation` native plan without `Expand`, and a
+deliberate native rejection converts retained tagged plans to plain Expand for both child
+layouts. Full Spark/JNI execution on this macOS pin is inconclusive because a feature-off
+control reproduces the same Folly F14 assertion. Linux cluster execution, B2 fallback
+execution/metric validation before broad rollout, and representative performance remain
+separate gates.
 
 ### 7.4 The memory measurements in D8, D9, D10
 
-These required instrumentation that is **not in the tree**: sampling `totalNodeBytes()` at
-every table insert in `feedNode`, and logging `allocatedBytes()` immediately before
-`resetTable`. Re-adding it is ~30 lines. The `FlushReason` census in D3 came from a counter
-on each `flushReason()` return, run over every test individually. The reset census in D10 was
-a one-line log before `resetTable`. Anyone re-checking these should expect to re-instrument;
-none of it is reproducible from the shipped tree.
+The old table sampled `totalNodeBytes()` at every table insert and logged
+`allocatedBytes()` immediately before `resetTable`. The current tree retains
+the useful safe-boundary measurements as
+`gsagg.peakSampledFlushableBytes` and
+`gsagg.maxTargetOvershootBytes`; those include both hash-table allocations and
+drainable global aggregate state. Reproducing the historical per-insert peak or
+the D10 reset census still requires temporary instrumentation.
 
 ---
 
@@ -729,22 +764,29 @@ Gluten worktree
 - `backends-velox/src/main/scala/org/apache/gluten/config/VeloxConfig.scala`
 - `backends-velox/src/test/scala/org/apache/gluten/execution/FusedGroupingSetAggregateSuite.scala`
 - `gluten-substrait/src/main/scala/org/apache/gluten/execution/ExpandExecTransformer.scala`
-- `cpp/velox/substrait/SubstraitToVeloxPlan.{h,cc}` — includes `operators/rollup/GroupingSetAggregationNode.h`
-- `cpp/velox/compute/VeloxBackend.cc` — includes `operators/rollup/MultiGroupingSetAggregation.h`
+- `cpp/velox/substrait/SubstraitToVeloxPlan.{h,cc}` — includes `operators/plannodes/GroupingSetAggregationNode.h`
+- `cpp/velox/compute/VeloxBackend.cc` — includes `operators/plannodes/MultiGroupingSetAggregation.h`
 - `backends-clickhouse/src/main/scala/org/apache/gluten/extension/LazyAggregateExpandRule.scala`
 
 Gluten-local operator (new — the relocated Velox operator, now compiled into Gluten `libvelox`):
 
-- `cpp/velox/operators/rollup/GroupingSetLattice.h`
-- `cpp/velox/operators/rollup/GroupingSetAggregationNode.h`
-- `cpp/velox/operators/rollup/MultiGroupingSetAggregation.{h,cc}`
-- `cpp/velox/CMakeLists.txt` — adds the operator `.cc` to `VELOX_SRCS`
+- `cpp/velox/operators/plannodes/GroupingSetLattice.{h,cc}`
+- `cpp/velox/operators/plannodes/GroupingSetAggregationNode.{h,cc}`
+- `cpp/velox/operators/plannodes/MultiGroupingSetAggregation.{h,cc}`
+- `cpp/velox/CMakeLists.txt` — adds all three implementation files to `VELOX_SRCS`
 - `cpp/velox/tests/MultiGroupingSetAggregationTest.cc` + `cpp/velox/tests/CMakeLists.txt`
-- `docs/design/velox-patches/README.md` — records 0001 kept, 0002 retired
+- `docs/design/velox-patches/README.md` — records the HashAggregation patch kept and
+  operator patch 0002 retired
 
-Velox patch — the ONLY Velox change (`docs/design/velox-patches/0001-hashagg-needsinput-fix.patch`):
+Velox patch — the ONLY Velox change
+(`ep/build-velox/src/modify_hash_aggregation_input_buffer.patch`, enforced by the normal
+`build-velox.sh` path):
 
 - `velox/exec/HashAggregation.{h,cpp}` — the standalone needsInput fix
+
+Historical external-Velox audit artifacts (not part of the canonical HashAggregation patch
+and not the production Gluten test location):
+
 - `tests/MultiGroupingSetAggregationTest.cpp`
-- `tests/AggregationTest.cpp` — the two regression tests for the standalone fix
+- `tests/AggregationTest.cpp` — historical regression-test location for the standalone fix
 - `tests/Q67RollupBenchmarkTest.cpp` — **built by no CMakeLists**

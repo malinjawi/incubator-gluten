@@ -28,27 +28,20 @@ import org.apache.spark.sql.execution.SparkPlan
 import org.apache.spark.sql.types._
 
 /**
- * For aggregation over grouping sets (rollup/cube), Spark expands every input row once per grouping
- * set before the partial aggregation, so the partial aggregate consumes and hashes
- * `input rows * number of grouping sets` rows:
+ * Reorders partial aggregation for grouping sets so raw rows are aggregated once at the finest
+ * grain.
+ *
+ * Spark's plan:
  *
  * partial aggregate <- expand <- child
  *
- * When the number of distinct full-grouping-key combinations is much smaller than the input row
- * count, it is cheaper to aggregate at the finest grain once, expand only the intermediate
- * aggregation states, and merge the expanded states before shuffle:
+ * Rewritten plan:
  *
- * partial-merge aggregate <- expand (over aggregation buffers) <- partial aggregate <- child
+ * partial-merge aggregate <- expand (intermediate states) <- partial aggregate <- child
  *
- * The pre-shuffle partial-merge stage collapses duplicated coarse-grained groups locally so the
- * rewrite does not increase shuffle volume (see the ClickHouse backend's lazy expand and its
- * high-cardinality regression, GLUTEN-7986, for why this stage is required).
- *
- * Both new aggregates rely on Velox's flushable-aggregation machinery: if the input has too many
- * distinct full-grouping-key combinations, the finest-grain aggregate abandons itself and streams
- * rows through in intermediate format, and the merge stage over non-raw input abandons to an
- * identity pass-through. The rewrite is therefore disabled when flushable partial aggregation is
- * disabled.
+ * This reduces hash work when the finest grouping has substantially fewer rows than the input. The
+ * pre-shuffle merge bounds shuffle volume, and flushable aggregation keeps both stages adaptive for
+ * high-cardinality keys. The rule is disabled when flushable partial aggregation is disabled.
  *
  * Rewrite invariants:
  *   - The rewritten sub-plan's output attributes equal the original partial aggregate's output, so
@@ -59,11 +52,8 @@ import org.apache.spark.sql.types._
  *   - Aggregate filters are only evaluated in the finest-grain (raw input) aggregate. The
  *     partial-merge copies drop them, mirroring Spark's AggUtils.mayRemoveAggFilters.
  *
- * When spark.gluten.sql.columnar.backend.velox.fusedGroupingSetAggregate.enabled is also on and the
- * plan shape allows it, the rewrite stops one node short: the expand is tagged for the backend and
- * the partial-merge stage is dropped, because the native fused operator merges the grouping sets
- * itself. The tagged expand's output attributes are exactly the dropped merge aggregate's output
- * attributes, so the sub-plan above is again untouched.
+ * With fusedGroupingSetAggregate enabled, eligible plans tag the Expand for replacement by Gluten's
+ * native grouping-set operator and omit the separate partial-merge stage.
  */
 case class LazyAggregateExpandRule(session: SparkSession) extends Rule[SparkPlan] with Logging {
 
@@ -129,7 +119,9 @@ case class LazyAggregateExpandRule(session: SparkSession) extends Rule[SparkPlan
       aggExpr =>
         aggExpr.aggregateFunction match {
           case s: Sum => isFloatingPointType(s.child.dataType)
-          case a: Average => isFloatingPointType(a.child.dataType)
+          // Spark accumulates a non-decimal average in DOUBLE even when its input is integral.
+          // Reassociating those partial sums can therefore change the result's low bits.
+          case a: Average => isFloatingPointType(a.sumDataType)
           case _ => false
         }
     }
@@ -214,8 +206,7 @@ case class LazyAggregateExpandRule(session: SparkSession) extends Rule[SparkPlan
       .distinct
 
     // A keyless finest-grain aggregate would emit one row on empty input, producing spurious
-    // grand-total rows where Spark returns none. Non-atomic key types are excluded because the
-    // new expand would need typed null literals for them, which is unaudited.
+    // grand-total rows where Spark returns none. This rewrite does not support non-atomic keys.
     if (
       bottomGroupingKeys.isEmpty ||
       !bottomGroupingKeys.forall(key => isSupportedGroupingKeyType(key.dataType))
@@ -247,42 +238,25 @@ case class LazyAggregateExpandRule(session: SparkSession) extends Rule[SparkPlan
     )
     bottomAggregate.copyTagsFrom(agg)
 
-    // The fused native operator recovers each grouping set's key mask and grouping-id value from
-    // the Expand's projections. That is only possible when every grouping slot but the last maps
-    // onto a key of the finest-grain aggregate (no constant grouping keys, no two slots sharing a
-    // key) and the last slot is the integral grouping id that the Expand fills in as a literal.
-    //
-    // SINGLE-COLUMN BUFFERS ONLY. VeloxHashAggregateExecTransformer.getAggRel wraps the
-    // AggregateRel in a ProjectRel whenever any Partial-mode function has more than one
-    // aggBufferAttribute (extractStructNeeded / applyExtractStruct, which re-packs the flattened
-    // buffer columns into a struct). The native fused converter requires
-    // `expandRel.input().has_aggregate()` and derives numKeys from
-    // `numInputColumns - childAggRel.measures().size()`; with the ProjectRel interposed the input
-    // is no longer an AggregateRel (so the native side would degrade to a plain Expand via the
-    // fallback net) and the arithmetic would be off by (bufferColumns - measures) even if it did
-    // not. Excluding these shapes here keeps the common case from emitting a marker the native side
-    // would only discard. This excludes `avg` and `sum` over DecimalType, whose buffers are
-    // (sum, count) and (sum, isEmpty).
-    //
-    // OPEN (design decision, not a defect): this excludes TPC-DS q67, whose rollup aggregates
-    // sum(ss_sales_price) over decimal(7,2). Lifting the restriction means teaching the native
-    // converter to see through the extract-struct ProjectRel and re-pack the flattened columns,
-    // which also requires verifying the accumulator-type agreement between
-    // VeloxIntermediateData.getIntermediateTypeNode and Velox's resolveIntermediateType for each
-    // affected function. Until then the fused flag is a no-op for those queries and the
-    // three-stage rewrite handles them.
-    val shapeFusible = VeloxConfig.get.enableVeloxFusedGroupingSetAggregate && {
+    // Native conversion recovers key masks and grouping ids from the Expand projections. It
+    // requires one literal grouping-id slot. For multi-column Spark buffers, native conversion
+    // sees through the standard extraction ProjectRel and restores the flattened schema afterward.
+    val fusionEnabled = VeloxConfig.get.enableVeloxFusedGroupingSetAggregate
+    val hasMeasures = agg.aggregateExpressions.nonEmpty
+    if (fusionEnabled && !hasMeasures) {
+      logDebug(
+        "Fused grouping-set aggregation: measure-less grouping sets require Velox's distinct " +
+          "aggregation path, keeping the merge stage")
+    }
+    val shapeFusible = fusionEnabled && hasMeasures && {
       val literalSlots = agg.groupingExpressions.map(_.toAttribute).zipWithIndex.filter {
         case (attr, _) => findReplacement(attr, replaceMap).isEmpty
       }
-      val singleColumnBuffers =
-        agg.aggregateExpressions.forall(_.aggregateFunction.aggBufferAttributes.length == 1)
-      val fusible = singleColumnBuffers &&
-        bottomGroupingKeys.length == numKeys - 1 &&
+      val fusible = bottomGroupingKeys.length == numKeys - 1 &&
         bottomGroupingKeys.length <= 64 &&
         literalSlots.length == 1 &&
         literalSlots.head._2 == numKeys - 1 &&
-        (literalSlots.head._1.dataType == LongType || literalSlots.head._1.dataType == IntegerType)
+        literalSlots.head._1.dataType == LongType
       if (!fusible) {
         logDebug(
           "Fused grouping-set aggregation: plan shape is not fusible, keeping the merge stage")
@@ -294,30 +268,45 @@ case class LazyAggregateExpandRule(session: SparkSession) extends Rule[SparkPlan
     val newExpandProjections =
       buildPostExpandProjections(expand.projections, expand.output, newExpandOutput)
 
-    // DUPLICATE GROUPING SETS. GroupingSetAggregationNode rejects two sets with the same key mask
-    // outright (VELOX_CHECK "Duplicate grouping-set mask"), because at the same grain each would be
-    // a separate lattice root redoing identical work. Spark reaches here with duplicates from e.g.
-    // GROUPING SETS ((a), (a)), which is legal SQL and must keep both result rows -- the existing
-    // suite has a test for exactly that. Without this check the flag turns that query from a
-    // correct answer into a native query failure, and because the marker is deliberately withheld
-    // during validation there is no fallback to catch it. Checked here rather than in the shape
-    // predicate above because it reads the rebuilt projections the native side actually parses.
-    //
-    // The mask is the set of key slots holding a field reference; a masked-off key is a null
-    // literal. Comparing slot sets rather than child channels is faithful because the native side
-    // separately checks the slot -> channel map is a stable permutation across all sets.
+    // Spark permits duplicate grouping sets, while the native node requires unique key masks.
+    // Derive masks from the rebuilt projections that the native converter reads.
     val fused = shapeFusible && {
       val masks = newExpandProjections.map(_.take(numKeys - 1).map(_.isInstanceOf[Attribute]))
       val distinctMasks = masks.distinct.length == masks.length
+      val withinSetLimit = masks.length <= VeloxConfig.get.maxVeloxFusedGroupingSets
+      val singleRoot = distinctMasks && withinSetLimit && numLatticeRoots(masks) == 1
       if (!distinctMasks) {
         logDebug(
           "Fused grouping-set aggregation: duplicate grouping sets, keeping the merge stage")
       }
-      distinctMasks
+      if (!withinSetLimit) {
+        logDebug(
+          s"Fused grouping-set aggregation: ${masks.length} grouping sets exceed the configured " +
+            s"maximum ${VeloxConfig.get.maxVeloxFusedGroupingSets}, keeping the merge stage")
+      }
+      if (distinctMasks && withinSetLimit && !singleRoot) {
+        logDebug(
+          "Fused grouping-set aggregation: grouping sets have multiple derivation roots, " +
+            "keeping the merge stage")
+      }
+      distinctMasks && withinSetLimit && singleRoot
     }
 
+    val expandBottomAggregate =
+      if (fused) {
+        bottomAggregate.copy(extractionMetricsOwnedByParent = true)
+      } else {
+        bottomAggregate
+      }
+    expandBottomAggregate.copyTagsFrom(agg)
+
     val newExpand =
-      ExpandExecTransformer(newExpandProjections, newExpandOutput, bottomAggregate, fused)
+      ExpandExecTransformer(
+        newExpandProjections,
+        newExpandOutput,
+        expandBottomAggregate,
+        fused,
+        fused && VeloxConfig.get.enableVeloxFusedGroupingSetAggregateFinestSetBypass)
     newExpand.copyTagsFrom(expand)
 
     val newPreFilter = preFilter.map {
@@ -328,33 +317,13 @@ case class LazyAggregateExpandRule(session: SparkSession) extends Rule[SparkPlan
     }
     val mergeChild = newPreFilter.getOrElse(newExpand)
 
-    // Fused path: the tagged Expand IS the merge stage. The native operator merges every grouping
-    // set itself and emits partial states, so the partial-merge aggregate that the three-stage
-    // rewrite puts here would be a second, redundant hash pass. Dropping it is output-compatible
-    // because the merge aggregate's output attributes are exactly the Expand's output attributes.
-    //
-    // Note this validates the Expand as if it were untagged: ExpandExecTransformer only emits the
-    // marker on the real transform, never during validation, because the native validator sees the
-    // Expand in isolation and the fused node's shape is only decidable together with its child.
-    //
-    // Because doValidate() does not see the tagged shape, Gluten's ordinary fallback-to-vanilla-
-    // Spark mechanism does not cover this path. The guards in this rule -- the single-column-buffer
-    // check, the slot/permutation checks in shapeFusible, and the duplicate-mask check below -- are
-    // hand-maintained Scala mirrors of the native invariants in
-    // SubstraitToVeloxPlanConverter::toGroupingSetAggregation.
-    //
-    // The native-side fallback net has landed (SubstraitToVeloxPlan.cc, the isRollup branch of
-    // toVeloxPlan(ExpandRel)): when the tagged shape trips any native check, the converter now
-    // DEGRADES to a plain ExpandNode instead of VELOX_CHECK-failing the task. That degradation is
-    // always semantically safe -- an ignored marker costs shuffle volume, not correctness, since
-    // the post-shuffle Final-mode merge is associative over the duplicated buffers -- so drift
-    // between these mirrors and the native checks is now a shuffle-volume cost, not a failure.
-    // The mirrors are kept anyway so the common case avoids emitting a marker the native side will
-    // only discard. The flag stays experimental and off by default until the fused operator itself
-    // ships in the linked Velox build and the fallback is exercised on a cluster.
+    // The tagged Expand replaces the partial-merge stage. The marker is emitted only during the
+    // real transform because applicability depends on the child plan. These guards avoid tagging
+    // unsupported shapes; the native converter also falls back to a schema-compatible plain Expand
+    // if its checks reject the optimization.
     if (fused) {
       val fusedNodes: Seq[SparkPlan] =
-        reGroundedPreProject.toSeq ++ Seq(bottomAggregate, newExpand) ++ newPreFilter.toSeq
+        reGroundedPreProject.toSeq ++ Seq(expandBottomAggregate, newExpand) ++ newPreFilter.toSeq
       if (!fusedNodes.forall(passesNativeValidation)) {
         logDebug("Fused grouping-set aggregation: native validation failed; keeping original")
         return None
@@ -387,6 +356,41 @@ case class LazyAggregateExpandRule(session: SparkSession) extends Rule[SparkPlan
     }
     logDebug(s"Lazy expand rewrote aggregate over expand: $mergeAggregate")
     Some(mergeAggregate)
+  }
+
+  // Counts masks that have no strict superset in the selected grouping sets. Candidate sets fit
+  // in one machine word because fusion is capped at 64 sets. Intersecting one candidate bitmap per
+  // active key makes this O(S * K), rather than comparing every pair of sets.
+  private def numLatticeRoots(masks: Seq[Seq[Boolean]]): Int = {
+    if (masks.isEmpty) {
+      return 0
+    }
+
+    val candidatesContainingKey = Array.fill[Long](masks.head.length)(0L)
+    masks.zipWithIndex.foreach {
+      case (mask, setIndex) =>
+        val candidateBit = 1L << setIndex
+        mask.zipWithIndex.foreach {
+          case (true, keyIndex) =>
+            candidatesContainingKey(keyIndex) |= candidateBit
+          case _ => ()
+        }
+    }
+
+    val allCandidates =
+      if (masks.length == 64) -1L else (1L << masks.length) - 1L
+    masks.zipWithIndex.count {
+      case (mask, setIndex) =>
+        var candidates = allCandidates & ~(1L << setIndex)
+        var keyIndex = 0
+        while (keyIndex < mask.length && candidates != 0L) {
+          if (mask(keyIndex)) {
+            candidates &= candidatesContainingKey(keyIndex)
+          }
+          keyIndex += 1
+        }
+        candidates == 0L
+    }
   }
 
   // The new expand must emit typed null literals for excluded grouping keys; restrict to types

@@ -59,6 +59,9 @@ abstract class HashAggregateExecTransformer(
     resultExpressions,
     child) {
 
+  /** Whether a composite parent owns the native metric slot for buffer extraction. */
+  protected def extractionMetricsOwnedByParent: Boolean = false
+
   override def output: Seq[Attribute] = {
     // TODO: We should have a check to make sure the returned schema actually matches the output
     //  data. Since "resultExpressions" is not actually in used by Velox.
@@ -413,8 +416,15 @@ abstract class HashAggregateExecTransformer(
       aggParams.rowConstructionNeeded)
 
     if (extractStructNeeded()) {
-      aggParams.extractionNeeded = true
       aggRel = applyExtractStruct(context, aggRel, operatorId, validation)
+      if (!validation && extractionMetricsOwnedByParent) {
+        // The ProjectRel remains in the Substrait shape so the fused converter can recover Spark's
+        // flattened buffer schema. Native conversion drops it as a child and replays it above the
+        // fused node, so its metric slot belongs to the tagged Expand.
+        context.unregisterLastRelFromOperator(operatorId)
+      } else {
+        aggParams.extractionNeeded = true
+      }
     }
 
     context.registerAggregationParam(operatorId, aggParams)
@@ -665,7 +675,8 @@ case class FlushableHashAggregateExecTransformer(
     aggregateAttributes: Seq[Attribute],
     initialInputBufferOffset: Int,
     resultExpressions: Seq[NamedExpression],
-    child: SparkPlan)
+    child: SparkPlan,
+    override val extractionMetricsOwnedByParent: Boolean = false)
   extends HashAggregateExecTransformer(
     requiredChildDistributionExpressions,
     groupingExpressions,

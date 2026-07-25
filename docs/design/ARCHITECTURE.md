@@ -1,63 +1,72 @@
-# Fused Rollup Operator — code architecture
+# Fused Rollup Operator — historical prototype architecture
 
-`DESIGN.md` explains *why* the operator exists and why the algorithm is shaped the
-way it is. This document is the reviewer's map of *how the draft code is
-organised*: what each file owns, where a batch physically goes, what the state
-machine guarantees, and where the seams are.
+> **Historical prototype, not production source.** This document explains the
+> archived `docs/design/Rollup*` proof of concept and preserves its design
+> rationale and audit trail. Those files are not compiled. The production
+> Gluten-local implementation is
+> `cpp/velox/operators/plannodes/GroupingSetAggregationNode.{h,cc}`,
+> `GroupingSetLattice.{h,cc}`, and `MultiGroupingSetAggregation.{h,cc}`, with tests in
+> `cpp/velox/tests/MultiGroupingSetAggregationTest.cc`. Where this document's
+> names or line references disagree with those files, the production files are
+> authoritative.
 
-Everything below cites the draft files in this directory by line number. Where a
-draft line cites Velox or Gluten, that citation has been checked against the real
-trees (`velox/` and `cpp/velox/` respectively).
+`DESIGN.md` explains *why* the operator exists and why the prototype algorithm
+was shaped the way it is. This document is the reviewer's map of *how that
+prototype code is organised*: what each file owns, where a batch physically
+goes, what the state machine guarantees, and where the seams are.
+
+Everything below cites the archived files in this directory by their historical
+line numbers. These references are retained for auditability; they are not
+current production-code navigation.
 
 ---
 
-## 1. File inventory
+## 1. Historical prototype inventory
 
-Four draft files, plus the two design documents. None of them are in the build
-yet — they live in `docs/design/` so the design can be reviewed as code before
-any of it lands.
+Five prototype source files live in `docs/design/`. None is in the build, and
+none should be copied into a Velox checkout. Their production successors are
+already Gluten-local:
 
-| Draft file | Lines | Owns | Real home |
-| --- | ---: | --- | --- |
-| `RollupNode.h` | 312 | The plan node: the immutable description of a rollup — key hierarchy, per-level gid/null mask, aggregate list, output type derivation. | `cpp/velox/operators/plannodes/RollupNode.h` |
-| `RollupOperator.h` | 336 | Operator declaration: `LevelState`, the `State` enum, the private helper surface. | `cpp/velox/operators/plannodes/RollupOperator.h` |
-| `RollupOperator.cpp` | 756 | The whole runtime: level construction, bypass lane, cascade flush, abandon valve, budget policy, stats. | `cpp/velox/operators/plannodes/RollupOperator.cpp` |
-| `RollupTranslator.cpp` | 489 | Part A: the `Operator::PlanNodeTranslator` and its registration. Part B: `SubstraitToVeloxPlanConverter::toRollupPlan`, i.e. Substrait → `RollupNode`. | Part A → `cpp/velox/operators/plannodes/RollupOperator.cpp` (bottom) or a small `RollupRegistration.cc`; Part B → **merged into** `cpp/velox/substrait/SubstraitToVeloxPlan.cc` |
+| Historical prototype file | Owns | Production successor |
+| --- | --- | --- |
+| `docs/design/RollupNode.h` | Prototype plan-node contract. | `cpp/velox/operators/plannodes/GroupingSetAggregationNode.{h,cc}` |
+| `docs/design/RollupOperator.h` | Prototype runtime declaration and state machine. | `cpp/velox/operators/plannodes/MultiGroupingSetAggregation.h` |
+| `docs/design/RollupOperator.cpp` | Prototype runtime algorithm. | `cpp/velox/operators/plannodes/MultiGroupingSetAggregation.cc` |
+| `docs/design/RollupTranslator.cpp` | Prototype translator, registration, and Substrait conversion. | Registration is in `MultiGroupingSetAggregation.cc`; conversion is in `cpp/velox/substrait/SubstraitToVeloxPlan.{h,cc}`. |
+| `docs/design/RollupOperatorTest.cpp` | Non-building prototype test sketch. | `cpp/velox/tests/MultiGroupingSetAggregationTest.cc` |
 
-### Where these actually land
+### Production implementation
 
 `cpp/velox/operators/` already has `reader/`, `serializer/`, `hashjoin/`,
 `writer/`, `functions/`, `plannodes/`. The custom-plan-node precedent lives in
 `plannodes/` — `CudfVectorStream.{h,cc}` and `RowVectorStream.{h,cc}` are both a
-node + operator + translator triple in that directory. **Do not create
-`operators/rollup/`**; follow the existing convention and use
-`cpp/velox/operators/plannodes/`. New sources go in the source list at
-`cpp/velox/CMakeLists.txt:177-188`, next to `operators/plannodes/RowVectorStream.cc`
-(:180).
+node + operator + translator triple in that directory. The production
+`GroupingSetAggregationNode`, `GroupingSetLattice`, and
+`MultiGroupingSetAggregation` implementation follows that convention in
+`cpp/velox/operators/plannodes/`. All three `.cc` files are listed in
+`cpp/velox/CMakeLists.txt`, next to `operators/plannodes/RowVectorStream.cc`.
 
-Part B is not a new file. It is a diff against the existing
-`SubstraitToVeloxPlanConverter`: a branch at the top of
-`toVeloxPlan(const ::substrait::ExpandRel&)` (`SubstraitToVeloxPlan.cc:899`) and a
-new private method `toRollupPlan` declared in `SubstraitToVeloxPlan.h` beside the
-other `toVeloxPlan` overloads. It needs two includes that file does not have
-today — `velox/exec/AggregateFunctionRegistry.h` and `RollupNode.h`
-(`RollupTranslator.cpp:139-146`).
+The production Substrait conversion is not a standalone translator file.
+`SubstraitToVeloxPlanConverter::toVeloxPlan(const ::substrait::ExpandRel&)`
+recognizes the marker and calls `toGroupingSetAggregation()` in
+`cpp/velox/substrait/SubstraitToVeloxPlan.{h,cc}`. It includes the Gluten-local
+`operators/plannodes/GroupingSetAggregationNode.h`.
 
-Registration is a single call added next to the existing
-`Operator::registerOperator(std::make_unique<CudfVectorStreamOperatorTranslator>())`
-at `cpp/velox/compute/VeloxBackend.cc:183`. Unlike the cudf one it is
-unconditional: the native side always knows how to run the node, and whether the
-fused plan is *emitted* is a JVM-side config decision (`RollupTranslator.cpp:66-81`).
+Registration is Gluten-local:
+`cpp/velox/compute/VeloxBackend.cc` calls
+`registerMultiGroupingSetAggregation()`, whose definition and translator live
+with `MultiGroupingSetAggregation.cc`. Whether the fused plan is emitted remains
+a JVM-side config decision.
 
-### What is deliberately missing
+### Prototype gaps (historical)
 
-- `RollupOperator::reclaim` is `VELOX_NYI` (`RollupOperator.cpp:685`). The
-  contract is now understood — see §5 — but the implementation is unwritten and
-  is the highest-risk open item.
-- `RollupNode::serialize` throws `VELOX_UNSUPPORTED` (`RollupNode.h:179-181`),
-  following the `CudfVectorStream.h:153-155` precedent. Cost: no plan
-  tracing/replay on rollup stages.
-- There are no tests. `DESIGN.md §8` has the plan.
+The archived prototype left reclaim, serde, and executable tests incomplete.
+Those statements apply only to `docs/design/Rollup*`; the production
+`MultiGroupingSetAggregation` has reclaim handling, the production node has
+serde implemented in `GroupingSetAggregationNode.cc`, and the production test
+lives under `cpp/velox/tests/`. Their
+remaining verification caveats are recorded in `DEFENSIBILITY.md` and
+`DEPLOYMENT_RUNBOOK.md`.
 
 ---
 
@@ -359,22 +368,32 @@ consumer still holds. Correct by construction, but it means reuse is *best
 effort*, not guaranteed.
 
 **Table lifetime.**
-On exhaustion, `resetTable(freeTable)` (`:556`) where
-`freeTable = level.abandoned || reclaiming_` — keep the allocation for a normal
-flush (mirroring `HashAggregation::resetPartialOutputIfNeed`,
-`HashAggregation.cpp:286-311`), give the memory back when the level is dead or the
-arbitrator is asking. An abandoned level additionally drops its `GroupingSet`
-entirely (`:557-559`), after which it is a pure projection forever.
+Pinned Velox's `GroupingSet::getOutput()` already clears a non-global hash table
+with `freeTable=true` when the iterator reaches exhaustion. The operator makes
+that lifetime explicit with `resetTable(true)` at completion rather than
+describing an allocation-retention optimization that does not exist. A global
+set has no table; after emitting its intermediate row the operator calls
+`resetGlobalAggregation()` so its reusable row, string allocator, and external
+aggregate state can begin a new pressure cycle. An abandoned set additionally
+drops its `GroupingSet` entirely, after which it is a pure projection forever.
 
 **Budget.**
-Each level carries its own `maxPartialBytes`, doubling up to
-`max_extended_partial_aggregation_memory` (`maybeGrowBudget`, `:588-620`), and the
-operator enforces a ceiling on the **sum** at
-`operatorBudgetCeilingBytes_ = maxExtendedPartialAggregationMemoryUsage_`
-(`RollupOperator.h:285`, derivation at `RollupOperator.cpp:391-423`). No new
-config key: the fused operator replaces one partial aggregation, so all its level
-tables together live inside the envelope one partial aggregation is allowed to
-reach.
+Each non-bypassed grouping set starts with the ordinary
+`max_partial_aggregation_memory` soft threshold and may double it after a useful
+pressure drain, up to `max_extended_partial_aggregation_memory`. Before making
+an explicit pool reservation, the operator subtracts existing unused
+reservation and requests only the headroom useful before the shared target.
+This lets several node-local doublings reuse Velox's 8 MiB reservation quantum.
+
+That extended limit is also `operatorFlushTargetBytes_`, the target for the sum
+of all flushable grouping-set allocations, including global aggregate state.
+It is not a strict allocation cap: target
+checks occur at input and top-level-drain boundaries, while hash tables grow in
+capacity steps and descendant hard caps are checked during a cascade. Before
+accepting another input batch, the operator repeatedly drains local hard/soft
+violations or the largest shared-target candidate. A pressure-drained global
+set emits one mergeable intermediate row and is then reset with Velox's
+`resetGlobalAggregation()` API. No new config key is required.
 
 **`close()`** (`:706`) drops every `GroupingSet` and output vector and clears the
 queue before calling the base.

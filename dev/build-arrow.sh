@@ -15,30 +15,42 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -exu
+set -euxo pipefail
 
 CURRENT_DIR=$(cd "$(dirname "$BASH_SOURCE")"; pwd)
 SUDO="${SUDO:-""}"
-source ${CURRENT_DIR}/build-helper-functions.sh
+source "${CURRENT_DIR}/build-helper-functions.sh"
 VELOX_ARROW_BUILD_VERSION=15.0.0
-ARROW_PREFIX=$CURRENT_DIR/../ep/_ep/arrow_ep
+ARROW_PREFIX=${ARROW_PREFIX:-"$CURRENT_DIR/../ep/_ep/arrow_ep"}
 BUILD_TYPE=Release
 INSTALL_PREFIX=${INSTALL_PREFIX:-"/usr/local"}
+BUILD_ARROW_JAVA=${BUILD_ARROW_JAVA:-ON}
 
 function prepare_arrow_build() {
-  mkdir -p ${ARROW_PREFIX}/../ && pushd ${ARROW_PREFIX}/../ && ${SUDO} rm -rf arrow_ep/
-  wget_and_untar https://github.com/apache/arrow/archive/refs/tags/apache-arrow-${VELOX_ARROW_BUILD_VERSION}.tar.gz arrow_ep
+  local arrow_parent
+  local arrow_dir
+  arrow_parent="$(dirname "$ARROW_PREFIX")"
+  arrow_dir="$(basename "$ARROW_PREFIX")"
+  [[ "$arrow_dir" == "arrow_ep" ]] || {
+    echo "ARROW_PREFIX must end in /arrow_ep: $ARROW_PREFIX" >&2
+    exit 1
+  }
+
+  mkdir -p "$arrow_parent"
+  pushd "$arrow_parent"
+  ${SUDO} rm -rf -- "$arrow_dir"
+  wget_and_untar "https://github.com/apache/arrow/archive/refs/tags/apache-arrow-${VELOX_ARROW_BUILD_VERSION}.tar.gz" "$arrow_dir"
   #wget_and_untar https://archive.apache.org/dist/arrow/arrow-${VELOX_ARROW_BUILD_VERSION}/apache-arrow-${VELOX_ARROW_BUILD_VERSION}.tar.gz arrow_ep
-  cd arrow_ep
-  patch -p1 < $CURRENT_DIR/../ep/build-velox/src/modify_arrow.patch
-  patch -p1 < $CURRENT_DIR/../ep/build-velox/src/modify_arrow_dataset_scan_option.patch
-  patch -p1 < $CURRENT_DIR/../ep/build-velox/src/cmake-compatibility.patch
-  patch -p1 < $CURRENT_DIR/../ep/build-velox/src/support_ibm_power.patch
+  cd "$arrow_dir"
+  patch -p1 < "$CURRENT_DIR/../ep/build-velox/src/modify_arrow.patch"
+  patch -p1 < "$CURRENT_DIR/../ep/build-velox/src/modify_arrow_dataset_scan_option.patch"
+  patch -p1 < "$CURRENT_DIR/../ep/build-velox/src/cmake-compatibility.patch"
+  patch -p1 < "$CURRENT_DIR/../ep/build-velox/src/support_ibm_power.patch"
   popd
 }
 
 function build_arrow_cpp() {
-  pushd $ARROW_PREFIX/cpp
+  pushd "$ARROW_PREFIX/cpp"
   ARROW_WITH_ZLIB=ON
   # The zlib version bundled with arrow is not compatible with clang 17.
   # It can be removed after upgrading the arrow version.
@@ -65,12 +77,12 @@ function build_arrow_cpp() {
        -DARROW_WITH_UTF8PROC=OFF \
        -DARROW_TESTING=ON \
        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-       -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+       -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
        -DARROW_BUILD_SHARED=OFF \
        -DARROW_BUILD_STATIC=ON
 
  # Install thrift.
- cd _build/thrift_ep-prefix/src/thrift_ep-build
+ cd "_build/thrift_ep-prefix/src/thrift_ep-build"
  ${SUDO} cmake --install ./ --prefix "${INSTALL_PREFIX}"/
  popd
 }
@@ -96,33 +108,46 @@ function build_arrow_java() {
     echo "set cmake build level to ${NPROC}"
     export CMAKE_BUILD_PARALLEL_LEVEL=$NPROC
 
-    pushd $ARROW_PREFIX/java
+    pushd "$ARROW_PREFIX/java"
     # Because arrow-bom module need the -DprocessAllModules
-    ${MVN_CMD} versions:set -DnewVersion=15.0.0-gluten -DprocessAllModules
+    "$MVN_CMD" versions:set -DnewVersion=15.0.0-gluten -DprocessAllModules
 
-    ${MVN_CMD} clean install -pl bom,maven/module-info-compiler-maven-plugin,vector -am \
+    "$MVN_CMD" clean install -pl bom,maven/module-info-compiler-maven-plugin,vector -am \
           -DskipTests -Drat.skip -Dmaven.gitcommitid.skip -Dcheckstyle.skip -Dassembly.skipAssembly
 
     # Arrow C Data Interface CPP libraries
-    ${MVN_CMD} generate-resources -P generate-libs-cdata-all-os -Darrow.c.jni.dist.dir=$ARROW_INSTALL_DIR \
+    "$MVN_CMD" generate-resources -P generate-libs-cdata-all-os -Darrow.c.jni.dist.dir="$ARROW_INSTALL_DIR" \
       -Dmaven.test.skip -Drat.skip -Dmaven.gitcommitid.skip -Dcheckstyle.skip -N
 
     # Arrow JNI Date Interface CPP libraries
     export PKG_CONFIG_PATH="${INSTALL_PREFIX}"/lib64/pkgconfig:"${INSTALL_PREFIX}"/lib/pkgconfig${PKG_CONFIG_PATH:+:${PKG_CONFIG_PATH}}
-    ${MVN_CMD} generate-resources -Pgenerate-libs-jni-macos-linux -N -Darrow.dataset.jni.dist.dir=$ARROW_INSTALL_DIR \
+    "$MVN_CMD" generate-resources -Pgenerate-libs-jni-macos-linux -N -Darrow.dataset.jni.dist.dir="$ARROW_INSTALL_DIR" \
       -DARROW_GANDIVA=OFF -DARROW_JAVA_JNI_ENABLE_GANDIVA=OFF -DARROW_ORC=OFF -DARROW_JAVA_JNI_ENABLE_ORC=OFF \
 	    -Dmaven.test.skip -Drat.skip -Dmaven.gitcommitid.skip -Dcheckstyle.skip -N
 
     # Arrow Java libraries
-    ${MVN_CMD} install -Parrow-jni -P arrow-c-data -pl c,dataset -am \
-      -Darrow.c.jni.dist.dir=$ARROW_INSTALL_DIR/lib -Darrow.dataset.jni.dist.dir=$ARROW_INSTALL_DIR/lib -Darrow.cpp.build.dir=$ARROW_INSTALL_DIR/lib \
+    "$MVN_CMD" install -Parrow-jni -P arrow-c-data -pl c,dataset -am \
+      -Darrow.c.jni.dist.dir="$ARROW_INSTALL_DIR/lib" -Darrow.dataset.jni.dist.dir="$ARROW_INSTALL_DIR/lib" -Darrow.cpp.build.dir="$ARROW_INSTALL_DIR/lib" \
       -Dmaven.test.skip -Drat.skip -Dmaven.gitcommitid.skip -Dcheckstyle.skip -Dassembly.skipAssembly
     popd
+}
+
+[[ "$BUILD_ARROW_JAVA" == "ON" || "$BUILD_ARROW_JAVA" == "OFF" ]] || {
+  echo "BUILD_ARROW_JAVA must be ON or OFF: $BUILD_ARROW_JAVA" >&2
+  exit 1
+}
+[[ "$#" -eq 0 ]] || {
+  echo "build-arrow.sh does not accept positional arguments" >&2
+  exit 1
 }
 
 echo "Start to build Arrow"
 prepare_arrow_build
 build_arrow_cpp
 echo "Finished building arrow CPP"
-build_arrow_java
-echo "Finished building arrow Java"
+if [[ "$BUILD_ARROW_JAVA" == "ON" ]]; then
+  build_arrow_java
+  echo "Finished building arrow Java"
+else
+  echo "Skipping arrow Java build (BUILD_ARROW_JAVA=$BUILD_ARROW_JAVA)"
+fi

@@ -1,6 +1,13 @@
-# Planner side: Scala changes for the fused rollup operator
+# Planner side: historical Scala design for the fused rollup operator
 
-Companion to `DESIGN.md`. Short by design — the JVM side is the easy half.
+> **Historical prototype note.** This is the planner companion to the archived
+> `DESIGN.md`/`docs/design/Rollup*` proof of concept. The current implementation
+> uses `GroupingSetAggregationNode`/`MultiGroupingSetAggregation`; the
+> authoritative planner logic is
+> `backends-velox/src/main/scala/org/apache/gluten/extension/LazyAggregateExpandRule.scala`,
+> and the current configuration keys are defined in `VeloxConfig.scala`.
+
+Short by design — the JVM side was the easy half of the prototype.
 
 ## 1. What changes in the existing rule
 
@@ -48,7 +55,9 @@ Two mechanical additions:
 ## 2. Config
 
 ```
-spark.gluten.sql.columnar.backend.velox.fusedRollup.enabled   (default: false)
+spark.gluten.sql.columnar.backend.velox.fusedGroupingSetAggregate.enabled   (default: false)
+spark.gluten.sql.columnar.backend.velox.fusedGroupingSetAggregate.maxGroupingSets
+                                                                         (default: 16)
 ```
 
 Gated behind the existing `lazyAggregateExpand.enabled` — fused rollup is a refinement of that
@@ -65,9 +74,11 @@ rewrite (never to the un-rewritten `Expand` plan — the landed rule remains the
 
 | Check | Fuse? | Why |
 |---|---|---|
-| `fusedRollup.enabled` | no if off | kill switch |
-| Grouping sets form a strict descending prefix chain (i.e. ROLLUP) | no otherwise | CUBE and explicit GROUPING SETS need a lattice parent choice; v1 is a chain |
-| `n >= 2` rollup keys | no otherwise | with one key the operator is a bypass lane plus a global agg; not worth a custom node |
+| `fusedGroupingSetAggregate.enabled` | no if off | kill switch |
+| Grouping-set count is at most `maxGroupingSets` | no otherwise | bounds live aggregate tables and keeps the O(S·K + S log S) lattice build in one 64-bit candidate index |
+| The mask lattice has exactly one root | no otherwise | prevents unrelated sets from degenerating to repeated raw-input fan-out |
+| Grouping masks are unique and fit in 64 bits | no otherwise | the native lattice uses one 64-bit mask per grouping set |
+| Expand exposes exactly one literal gid slot | no otherwise | native conversion carries Spark's gid through as opaque planner data |
 | No aggregate has `isDistinct` | no otherwise | distinct needs a separate distinct-tracking structure per level |
 | No aggregate has a `FILTER` mask | no otherwise | masks are a raw-input concept; the fused operator only sees states |
 | No order-sensitive / holistic aggregate (`sortingKeys` non-empty) | no otherwise | merging states out of order is not defined for these |
@@ -89,9 +100,10 @@ about *plan shape and state flow*: the finest-set bypass (rows out of the child'
 already unique, so tag and forward instead of re-hashing), the smallest-parent chain (derive level
 `i-1` from level `i`'s output, turning `R x (n+1)` probes into `R + sum(G_i)`), the cascade-flush
 state machine, and — crucially — the observation that a pre-shuffle operator emitting partial state
-may *flush* duplicate groups rather than spill, which is what makes the whole thing bounded-memory
-without a spill path. The per-level abandon valve transfers too, and so does the argument that an
-abandoned merge level is a free pass-through.
+may *flush* duplicate groups rather than spill, which provides proactive state control despite the
+absence of a spill path. This is not a strict allocator bound: all live level maps contribute to
+memory and a batch or capacity jump may overshoot a flush target. The per-level abandon valve
+transfers too, and so does the argument that an abandoned merge level is a free pass-through.
 
 What differs is everything about *representation*. Velox gives us `GroupingSet` with
 `isPartial/isRawInput` bools that express "states in, states out" directly, and accumulators that

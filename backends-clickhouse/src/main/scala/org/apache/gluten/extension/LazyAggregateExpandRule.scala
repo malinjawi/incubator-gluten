@@ -66,7 +66,7 @@ case class LazyAggregateExpandRule(session: SparkSession) extends Rule[SparkPlan
               _,
               _,
               resultExpressions,
-              ExpandExecTransformer(projections, output, child, _)),
+              ExpandExecTransformer(projections, output, child, _, _)),
             _,
             _,
             _
@@ -113,7 +113,7 @@ case class LazyAggregateExpandRule(session: SparkSession) extends Rule[SparkPlan
               _,
               _,
               resultExpressions,
-              FilterExecTransformer(_, ExpandExecTransformer(projections, output, child, _))),
+              FilterExecTransformer(_, ExpandExecTransformer(projections, output, child, _, _))),
             _,
             _,
             _

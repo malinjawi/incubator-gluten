@@ -97,6 +97,7 @@ macro(add_duckdb)
   else()
     message(STATUS "Found DuckDB library from ${DuckDB_DIR}")
     target_link_libraries(facebook::velox INTERFACE duckdb_static)
+    target_include_directories(facebook::velox INTERFACE ${DuckDB_INCLUDE_DIRS})
   endif()
 endmacro()
 
@@ -177,8 +178,10 @@ set(VELOX_SRCS
     operators/functions/RegistrationAllFunctions.cc
     operators/functions/RowConstructorWithNull.cc
     operators/functions/SparkExprToSubfieldFilterParser.cc
+    operators/plannodes/GroupingSetAggregationNode.cc
+    operators/plannodes/GroupingSetLattice.cc
+    operators/plannodes/MultiGroupingSetAggregation.cc
     operators/plannodes/RowVectorStream.cc
-    operators/rollup/MultiGroupingSetAggregation.cc
     operators/hashjoin/HashTableBuilder.cc
     operators/reader/FileReaderIterator.cc
     operators/reader/ParquetReaderIterator.cc
@@ -298,6 +301,44 @@ set_target_properties(velox PROPERTIES LIBRARY_OUTPUT_DIRECTORY
 # `-DCMAKE_PREFIX_PATH="${folly lib path}" to cmake arguments. It is also
 # applicable to other dependencies.
 find_package(Folly REQUIRED CONFIG)
+
+# The Velox macOS bootstrap builds Folly with static gflags, but builds glog
+# against shared gflags. Linking both into libvelox.dylib registers every flag
+# twice and aborts at startup. Keep Folly's exported dependency consistent with
+# the gflags variant selected by Findglog.
+if(APPLE AND libgflags_component STREQUAL "shared")
+  if(TARGET gflags::gflags_shared)
+    set(GLUTEN_SHARED_GFLAGS_TARGET gflags::gflags_shared)
+  elseif(TARGET gflags_shared)
+    set(GLUTEN_SHARED_GFLAGS_TARGET gflags_shared)
+  endif()
+
+  if(GLUTEN_SHARED_GFLAGS_TARGET)
+    foreach(FOLLY_TARGET Folly::folly Folly::folly_deps)
+      if(TARGET ${FOLLY_TARGET})
+        get_target_property(FOLLY_LINK_LIBRARIES ${FOLLY_TARGET}
+                            INTERFACE_LINK_LIBRARIES)
+        if(FOLLY_LINK_LIBRARIES)
+          set(NORMALIZED_FOLLY_LINK_LIBRARIES)
+          foreach(FOLLY_LINK_LIBRARY ${FOLLY_LINK_LIBRARIES})
+            if(FOLLY_LINK_LIBRARY STREQUAL "gflags_static"
+               OR FOLLY_LINK_LIBRARY STREQUAL "gflags::gflags_static")
+              list(APPEND NORMALIZED_FOLLY_LINK_LIBRARIES
+                   ${GLUTEN_SHARED_GFLAGS_TARGET})
+            else()
+              list(APPEND NORMALIZED_FOLLY_LINK_LIBRARIES
+                   ${FOLLY_LINK_LIBRARY})
+            endif()
+          endforeach()
+          set_target_properties(
+            ${FOLLY_TARGET}
+            PROPERTIES INTERFACE_LINK_LIBRARIES
+                       "${NORMALIZED_FOLLY_LINK_LIBRARIES}")
+        endif()
+      endif()
+    endforeach()
+  endif()
+endif()
 
 if(ENABLE_JEMALLOC_STATS)
   include(Findjemalloc)

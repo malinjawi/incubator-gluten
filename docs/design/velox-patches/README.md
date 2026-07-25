@@ -1,8 +1,10 @@
 # Velox patches required by the fused grouping-set (rollup) operator
 
-Gluten builds against an unmodified Velox **except** for the single patch below.
+The operator itself is not supplied by Velox. Gluten builds it from
+`cpp/velox/operators/plannodes/`; the pinned Velox tree needs only the single
+standalone patch below.
 
-## 0001-hashagg-needsinput-fix.patch (REQUIRED, keep)
+## `ep/build-velox/src/modify_hash_aggregation_input_buffer.patch` (REQUIRED, keep)
 
 Adds `VELOX_CHECK_NULL(input_)` at the top of `HashAggregation::addInput` in
 `velox/exec/HashAggregation.cpp` (plus the corresponding declaration note in
@@ -14,6 +16,10 @@ Gluten's own tree and must be carried as a Velox patch. The fused rollup operato
 depends on this fix at runtime under memory pressure.
 
 This patch is a standalone upstream-Velox candidate independent of the rollup work.
+`ep/build-velox/src/build-velox.sh` applies it idempotently and refuses to
+compile when neither the fix nor an applicable patch is present. This makes the
+normal `buildbundle-veloxbe.sh` path enforce the same correctness prerequisite
+as the isolated rollup test helper.
 
 ## 0002-fused-grouping-set-operator.patch (RETIRED — do not reapply)
 
@@ -22,12 +28,15 @@ This patch is a standalone upstream-Velox candidate independent of the rollup wo
 a Velox fork patch. It now lives **inside the Gluten tree** as a Gluten-local
 custom Velox operator, mirroring the existing cudf custom-operator precedent:
 
-- `cpp/velox/operators/rollup/GroupingSetLattice.h`
-- `cpp/velox/operators/rollup/GroupingSetAggregationNode.h`
-- `cpp/velox/operators/rollup/MultiGroupingSetAggregation.h`
-- `cpp/velox/operators/rollup/MultiGroupingSetAggregation.cc`
+- `cpp/velox/operators/plannodes/GroupingSetLattice.h`
+- `cpp/velox/operators/plannodes/GroupingSetLattice.cc`
+- `cpp/velox/operators/plannodes/GroupingSetAggregationNode.h`
+- `cpp/velox/operators/plannodes/GroupingSetAggregationNode.cc`
+- `cpp/velox/operators/plannodes/MultiGroupingSetAggregation.h`
+- `cpp/velox/operators/plannodes/MultiGroupingSetAggregation.cc`
 
-It is compiled into `libvelox` (Gluten) via `cpp/velox/CMakeLists.txt` and
+All three `.cc` files are compiled into `libvelox` (Gluten) via
+`cpp/velox/CMakeLists.txt`, and the operator is
 registered Gluten-locally by `registerMultiGroupingSetAggregation()`, called from
 `cpp/velox/compute/VeloxBackend.cc`. The node keeps namespace
 `facebook::velox::exec` so the Substrait converter
@@ -35,4 +44,13 @@ registered Gluten-locally by `registerMultiGroupingSetAggregation()`, called fro
 remain valid; only the `#include` paths changed to the new in-tree location.
 
 Because the operator is Gluten-local, **no Velox fork is needed for it** — only
-patch 0001 remains on Velox.
+`ep/build-velox/src/modify_hash_aggregation_input_buffer.patch` remains on Velox.
+
+## Archived prototype sources (reference only)
+
+`docs/design/RollupNode.h`, `RollupOperator.{h,cpp}`,
+`RollupTranslator.cpp`, and `RollupOperatorTest.cpp` are historical
+proof-of-concept artifacts. They are deliberately outside the build, do not
+define the production symbols, and must not be applied to Velox. Their
+production successors are the Gluten-local files listed above and
+`cpp/velox/tests/MultiGroupingSetAggregationTest.cc`.
