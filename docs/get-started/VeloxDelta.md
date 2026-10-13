@@ -8,10 +8,18 @@ This document summarizes the support status of **Delta Lake table features** whe
 |---|---|---|---|---|
 | `spark-3.5` | Spark 3.5.x | 2.12 | 3.3.x | Supported |
 | `spark-4.0` | Spark 4.0.x | 2.13 | 4.0.x | Supported |
+| `spark-4.1` | Spark 4.1.x | 2.13 | 4.1.x | Supported |
+| `spark-4.2` | Spark 4.2.x | 2.13 | 4.4.x | Supported |
 
-Native Delta write is supported in both Spark 3.5 and Spark 4.0 profiles. The difference between
-the two rows above is the Spark/Delta compatibility target (Spark 3.5 + Delta 3.3 vs Spark 4.0 +
-Delta 4.0), not a native-write capability gap.
+Native Delta write is supported in all of these profiles. The rows differ in the Spark/Delta
+compatibility target, not in native-write capability.
+
+Delta 4.4 writes partition columns into Parquet data files by default
+(`delta.writePartitionColumnsToParquet`). Gluten's native write still leaves them out, so its
+files differ from vanilla Delta's. Delta reads partition values from the transaction log, so
+query results are unaffected. Tables that require partition columns in the data files, through
+the `materializePartitionColumns` writer feature or Iceberg compatibility, fall back to the
+vanilla Delta write.
 
 ## Build and runtime notes
 
@@ -21,6 +29,8 @@ Build Gluten with Delta support by enabling `-Pdelta` together with the Velox ba
   - `mvn clean package -Pbackends-velox -Pdelta -Pspark-3.5 -DskipTests`
 - Spark 4.0 build example:
   - `mvn clean package -Pbackends-velox -Pdelta -Pspark-4.0 -Pscala-2.13 -Pjava-17 -DskipTests`
+- Spark 4.2 build example:
+  - `mvn clean package -Pbackends-velox -Pdelta -Pspark-4.2 -Pscala-2.13 -Pjava-17 -DskipTests`
 
 Native Delta write is controlled by:
 

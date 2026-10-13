@@ -29,6 +29,8 @@ import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{IntegerType, LongType, StructType}
 import org.apache.spark.sql.util.QueryExecutionListener
 
+import org.apache.parquet.hadoop.ParquetFileReader
+import org.apache.parquet.hadoop.util.HadoopInputFile
 import org.json4s.{JInt, JNothing}
 import org.json4s.jackson.JsonMethods.parse
 
@@ -139,6 +141,44 @@ class GlutenDeltaNativePartitionWriteSuite extends GlutenQueryTest with SharedSp
             }
         }
       }
+    }
+  }
+
+  test("native Delta write falls back when the table requires partition columns in files") {
+    assume(BackendTestUtils.isVeloxBackendLoaded())
+    // The materializePartitionColumns writer feature arrived in Delta 4.1.
+    val Array(deltaMajor, deltaMinor) = _root_.io.delta.VERSION.split("\\.").take(2).map(_.toInt)
+    assume(deltaMajor > 4 || (deltaMajor == 4 && deltaMinor >= 1))
+    withTempDir {
+      dir =>
+        val path = dir.getCanonicalPath
+        spark.sql(
+          s"CREATE TABLE delta.`$path` (id BIGINT, part INT) USING delta PARTITIONED BY (part) " +
+            "TBLPROPERTIES ('delta.enableMaterializePartitionColumnsFeature' = 'true')")
+        spark.range(4).selectExpr("id", "CAST(id % 2 AS INT) AS part")
+          .write.format("delta").mode("append").save(path)
+
+        val deltaLog = DeltaLog.forTable(spark, path)
+        val files = deltaLog.update().allFiles.collect()
+        assert(files.nonEmpty)
+        // Read the footers directly so partition discovery cannot supply the column.
+        files.foreach {
+          file =>
+            val reader = ParquetFileReader.open(
+              HadoopInputFile.fromPath(
+                DeltaFileOperations.absolutePath(path, file.path),
+                deltaLog.newDeltaHadoopConf()))
+            try {
+              assert(
+                reader.getFooter.getFileMetaData.getSchema.containsField("part"),
+                s"${file.path} is missing partition column `part`")
+            } finally {
+              reader.close()
+            }
+        }
+        checkAnswer(
+          spark.read.format("delta").load(path),
+          Seq(Row(0L, 0), Row(1L, 1), Row(2L, 0), Row(3L, 1)))
     }
   }
 }
