@@ -25,6 +25,8 @@
 # Driven by environment (set by the workflow step / job):
 #   SHARD_ID          - this shard's id (matrix.shard)
 #   SPARK_VERSION     - Delta -DsparkVersion value
+#   KNOWN_FAILURES    - baseline file name in this directory
+#                       (default: known-failures.txt, the Spark 4.1 baseline)
 #   UPDATE_BASELINE   - 'true' -> gate seed mode; else enforce
 #   FAIL_ON_FIXED     - passed through to the gate
 #   DELTA_SCALA_VERSION, NUM_SHARDS, TEST_PARALLELISM_COUNT, DELTA_TESTING
@@ -36,6 +38,15 @@
 set -euo pipefail
 export JAVA_HOME=/usr/lib/jvm/java-17-openjdk
 export PATH=$JAVA_HOME/bin:$PATH
+# Delta 4.4's build publishes a pinned Unity Catalog with
+# project/scripts/setup_unitycatalog_main.sh and then looks for it under $HOME,
+# while sbt publishes under the JVM's user.home. GitHub sets HOME=/github/home in
+# container jobs but the JVM takes the passwd entry (/root, where the sbt caches
+# live too), so the check fails. Point HOME at the passwd entry.
+if command -v getent > /dev/null; then
+  HOME="$(getent passwd "$(id -u)" | cut -d: -f6)"
+  export HOME
+fi
 # Gluten/JDK17 test JVM flags (--add-opens + Netty property), shared with local
 # dev runs. Sets JAVA_TOOL_OPTIONS so it reaches the sbt launcher + forked JVMs.
 # shellcheck source=./java-test-args.sh
@@ -272,7 +283,7 @@ mkdir -p "$GITHUB_WORKSPACE/gate-out"
 python3 "$UTIL_DIR/compare-test-results.py" \
   --mode "$GATE_MODE" \
   --reports-dir "$GITHUB_WORKSPACE/delta" \
-  --known-failures "$UTIL_DIR/known-failures.txt" \
+  --known-failures "$UTIL_DIR/${KNOWN_FAILURES:-known-failures.txt}" \
   --flaky-tests "$UTIL_DIR/flaky-tests.txt" \
   --flaky-error-patterns "$UTIL_DIR/flaky-error-patterns.txt" \
   --failures-out "$GITHUB_WORKSPACE/gate-out/failures-shard-${SHARD_ID}.txt" \

@@ -1,0 +1,10 @@
+# Known Delta-on-Gluten unit test failures for Spark 4.2 (Delta v4.4.1).
+#
+# Same format and rules as known-failures.txt, which is the Spark 4.1 baseline.
+# Format: <fully.qualified.SuiteName>#<test name>. Lines starting with '#' are
+# comments. See README.md in this directory.
+#
+# No entries yet, so the gate runs in seed mode for Spark 4.2 and enforces
+# nothing. To fill it, run the workflow with spark_version=4.2 and
+# update_baseline=true, then replace this file with the
+# delta-spark-ut-known-failures artifact.

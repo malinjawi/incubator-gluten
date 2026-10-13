@@ -36,7 +36,8 @@ starts failing** (a regression).
 
 | File | Purpose |
 |---|---|
-| `known-failures.txt` | Committed baseline: the tests currently expected to fail. One `<suite>#<test>` per line. |
+| `known-failures.txt` | Committed baseline for Spark 4.1 (Delta v4.2.0): the tests currently expected to fail. One `<suite>#<test>` per line. |
+| `known-failures-spark4.2.txt` | The same for Spark 4.2 (Delta v4.4.1). Each Spark version runs a different Delta release, so each has its own baseline. |
 | `flaky-tests.txt` | Quarantine list by test name: tests whose pass/fail is non-deterministic. Ignored by the gate whether they pass or fail. `<suite-glob>#<test>` per line. |
 | `flaky-error-patterns.txt` | Quarantine list by error signature: regex patterns matched against a failure's text, for bugs that surface on a different test each run (e.g. the native DV bitmap row-index error). |
 | `compare-test-results.py` | Parses the JUnit XML from `sbt spark/test` and gates / seeds / aggregates against the baseline. Standard-library only. |
@@ -102,30 +103,34 @@ an artifact if its build fails. That is the price of decoupling the two pipeline
   they're touched on most PRs, so per-PR they skip the suite — the nightly run is
   the safety net.
 - **Nightly** — the **full** suite runs against the latest default branch on a
-  `schedule` (05:00 UTC), so regressions from general Velox/core changes are
-  still caught daily. The nightly run enforces the baseline **and** fails on
+  `schedule`: 05:00 UTC for Spark 4.1 and 07:00 UTC for Spark 4.2, so
+  regressions from general Velox/core changes are still caught daily. The nightly run enforces the baseline **and** fails on
   now-passing tests (`fail_on_fixed=true`), so baseline drift surfaces as a red
   nightly — the signal to refresh `known-failures.txt`.
 - **On demand, from a PR** — anyone can comment **`/delta-test`** as the first
-  token to run the default configuration against the PR merge ref. This covers
+  token to run the default configuration (Spark 4.1) against the PR merge ref. This covers
   PRs skipped by `paths:` without requiring label permissions. The workflow
   posts the run link on the PR and enforces the committed baseline. Comment runs
   restore but never save main-scoped Stash caches; use `workflow_dispatch` for
   custom inputs or baseline updates.
 - **Manually** — **Actions → Delta Spark UT (Gluten) → Run workflow**
-  (`workflow_dispatch`), e.g. to refresh the baseline (see below). This is also
+  (`workflow_dispatch`), e.g. to refresh the baseline (see below). Pick
+  `spark_version` (4.1 or 4.2); leave `delta_ref` empty to test the Delta release
+  built for that Spark version. This is also
   how you validate a Velox/core change against Delta before merging: run it on
   your branch (on your fork if you don't have write access here).
 
 ## Bootstrapping the baseline (first time)
 
-While `known-failures.txt` has no entries the gate auto-runs in **seed mode**
+While a baseline file has no entries the gate auto-runs in **seed mode**
 (it never fails — it only records failures). To create the initial baseline:
 
 1. Trigger **Actions → Delta Spark UT (Gluten) → Run workflow** with
-   `update_baseline = true`.
+   `update_baseline = true` and the `spark_version` the baseline is for.
 2. When it finishes, download the **`delta-spark-ut-known-failures`** artifact.
-3. Replace `known-failures.txt` with the file from that artifact and commit it.
+   It holds the baseline file for that Spark version, already named
+   (`known-failures.txt` or `known-failures-spark4.2.txt`).
+3. Replace the committed file with the one from the artifact and commit it.
 
 From the next run onward the gate enforces the baseline.
 
@@ -246,7 +251,7 @@ the flags reach the sbt launcher and the forked test JVM:
 ```bash
 # from the Delta clone prepared by setup-delta.sh (which has the Gluten bundle):
 source <gluten>/.github/workflows/util/delta-spark-ut/java-test-args.sh
-./build/sbt "++ 2.13.16" spark/test        # or a single suite via testOnly
+./build/sbt -DsparkVersion=4.1 "++ 2.13.17" spark/test   # or a single suite via testOnly
 ```
 
 `run-delta-tests.sh` sources the same file, so CI and local runs use identical

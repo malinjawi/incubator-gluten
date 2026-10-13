@@ -19,8 +19,9 @@
 #   1. Builds the Velox/Gluten native libraries (AlmaLinux 8 + vcpkg, x86_64).
 #   2. Builds the Gluten Java/Scala jars and assembles the
 #      `gluten-velox-bundle-spark<spark>_<scala>-linux_amd64-<version>.jar`
-#      fat jar for Spark 4.1 + Scala 2.13 + Java 17 with the Delta profile.
-#   3. Clones delta-io/delta at the requested release tag (default `v4.2.0`),
+#      fat jar for Spark 4.1 or 4.2 + Scala 2.13 + Java 17 with the Delta profile.
+#   3. Clones delta-io/delta at the requested release tag (default `v4.2.0` for
+#      Spark 4.1, `v4.4.1` for Spark 4.2),
 #      drops the bundle jar into `spark-unified/lib/` only (NOT `spark/lib/`
 #      -- see setup-delta.sh for the unmanagedJars scoping rationale),
 #      patches Delta's `DeltaSQLCommandTest` to register the Gluten plugin,
@@ -68,12 +69,16 @@ on:
   workflow_dispatch:
     inputs:
       delta_ref:
-        description: 'delta-io/delta git ref (tag/branch/SHA) to test against'
-        required: true
-        default: 'v4.2.0'
+        description: 'delta-io/delta git ref (tag/branch/SHA) to test against. Leave empty for the Delta release that matches spark_version (4.1: v4.2.0, 4.2: v4.4.1).'
+        required: false
+        default: ''
       spark_version:
-        description: 'Spark version: drives the Gluten bundle profile (-Pspark-<v>) and Delta -DsparkVersion together. Scala 2.13 + JDK 17 are assumed, so pair a non-4.1 value with a compatible delta_ref.'
+        description: 'Spark version: drives the Gluten bundle profile (-Pspark-<v>), Delta -DsparkVersion, the default delta_ref and the known-failures baseline.'
         required: true
+        type: choice
+        options:
+          - '4.1'
+          - '4.2'
         default: '4.1'
       test_parallelism:
         description: 'Forked test JVMs per shard (TEST_PARALLELISM_COUNT)'
@@ -93,9 +98,11 @@ on:
   # above runs the suite only for Delta-relevant changes, to save GHA minutes;
   # this scheduled run keeps full coverage once a day so regressions from general
   # Velox/core changes are still caught, and it enforces `fail_on_fixed` so the
-  # baseline stays honest.
+  # baseline stays honest. 05:00 runs Spark 4.1 and 07:00 runs Spark 4.2: a
+  # schedule event has no inputs, so the cron string selects the Spark version.
   schedule:
     - cron: '0 5 * * *'
+    - cron: '0 7 * * *'
 
 # Comment runs execute PR code; keep the token read-only. Stash needs artifacts access.
 permissions:
@@ -109,19 +116,19 @@ env:
   # `issue_comment` runs on the default branch, so explicitly select the PR merge ref.
   DELTA_CHECKOUT_REF: ${{ github.event.issue.number && format('refs/pull/{0}/merge', github.event.issue.number) || '' }}
   # Gluten profile / bundle naming for the build-gluten-bundle and
-  # delta-spark-test jobs. `spark_version` is the single source of truth for the
-  # Spark version: it drives the Gluten bundle profile (-Pspark-<v>), the bundle
-  # jar name, and Delta's -DsparkVersion, so the tests always run against a bundle
-  # built for the same Spark version (no separate value to keep in sync). Scala
-  # 2.13 + JDK 17 are pinned -- they match Delta v4.2.0's default Spark 4.1.0 from
-  # project/CrossSparkVersions.scala -- so pair a non-default spark_version with a
-  # compatible delta_ref.
-  GLUTEN_SPARK_PROFILE: spark-${{ inputs.spark_version || '4.1' }}
+  # delta-spark-test jobs. The Spark version is the dispatch input, else 4.2 for
+  # the 07:00 nightly, else 4.1; the same expression keys the concurrency group
+  # above. It drives the Gluten bundle profile (-Pspark-<v>), the bundle jar name,
+  # Delta's -DsparkVersion, the default delta_ref and the known-failures baseline,
+  # so the tests always run against a bundle built for the same Spark version.
+  # Scala 2.13 + JDK 17 are pinned; Delta v4.2.0 and v4.4.1 both build with
+  # Scala 2.13.17 (sbt ignores any other ++ version they don't list).
+  GLUTEN_SPARK_PROFILE: spark-${{ inputs.spark_version || (github.event.schedule == '0 7 * * *' && '4.2') || '4.1' }}
   GLUTEN_SCALA_PROFILE: 'scala-2.13'
   GLUTEN_JAVA_PROFILE: 'java-17'
-  GLUTEN_BUNDLE_SPARK_VERSION: ${{ inputs.spark_version || '4.1' }}
+  GLUTEN_BUNDLE_SPARK_VERSION: ${{ inputs.spark_version || (github.event.schedule == '0 7 * * *' && '4.2') || '4.1' }}
   GLUTEN_BUNDLE_SCALA_VERSION: '2.13'
-  DELTA_SCALA_VERSION: '2.13.16'
+  DELTA_SCALA_VERSION: '2.13.17'
   # Number of shards in the delta-spark-test matrix. Must equal the length of
   # the `shard` matrix below.
   #
@@ -158,6 +165,10 @@ env:
 # the suite and replacing it with nothing. Give only that case a group of its
 # own, so every other trigger keeps the exact group name it has today. The
 # negated condition is that job's `if` verbatim.
+#
+# Spark 4.2 runs get a `-spark4.2` suffix, so the 07:00 nightly does not cancel
+# the 05:00 Spark 4.1 nightly that is still running on the same commit. Spark 4.1
+# runs keep their group names unchanged.
 concurrency:
   group: >-
     ${{ github.repository }}-${{ github.event.pull_request.number || github.event.issue.number || github.head_ref || github.sha }}-${{ github.workflow }}${{
@@ -167,7 +178,9 @@ concurrency:
           startsWith(github.event.comment.body, '/delta-test ') ||
           startsWith(github.event.comment.body, format('/delta-test{0}', fromJSON('"\r"'))) ||
           startsWith(github.event.comment.body, format('/delta-test{0}', fromJSON('"\n"'))))))
-      && format('-comment-{0}', github.run_id) || '' }}
+      && format('-comment-{0}', github.run_id) || '' }}${{
+      (inputs.spark_version || (github.event.schedule == '0 7 * * *' && '4.2') || '4.1') != '4.1'
+      && '-spark4.2' || '' }}
   cancel-in-progress: true
 
 jobs:
@@ -371,14 +384,16 @@ jobs:
         id: resolve
         # Surface the inputs as step outputs. `workflow_dispatch` supplies them
         # (with defaults); the `pull_request` and nightly `schedule` events supply
-        # NONE, so fall back to the same defaults here. The boolean inputs are
+        # NONE, so fall back to the same defaults here. The Spark version comes from
+        # the workflow env, and an empty delta_ref means the Delta release built for
+        # that Spark version. The boolean inputs are
         # rendered as explicit 'true'/'false' strings (never empty) via the `&&/||`
         # form so those runs resolve cleanly: update_baseline=false (enforce) and
         # fail_on_fixed=true (so a now-passing baseline test turns the nightly red
         # -- our signal that the committed baseline needs refreshing).
         env:
-          DELTA_REF: ${{ inputs.delta_ref || 'v4.2.0' }}
-          SPARK_VERSION: ${{ inputs.spark_version || '4.1' }}
+          DELTA_REF: ${{ inputs.delta_ref || (env.GLUTEN_BUNDLE_SPARK_VERSION == '4.2' && 'v4.4.1') || 'v4.2.0' }}
+          SPARK_VERSION: ${{ env.GLUTEN_BUNDLE_SPARK_VERSION }}
           TEST_PARALLELISM: ${{ inputs.test_parallelism || '4' }}
           UPDATE_BASELINE: ${{ github.event_name == 'workflow_dispatch' && (inputs.update_baseline && 'true' || 'false') || 'false' }}
           # Defaults to true for pull_request and schedule: `inputs` only exists on
@@ -389,9 +404,16 @@ jobs:
           FAIL_ON_FIXED: ${{ github.event_name == 'workflow_dispatch' && (inputs.fail_on_fixed && 'true' || 'false') || 'true' }}
         run: |
           set -euo pipefail
+          # Spark 4.1 keeps the original baseline file; other versions have their own.
+          # The aggregate job below applies the same mapping.
+          KNOWN_FAILURES=known-failures.txt
+          if [ "${SPARK_VERSION}" != "4.1" ]; then
+            KNOWN_FAILURES="known-failures-spark${SPARK_VERSION}.txt"
+          fi
           {
             echo "delta_ref=${DELTA_REF}"
             echo "spark_version=${SPARK_VERSION}"
+            echo "known_failures=${KNOWN_FAILURES}"
             echo "test_parallelism=${TEST_PARALLELISM}"
             echo "update_baseline=${UPDATE_BASELINE}"
             echo "fail_on_fixed=${FAIL_ON_FIXED}"
@@ -462,6 +484,7 @@ jobs:
           NUM_SHARDS: ${{ env.DELTA_NUM_SHARDS }}
           TEST_PARALLELISM_COUNT: ${{ steps.resolve.outputs.test_parallelism }}
           SPARK_VERSION: ${{ steps.resolve.outputs.spark_version }}
+          KNOWN_FAILURES: ${{ steps.resolve.outputs.known_failures }}
           UPDATE_BASELINE: ${{ steps.resolve.outputs.update_baseline }}
           FAIL_ON_FIXED: ${{ steps.resolve.outputs.fail_on_fixed }}
           # Required by Delta to enable testing-only code paths
@@ -575,17 +598,23 @@ jobs:
       - name: Aggregate known failures
         run: |
           set -euo pipefail
+          # Same baseline mapping as the shards' "Resolve workflow inputs" step.
+          SPARK_VERSION="${{ env.GLUTEN_BUNDLE_SPARK_VERSION }}"
+          KNOWN_FAILURES=known-failures.txt
+          if [ "${SPARK_VERSION}" != "4.1" ]; then
+            KNOWN_FAILURES="known-failures-spark${SPARK_VERSION}.txt"
+          fi
           python3 .github/workflows/util/delta-spark-ut/compare-test-results.py \
             --mode aggregate \
             --inputs-dir gate-lists \
             --expected-shards "${{ env.DELTA_NUM_SHARDS }}" \
-            --known-failures .github/workflows/util/delta-spark-ut/known-failures.txt \
+            --known-failures ".github/workflows/util/delta-spark-ut/${KNOWN_FAILURES}" \
             --flaky-tests .github/workflows/util/delta-spark-ut/flaky-tests.txt \
-            --baseline-out aggregated/known-failures.txt
+            --baseline-out "aggregated/${KNOWN_FAILURES}"
       - name: Upload refreshed baseline
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: delta-spark-ut-known-failures
-          path: aggregated/known-failures.txt
+          path: aggregated/
           if-no-files-found: warn
