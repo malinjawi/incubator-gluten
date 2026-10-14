@@ -21,7 +21,7 @@ import org.apache.gluten.utils.BackendTestUtils
 
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.{GlutenQueryTest, Row}
-import org.apache.spark.sql.delta.DeltaLog
+import org.apache.spark.sql.delta.{DeltaConfigs, DeltaLog}
 import org.apache.spark.sql.delta.util.DeltaFileOperations
 import org.apache.spark.sql.execution.{QueryExecution, SparkPlan}
 import org.apache.spark.sql.execution.command.ExecutedCommandExec
@@ -29,6 +29,8 @@ import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{IntegerType, LongType, StructType}
 import org.apache.spark.sql.util.QueryExecutionListener
 
+import org.apache.parquet.hadoop.ParquetFileReader
+import org.apache.parquet.hadoop.util.HadoopInputFile
 import org.json4s.{JInt, JNothing}
 import org.json4s.jackson.JsonMethods.parse
 
@@ -58,6 +60,17 @@ class GlutenDeltaNativePartitionWriteSuite extends GlutenQueryTest with SharedSp
       .set("spark.sql.maxConcurrentOutputFileWriters", "0")
   }
 
+  // Delta 4.4+ writes partition columns into the data files by default, which makes the write fall
+  // back to vanilla Delta. Older Delta rejects the property, so look it up before setting it.
+  private lazy val partitionColumnsInFilesConf: Seq[(String, String)] =
+    if (
+      DeltaConfigs.getClass.getMethods.exists(_.getName == "WRITE_PARTITION_COLUMNS_TO_PARQUET")
+    ) {
+      Seq("spark.databricks.delta.properties.defaults.writePartitionColumnsToParquet" -> "false")
+    } else {
+      Seq.empty
+    }
+
   // Small batches cross partition boundaries; a large batch requires splitting a single stripe.
   for ((batchSize, limit, collectStats) <- Seq((4, 4, false), (16, 4, true), (4, 0, true))) {
     test(s"native Delta partitioned files: batch=$batchSize, limit=$limit, stats=$collectStats") {
@@ -68,9 +81,11 @@ class GlutenDeltaNativePartitionWriteSuite extends GlutenQueryTest with SharedSp
           (0 until count).map(i => Row(if (i % 3 == 0) null else Long.box(i / 2), part))
       }
       withSQLConf(
-        GlutenConfig.COLUMNAR_MAX_BATCH_SIZE.key -> batchSize.toString,
-        "spark.databricks.delta.stats.collect" -> collectStats.toString,
-        "spark.sql.jsonGenerator.ignoreNullFields" -> "true"
+        Seq(
+          GlutenConfig.COLUMNAR_MAX_BATCH_SIZE.key -> batchSize.toString,
+          "spark.databricks.delta.stats.collect" -> collectStats.toString,
+          "spark.sql.jsonGenerator.ignoreNullFields" -> "true"
+        ) ++ partitionColumnsInFilesConf: _*
       ) {
         withTempDir {
           dir =>
@@ -107,6 +122,18 @@ class GlutenDeltaNativePartitionWriteSuite extends GlutenQueryTest with SharedSp
               val fileSizes = files.toSeq.map {
                 file =>
                   val filePath = DeltaFileOperations.absolutePath(path, file.path).toString
+                  val reader = ParquetFileReader.open(
+                    HadoopInputFile.fromPath(
+                      DeltaFileOperations.absolutePath(path, file.path),
+                      spark.sessionState.newHadoopConf()))
+                  try {
+                    // Vanilla Spark writes with parquet-mr; the Velox writer does not.
+                    assert(
+                      !reader.getFooter.getFileMetaData.getCreatedBy.startsWith("parquet-mr"),
+                      s"${file.path} was not written by the native writer")
+                  } finally {
+                    reader.close()
+                  }
                   val rows = spark.read.parquet(filePath).select("id").collect().toSeq
                   if (collectStats) {
                     val stats = parse(file.stats)
