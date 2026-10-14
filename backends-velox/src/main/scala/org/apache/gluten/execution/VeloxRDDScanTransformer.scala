@@ -192,17 +192,22 @@ case class VeloxRDDScanTransformer(
    * ABI, which has stricter constraints than Velox's type system:
    *   - Map types can trigger "Map data key type should be a non-nullable" in Arrow export
    *   - Interval types are not supported by ArrowWritableColumnVector
+   *   - NullType nested in a struct or array crashes Velox (SIGFPE) on import
    */
-  private def validateArrowCompatibility(dataType: DataType): Option[String] = {
+  private def validateArrowCompatibility(
+      dataType: DataType,
+      nested: Boolean = false): Option[String] = {
     dataType match {
       case _: MapType =>
         Some(s"Map type is not supported in RDDScan Arrow export path: $dataType")
       case _: YearMonthIntervalType | _: DayTimeIntervalType | CalendarIntervalType =>
         Some(s"Interval type is not supported in Arrow export: $dataType")
+      case NullType if nested =>
+        Some("Nested NullType is not supported in RDDScan Arrow export path")
       case struct: StructType =>
-        struct.fields.flatMap(f => validateArrowCompatibility(f.dataType)).headOption
+        struct.fields.flatMap(f => validateArrowCompatibility(f.dataType, nested = true)).headOption
       case array: ArrayType =>
-        validateArrowCompatibility(array.elementType)
+        validateArrowCompatibility(array.elementType, nested = true)
       case _ => None
     }
   }

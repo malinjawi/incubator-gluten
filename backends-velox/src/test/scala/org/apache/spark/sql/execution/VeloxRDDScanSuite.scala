@@ -221,6 +221,21 @@ class VeloxRDDScanSuite extends VeloxWholeStageTransformerSuite with AdaptiveSpa
     assert(cnt.isEmpty, "MapType schema should fall back from VeloxRDDScanTransformer")
   }
 
+  test("RDDScan with NullType nested in a struct or array falls back to row-based") {
+    val schema = StructType(
+      Seq(
+        StructField("s", StructType(Seq(StructField("v", NullType)))),
+        StructField("a", ArrayType(NullType))))
+    val rdd = spark.sparkContext.parallelize(Seq(Row(null, null), Row(Row(null), Seq(null))))
+    val data = spark.createDataFrame(rdd, schema)
+    val expectedAnswer = data.collect()
+    val df = asRDDScanDF(data)
+
+    checkAnswer(df, expectedAnswer)
+    val cnt = collect(df.queryExecution.executedPlan) { case _: VeloxRDDScanTransformer => true }
+    assert(cnt.isEmpty, "Nested NullType should fall back from VeloxRDDScanTransformer")
+  }
+
   test("RDDScan with an empty schema falls back to row-based") {
     val plan = RDDScanExec(
       Seq.empty,
