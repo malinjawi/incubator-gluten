@@ -585,7 +585,8 @@ Java_org_apache_gluten_datasource_VeloxDataSourceJniWrapper_splitBlockByPartitio
     jobject wrapper,
     jlong batchHandle,
     jintArray partitionColIndices,
-    jboolean hasBucket) {
+    jboolean hasBucket,
+    jboolean reservePartitionColumns) {
   JNI_METHOD_START
 
   GLUTEN_CHECK(!hasBucket, "Bucketing not supported by splitBlockByPartitionAndBucket");
@@ -608,6 +609,13 @@ Java_org_apache_gluten_datasource_VeloxDataSourceJniWrapper_splitBlockByPartitio
       // The column is not a partition column. Add it to the data column vector.
       dataColIndicesVec.emplace_back(i);
     }
+  }
+
+  // Each partition batch holds the data columns, followed by the partition columns when the writer also stores
+  // them in the data files (e.g. Delta's writePartitionColumns).
+  std::vector<int32_t> outputColIndicesVec = dataColIndicesVec;
+  if (reservePartitionColumns) {
+    outputColIndicesVec.insert(outputColIndicesVec.end(), partitionColIndicesVec.begin(), partitionColIndicesVec.end());
   }
 
   auto pool = dynamic_cast<VeloxMemoryManager*>(ctx->memoryManager())->getLeafMemoryPool();
@@ -658,9 +666,8 @@ Java_org_apache_gluten_datasource_VeloxDataSourceJniWrapper_splitBlockByPartitio
         : exec::wrap(partitionSize, partitionRows[partitionId], inputRowVector);
 
     const std::shared_ptr<VeloxColumnarBatch> partitionBatch = std::make_shared<VeloxColumnarBatch>(rowVector);
-    const std::shared_ptr<VeloxColumnarBatch> partitionBatchWithoutPartitionColumns =
-        partitionBatch->select(pool.get(), dataColIndicesVec);
-    partitionBatchHandles[partitionId] = ctx->saveObject(partitionBatchWithoutPartitionColumns);
+    const std::shared_ptr<VeloxColumnarBatch> outputBatch = partitionBatch->select(pool.get(), outputColIndicesVec);
+    partitionBatchHandles[partitionId] = ctx->saveObject(outputBatch);
     const auto headingRow = partitionBatch->toUnsafeRow(0);
     const auto headingRowBytes = headingRow.data();
     const auto headingRowNumBytes = headingRow.size();

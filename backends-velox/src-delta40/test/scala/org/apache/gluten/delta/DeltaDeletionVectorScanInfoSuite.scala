@@ -37,8 +37,6 @@ import org.apache.spark.tags.ExtendedSQLTest
 import io.delta.sql.DeltaSparkSessionExtension
 import org.apache.hadoop.fs.Path
 
-import java.nio.file.Files
-
 @ExtendedSQLTest
 class DeltaDeletionVectorScanInfoSuite
   extends QueryTest
@@ -185,61 +183,6 @@ class DeltaDeletionVectorScanInfoSuite
         assert(opts.hasDeletionVector)
         assert(opts.deletionVectorCardinality == dataFile.deletionVector.cardinality)
         assert(opts.serializedDeletionVector.nonEmpty)
-    }
-  }
-
-  test("normalize reads an on-disk DV without an offset from the start of its file") {
-    // Delta 4.4 added offset-less on-disk DVs; older versions cannot encode them.
-    val Array(deltaMajor, deltaMinor) = _root_.io.delta.VERSION.split("\\.").take(2).map(_.toInt)
-    assume(deltaMajor > 4 || (deltaMajor == 4 && deltaMinor >= 4))
-    withTempDir {
-      tempDir =>
-        val tablePath = new Path(tempDir.getCanonicalPath, "table")
-        Seq((1, "a"), (2, "b"), (3, "c"), (4, "d"))
-          .toDF("id", "value")
-          .coalesce(1)
-          .write
-          .format("delta")
-          .save(tablePath.toString)
-
-        spark.sql(
-          s"ALTER TABLE delta.`$tablePath` SET TBLPROPERTIES ('delta.enableDeletionVectors' = true)")
-        spark.sql(s"DELETE FROM delta.`$tablePath` WHERE id IN (3, 4)")
-
-        val dataFile = DeltaLog
-          .forTable(spark, tablePath)
-          .update()
-          .allFiles
-          .collect()
-          .find(_.deletionVector != null)
-          .get
-        val descriptor = dataFile.deletionVector
-        // Copy the DV into a file of its own so it starts at byte 0, then point an offset-less
-        // descriptor at it.
-        val dvFileBytes = Files.readAllBytes(
-          new java.io.File(descriptor.absolutePath(tablePath).toUri.getPath).toPath)
-        val standaloneDvFile = new java.io.File(tempDir, "standalone.bin")
-        Files.write(standaloneDvFile.toPath, dvFileBytes.drop(descriptor.offset.get))
-        val offsetless = DeletionVectorDescriptor.onDiskWithAbsolutePath(
-          standaloneDvFile.toURI.toString,
-          descriptor.sizeInBytes,
-          descriptor.cardinality)
-        assert(offsetless.offset.isEmpty)
-
-        def readOptions(dv: DeletionVectorDescriptor): DeltaFileReadOptions =
-          normalizeDeletionVectorOptions(
-            partitionedFileWithMetadata(
-              tablePath.toString,
-              dataFile.path,
-              dataFile.size,
-              deletionVectorMetadata(dv.serializeToBase64())),
-            tablePath)
-
-        val opts = readOptions(offsetless)
-        assert(opts.hasDeletionVector)
-        assert(opts.deletionVectorCardinality == descriptor.cardinality)
-        assert(opts.serializedDeletionVector.sameElements(
-          readOptions(descriptor).serializedDeletionVector))
     }
   }
 

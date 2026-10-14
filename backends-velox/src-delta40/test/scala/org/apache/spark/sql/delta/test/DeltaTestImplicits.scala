@@ -29,7 +29,7 @@ import org.apache.spark.sql.delta.hooks.AutoCompact
 import org.apache.spark.sql.delta.stats.StatisticsCollection
 import org.apache.spark.util.Clock
 
-import io.delta.storage.commit.GetCommitsResponse
+import io.delta.storage.commit.{CommitResponse, GetCommitsResponse, UpdatedActions}
 import org.apache.hadoop.fs.Path
 
 import java.io.File
@@ -97,6 +97,14 @@ object DeltaTestImplicits {
   /** Helper class for working with [[TableCommitCoordinatorClient]] */
   implicit class TableCommitCoordinatorClientTestHelper(
       tableCommitCoordinatorClient: TableCommitCoordinatorClient) {
+
+    def commit(
+        commitVersion: Long,
+        actions: Iterator[String],
+        updatedActions: UpdatedActions): CommitResponse = {
+      tableCommitCoordinatorClient.commit(
+        commitVersion, actions, updatedActions, tableIdentifierOpt = None)
+    }
 
     def getCommits(
         startVersion: Option[Long] = None,

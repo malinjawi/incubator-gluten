@@ -559,6 +559,11 @@ object GlutenDeltaFileFormatWriter extends Logging {
           }
       }.toArray
 
+    // With DeltaOptions.WRITE_PARTITION_COLUMNS the writer schema ends with the partition
+    // columns, so the split batches must keep them.
+    private val reservePartitionColumns: Boolean =
+      isPartitioned && description.partitionColumns.forall(description.dataColumns.contains)
+
     private def beforeWrite(record: InternalRow): Unit = {
       val nextPartitionValues = if (isPartitioned) Some(getPartitionValues(record)) else None
       val nextBucketId = if (isBucketed) Some(getBucketId(record)) else None
@@ -652,7 +657,11 @@ object GlutenDeltaFileFormatWriter extends Logging {
       val numRows = terminalRow.batch().numRows()
       if (numRows > 0) {
         val blockStripes = GlutenFormatFactory.rowSplitter
-          .splitBlockByPartitionAndBucket(terminalRow.batch(), partitionColIndice, isBucketed)
+          .splitBlockByPartitionAndBucket(
+            terminalRow.batch(),
+            partitionColIndice,
+            isBucketed,
+            reservePartitionColumns)
         val iter = blockStripes.iterator()
         Utils.tryWithSafeFinally {
           while (iter.hasNext) {

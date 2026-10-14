@@ -61,14 +61,6 @@ class GlutenOptimisticTransaction(delegate: OptimisticTransaction)
         return super.writeFiles(inputData, writeOptions, isOptimize, additionalConstraints)
       case None =>
     }
-    // The native partitioned write always drops partition columns from the data files (see
-    // splitBlockByPartitionAndBucket), so tables that require them there use vanilla Delta.
-    if (metadata.partitionColumns.nonEmpty && requiresPartitionColumnsInDataFiles) {
-      logInfo(
-        "Table requires partition columns in data files; falling back to the " +
-          "vanilla Delta write path.")
-      return super.writeFiles(inputData, writeOptions, isOptimize, additionalConstraints)
-    }
     hasWritten = true
 
     val spark = inputData.sparkSession
@@ -267,13 +259,5 @@ class GlutenOptimisticTransaction(delegate: OptimisticTransaction)
     writeOptions
       .flatMap(_.optimizeWrite)
       .getOrElse(TransactionalWrite.shouldOptimizeWrite(metadata, sessionConf))
-  }
-
-  // Iceberg compat needs partition columns in the files, and so does the
-  // materializePartitionColumns writer feature. Delta 4.0 has no class for that feature, so
-  // match it by name.
-  private def requiresPartitionColumnsInDataFiles: Boolean = {
-    IcebergCompat.isAnyEnabled(metadata) ||
-    protocol.writerFeatures.exists(_.contains("materializePartitionColumns"))
   }
 }

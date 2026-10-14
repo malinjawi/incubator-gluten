@@ -14,12 +14,14 @@ This document summarizes the support status of **Delta Lake table features** whe
 Native Delta write is supported in all of these profiles. The rows differ in the Spark/Delta
 compatibility target, not in native-write capability.
 
-Delta 4.4 writes partition columns into Parquet data files by default
-(`delta.writePartitionColumnsToParquet`). Gluten's native write still leaves them out, so its
-files differ from vanilla Delta's. Delta reads partition values from the transaction log, so
-query results are unaffected. Tables that require partition columns in the data files, through
-the `materializePartitionColumns` writer feature or Iceberg compatibility, fall back to the
-vanilla Delta write.
+With Delta 4.4 (`spark-4.2`), the native write follows Delta's write path: it stores partition
+columns in the data files unless `delta.writePartitionColumnsToParquet` is `false`. Writes that the
+Velox writer cannot reproduce fall back to the vanilla Delta write:
+
+- `id` column mapping, which needs Parquet field IDs;
+- Parquet format version 2 (`delta.parquet.format.version` 2.12.0 or later, or
+  `parquet.writer.version=v2`), and `outputTimestampType` values other than `TIMESTAMP_MICROS`;
+- schemas with `VOID` columns.
 
 ## Build and runtime notes
 

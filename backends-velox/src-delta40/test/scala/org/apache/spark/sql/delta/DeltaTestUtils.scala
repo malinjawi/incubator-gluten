@@ -334,6 +334,37 @@ trait DeltaCheckpointTestUtils
     }
   }
 
+  /**
+   * Helper method to get the dataframe corresponding to the files which has the file actions for a
+   * given checkpoint.
+   */
+  def getCheckpointDfForFilesContainingFileActions(
+      log: DeltaLog,
+      checkpointFile: Path): DataFrame = {
+    val ci = CheckpointInstance.apply(checkpointFile)
+    val allCheckpointFiles = log
+        .listFrom(ci.version)
+        .filter(FileNames.isCheckpointFile)
+        .filter(f => CheckpointInstance(f.getPath) == ci)
+        .toSeq
+    val fileActionsFileIndex = ci.format match {
+      case CheckpointInstance.Format.V2 =>
+        val incompleteCheckpointProvider = ci.getCheckpointProvider(log, allCheckpointFiles)
+        val df = log.loadIndex(incompleteCheckpointProvider.topLevelFileIndex.get, Action.logSchema)
+        val sidecarFileStatuses = df.as[SingleAction].collect().map(_.unwrap).collect {
+          case sf: SidecarFile => sf
+        }.map(sf => sf.toFileStatus(log.logPath))
+        DeltaLogFileIndex(DeltaLogFileIndex.CHECKPOINT_FILE_FORMAT_PARQUET, sidecarFileStatuses)
+      case CheckpointInstance.Format.SINGLE | CheckpointInstance.Format.WITH_PARTS =>
+        DeltaLogFileIndex(DeltaLogFileIndex.CHECKPOINT_FILE_FORMAT_PARQUET,
+          allCheckpointFiles.toArray)
+      case _ =>
+        throw new Exception(s"Unexpected checkpoint format for file $checkpointFile")
+    }
+    fileActionsFileIndex.files
+      .map(fileStatus => spark.read.parquet(fileStatus.getPath.toString))
+      .reduce(_.union(_))
+  }
 }
 
 object DeltaTestUtils extends DeltaTestUtilsBase {

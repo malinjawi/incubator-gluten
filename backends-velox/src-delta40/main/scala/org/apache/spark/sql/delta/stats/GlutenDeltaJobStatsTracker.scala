@@ -289,10 +289,21 @@ object GlutenDeltaJobStatsTracker extends Logging {
         case _: PlaceholderRow =>
         case t: TerminalRow =>
           val batch = t.batch()
-          // Counts up the reference count for the batch since it
-          // will be consumed by Velox aggregation task asynchronously.
-          ColumnarBatches.retain(batch)
-          inputBatchQueue.put(Some(batch))
+          val statsBatch = if (batch.numCols() > dataCols.size) {
+            // The written batch also holds the partition columns, after the data columns
+            // (DeltaOptions.WRITE_PARTITION_COLUMNS). Statistics only cover the data columns.
+            assert(ColumnarBatches.isLightBatch(batch), "Expected a native batch from the writer")
+            ColumnarBatches.select(
+              BackendsApiManager.getBackendName,
+              batch,
+              dataCols.indices.toArray)
+          } else {
+            // Counts up the reference count for the batch since it
+            // will be consumed by Velox aggregation task asynchronously.
+            ColumnarBatches.retain(batch)
+            batch
+          }
+          inputBatchQueue.put(Some(statsBatch))
       }
     }
 

@@ -1,0 +1,1 @@
+../../../../../../../src-delta40/test/scala/org/apache/gluten/delta/DeltaDeletionVectorScanInfoSuite.scala
