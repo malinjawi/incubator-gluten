@@ -24,7 +24,18 @@ if [[ ! -d $LIB_DIR ]]; then
   exit 1
 fi
 
-JAR_PATH=$LIB_DIR/*
+# Put the Gluten bundle ahead of Spark's own Arrow jars. Java expands the lib/* wildcard
+# in directory order, which differs across file systems and runner images, so without
+# this the Arrow version that wins on the classpath is nondeterministic.
+JAR_PATH=""
+set +f
+for jar in "$LIB_DIR"/gluten-package-*.jar; do
+  if [[ -f $jar ]]; then
+    JAR_PATH="$JAR_PATH$jar:"
+  fi
+done
+set -f
+JAR_PATH="$JAR_PATH$LIB_DIR/*"
 
 SPARK_JVM_OPTIONS=$($JAVA_HOME/bin/java -cp $JAR_PATH org.apache.gluten.integration.SparkJvmOptions)
 
