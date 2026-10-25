@@ -1,0 +1,219 @@
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# On-demand native verification for coding agents (fork-only; not for upstream).
+# Builds Gluten + Velox natively with tests in the same container CI uses, then runs
+# only the C++ tests, Velox gtests and Scala suites the caller asked for.
+# Triggered by the `ci-verify` script; free on public-repo GitHub-hosted runners.
+
+name: Agent Verify
+run-name: "agent-verify ${{ inputs.ref }} [${{ inputs.tag }}]"
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch, tag or SHA in this repo to verify"
+        required: true
+      gluten_cpp_tests:
+        description: "Gluten C++ tests: ctest -R regex, 'all', or empty to skip"
+        required: false
+        default: ""
+      velox_tests:
+        description: "Velox gtests: space-separated target[:gtest_filter], e.g. velox_exec_test_AggregationTest:*Spill*"
+        required: false
+        default: ""
+      scala_suites:
+        description: "Scala suites for -DwildcardSuites (comma-separated), or empty to skip"
+        required: false
+        default: ""
+      maven_modules:
+        description: "Maven -pl modules for the Scala suites"
+        required: false
+        default: "backends-velox"
+      spark:
+        description: "Spark profile"
+        required: false
+        default: "spark-3.5"
+        type: choice
+        options: [spark-3.4, spark-3.5, spark-4.0, spark-4.1]
+      velox_repo:
+        description: "Optional Velox repo URL (default: the pinned IBM/velox)"
+        required: false
+        default: ""
+      velox_branch:
+        description: "Optional Velox branch (used with velox_repo)"
+        required: false
+        default: ""
+      tag:
+        description: "Opaque id set by ci-verify to find this run"
+        required: false
+        default: "manual"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-verify-${{ inputs.ref }}
+  cancel-in-progress: true
+
+env:
+  MVN_CMD: "build/mvn -ntp"
+  CCACHE_DIR: "${{ github.workspace }}/.ccache"
+  CCACHE_MAXSIZE: "6G"
+  NUM_THREADS: "4"
+
+jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    container: apache/gluten:centos-9-jdk17
+    timeout-minutes: 350
+    defaults:
+      run:
+        shell: bash
+    env:
+      IN_REF: ${{ inputs.ref }}
+      IN_GLUTEN_CPP_TESTS: ${{ inputs.gluten_cpp_tests }}
+      IN_VELOX_TESTS: ${{ inputs.velox_tests }}
+      IN_SCALA_SUITES: ${{ inputs.scala_suites }}
+      IN_MAVEN_MODULES: ${{ inputs.maven_modules }}
+      IN_SPARK: ${{ inputs.spark }}
+      IN_VELOX_REPO: ${{ inputs.velox_repo }}
+      IN_VELOX_BRANCH: ${{ inputs.velox_branch }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Prepare results directory
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          mkdir -p results
+          {
+            echo "ref: $IN_REF"
+            echo "sha: $(git rev-parse HEAD)"
+            echo "spark: $IN_SPARK"
+            echo "velox: ${IN_VELOX_REPO:-pinned} ${IN_VELOX_BRANCH}"
+          } | tee results/run-info.txt
+          df -h . | tee -a results/run-info.txt
+
+      - name: Restore ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: agent-verify-ccache-${{ inputs.velox_repo }}-${{ inputs.velox_branch }}-${{ hashFiles('ep/build-velox/src/get-velox.sh') }}-${{ github.run_id }}
+          restore-keys: |
+            agent-verify-ccache-${{ inputs.velox_repo }}-${{ inputs.velox_branch }}-${{ hashFiles('ep/build-velox/src/get-velox.sh') }}-
+            agent-verify-ccache-
+
+      - name: Build Gluten + Velox (shared, with tests)
+        run: |
+          set -o pipefail
+          source /opt/rh/gcc-toolset-12/enable
+          export VELOX_BUILD_SHARED=ON
+          ccache -sz
+          VELOX_ARGS=()
+          if [ -n "$IN_VELOX_REPO" ]; then VELOX_ARGS+=("--velox_repo=$IN_VELOX_REPO"); fi
+          if [ -n "$IN_VELOX_BRANCH" ]; then VELOX_ARGS+=("--velox_branch=$IN_VELOX_BRANCH"); fi
+          # Benchmarks stay OFF: build-velox.sh disables Velox tests when they are on.
+          ./dev/builddeps-veloxbe.sh --run_setup_script=OFF --build_arrow=OFF --build_tests=ON \
+            --build_examples=OFF --build_benchmarks=OFF "${VELOX_ARGS[@]}" 2>&1 | tee results/build.log
+          ccache -s | tee results/ccache-stats.txt
+          df -h . | tee -a results/run-info.txt
+
+      - name: Save ccache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: agent-verify-ccache-${{ inputs.velox_repo }}-${{ inputs.velox_branch }}-${{ hashFiles('ep/build-velox/src/get-velox.sh') }}-${{ github.run_id }}
+
+      - name: Gluten C++ tests
+        if: ${{ inputs.gluten_cpp_tests != '' }}
+        run: |
+          set -o pipefail
+          cd cpp/build
+          if [ "$IN_GLUTEN_CPP_TESTS" = "all" ]; then
+            ctest -V 2>&1 | tee "$GITHUB_WORKSPACE/results/gluten-ctest.log"
+          else
+            ctest -V -R "$IN_GLUTEN_CPP_TESTS" 2>&1 | tee "$GITHUB_WORKSPACE/results/gluten-ctest.log"
+          fi
+
+      - name: Velox gtests (build only the requested targets)
+        if: ${{ inputs.velox_tests != '' }}
+        run: |
+          set -o pipefail
+          source /opt/rh/gcc-toolset-12/enable
+          VELOX_HOME="$GITHUB_WORKSPACE/ep/build-velox/build/velox_ep"
+          BUILD_DIR="$VELOX_HOME/_build/release"
+          # Reconfigure the existing build with testing on; compiled objects are reused.
+          cmake -S "$VELOX_HOME" -B "$BUILD_DIR" -DVELOX_BUILD_TESTING=ON 2>&1 | tail -5
+          status=0
+          for spec in $IN_VELOX_TESTS; do
+            target="${spec%%:*}"
+            filter="*"
+            if [ "$spec" != "$target" ]; then filter="${spec#*:}"; fi
+            if ! [[ "$target" =~ ^[A-Za-z0-9_]+$ ]]; then echo "invalid target: $target"; status=1; continue; fi
+            log="$GITHUB_WORKSPACE/results/velox-$target.log"
+            echo "::group::build $target"
+            cmake --build "$BUILD_DIR" --target "$target" -j "$NUM_THREADS" 2>&1 | tail -20
+            echo "::endgroup::"
+            bin=$(find "$BUILD_DIR" -type f -name "$target" -perm -u+x | head -1)
+            if [ -z "$bin" ]; then echo "binary not found for $target" | tee "$log"; status=1; continue; fi
+            "$bin" --gtest_filter="$filter" 2>&1 | tee "$log" || status=1
+          done
+          exit $status
+
+      - name: Scala suites
+        if: ${{ inputs.scala_suites != '' }}
+        run: |
+          set -o pipefail
+          JAVA_PROFILE=""
+          SCALA_PROFILE="-Pscala-2.12"
+          case "$IN_SPARK" in
+            spark-4.*) JAVA_PROFILE="-Pjava-17"; SCALA_PROFILE="-Pscala-2.13" ;;
+            spark-3.5) JAVA_PROFILE="-Pjava-17" ;;
+          esac
+          $MVN_CMD test -P"$IN_SPARK" $SCALA_PROFILE $JAVA_PROFILE -Pbackends-velox \
+            -pl "$IN_MAVEN_MODULES" -am \
+            -DwildcardSuites="$IN_SCALA_SUITES" -Dtest=none -DfailIfNoTests=false \
+            2>&1 | tee results/scala.log
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## agent-verify: $IN_REF"
+            echo '```'
+            cat results/run-info.txt
+            echo '```'
+            for f in results/gluten-ctest.log results/velox-*.log results/scala.log; do
+              [ -f "$f" ] || continue
+              echo "### $(basename "$f")"
+              echo '```'
+              grep -E "tests passed|tests failed|\[  PASSED  \]|\[  FAILED  \]|Tests: succeeded|\*\*\* FAILED|BUILD (SUCCESS|FAILURE)|Tests run:" "$f" | tail -25
+              echo '```'
+            done
+          } | tee results/summary.md >> "$GITHUB_STEP_SUMMARY"
+          find . -path ./results -prune -o -name 'TEST-*.xml' -path '*surefire-reports*' -print \
+            | head -200 | xargs -r -I{} cp {} results/ 2>/dev/null || true
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-verify-results
+          path: results/
+          retention-days: 7
