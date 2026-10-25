@@ -318,9 +318,14 @@ private class GlutenOptimizedWriterShuffleReader(
         SparkEnv.get.serializerManager
     }
 
-    // Create a key/value iterator for each stream
-    val recordIter = dep match {
-      case columnarDep: ColumnarShuffleDependency[Int, ColumnarBatch, ColumnarBatch] =>
+    // Dispatch on the concrete serializer instance type rather than the dependency type.
+    // A ColumnarShuffleDependency does not always carry Gluten's ColumnarBatchSerializerInstance:
+    // when the CelebornShuffleManager falls back to the local ColumnarShuffleManager, the
+    // dependency was already bound to the Celeborn serializer at plan build time, so testing the
+    // dependency type would wrongly take the columnar path and crash with a ClassCastException.
+    val recordIter = dep.serializer.newInstance() match {
+      // Gluten's own columnar serializer deserializes all streams in one batch.
+      case columnarSerializer: ColumnarBatchSerializerInstance =>
         val shuffleBlockFetcherIterator =
           SparkShimLoader.getSparkShims.getShuffleBlockFetcherIterator(
             ShuffleBlockFetcherIteratorParams(
@@ -343,14 +348,16 @@ private class GlutenOptimizedWriterShuffleReader(
               readMetrics,
               doBatchFetch = false
             ))
-        columnarDep.serializer
-          .newInstance()
-          .asInstanceOf[ColumnarBatchSerializerInstance]
+        columnarSerializer
           .deserializeStreams(
             shuffleBlockFetcherIterator,
             shuffleBlockFetcherIterator.onComplete)
           .asKeyValueIterator
-      case _ =>
+      case serializerInstance =>
+        // The dependency's serializer is not Gluten's ColumnarBatchSerializerInstance. This
+        // covers the CelebornShuffleManager fallback case (dependency bound to the Celeborn
+        // serializer) as well as row-based dependencies. Fall back to the per-stream path,
+        // which the standard SerializerInstance (including the Celeborn one) supports.
         val wrappedStreams = new ShuffleBlockFetcherIterator(
           context,
           SparkEnv.get.blockManager.blockStoreClient,
@@ -371,8 +378,6 @@ private class GlutenOptimizedWriterShuffleReader(
           readMetrics,
           false
         ).toCompletionIterator
-
-        val serializerInstance = dep.serializer.newInstance()
 
         // Create a key/value iterator for each stream
         wrappedStreams.flatMap {
