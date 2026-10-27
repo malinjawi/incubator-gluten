@@ -93,8 +93,12 @@ A write is left on lance-spark's writer (fallback, not an error) when Velox cann
 | `CREATE TABLE AS SELECT`, `REPLACE TABLE AS SELECT`        | Offload on Spark 3.5 and later |
 | Table with a sharding key                                  | Fallback |
 | Blob columns                                               | Fallback |
-| Large strings or binaries, fixed-size lists, half floats, unsigned integers | Fallback |
+| Large strings or binaries, half floats, unsigned integers, fixed-size lists inside other columns | Fallback |
 | Row-level operations (`UPDATE`, `DELETE`, `MERGE`) and column backfills | Fallback |
+
+Fixed-size list columns, such as vectors, are written natively when they are top-level columns of
+signed integers or floats: Velox exports them as plain lists, and each list must hold exactly the
+column's number of elements.
 
 The offload decision is made at plan time. The first batch each task exports is also checked
 against the table's Arrow schema, so a type Velox exports differently fails the task rather than

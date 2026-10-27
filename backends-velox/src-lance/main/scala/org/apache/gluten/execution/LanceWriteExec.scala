@@ -82,12 +82,14 @@ object LanceWriteExec {
 
   /**
    * The first column whose committed Arrow type Velox cannot export with the same layout, if any.
-   * Velox exports plain Utf8, Binary and List, microsecond timestamps and 128-bit decimals.
+   * Velox exports plain Utf8, Binary and List, microsecond timestamps and 128-bit decimals. The
+   * writer converts the plain lists of top-level fixed-size list columns, such as vectors.
    */
   def unsupportedColumn(schema: Schema): Option[String] =
-    schema.getFields.asScala.iterator.flatMap(unsupported(_, "")).toSeq.headOption
+    schema.getFields.asScala.iterator.flatMap(unsupported(_, "", topLevel = true)).toSeq.headOption
 
-  private def unsupported(field: Field, prefix: String): Option[String] = {
+  private def unsupported(field: Field, prefix: String, topLevel: Boolean = false)
+      : Option[String] = {
     val name = prefix + field.getName
     val metadata = Option(field.getMetadata).map(_.asScala).getOrElse(Map.empty[String, String])
     if (metadata.get(BlobKey).exists(_.equalsIgnoreCase("true"))) {
@@ -103,6 +105,12 @@ object LanceWriteExec {
       case d: ArrowType.Date if d.getUnit == DateUnit.DAY => None
       case t: ArrowType.Timestamp if t.getUnit == TimeUnit.MICROSECOND => None
       case _: ArrowType.List | _: ArrowType.Struct | _: ArrowType.Map => children
+      case _: ArrowType.FixedSizeList if topLevel =>
+        field.getChildren.asScala.head.getType match {
+          case i: ArrowType.Int if i.getIsSigned => None
+          case f: ArrowType.FloatingPoint if f.getPrecision != FloatingPointPrecision.HALF => None
+          case other => Some(s"Fixed-size list column $name has elements of Arrow type $other")
+        }
       case other =>
         Some(s"Column $name has Arrow type $other, which Velox cannot export for Lance")
     }
