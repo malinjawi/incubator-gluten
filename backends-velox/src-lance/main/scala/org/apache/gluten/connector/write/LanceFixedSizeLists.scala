@@ -16,7 +16,7 @@
  */
 package org.apache.gluten.connector.write
 
-import org.apache.arrow.vector.VectorSchemaRoot
+import org.apache.arrow.vector.{BaseFixedWidthVector, BitVectorHelper, VectorSchemaRoot}
 import org.apache.arrow.vector.complex.{FixedSizeListVector, ListVector}
 import org.apache.arrow.vector.types.pojo.{ArrowType, Field, FieldType, Schema}
 
@@ -80,29 +80,57 @@ object LanceFixedSizeLists {
       }
       row += 1
     }
-    val sourceData = source.getDataVector
-    val targetData = target.getDataVector
-    if (contiguous) {
-      if (rows > 0) {
-        sourceData
-          .makeTransferPair(targetData)
-          .splitAndTransfer(source.getElementStartIndex(0), rows * size)
-      }
-    } else {
-      // A null row still takes `size` element slots, left null.
-      row = 0
-      while (row < rows) {
-        if (!source.isNull(row)) {
-          val start = source.getElementStartIndex(row)
-          var i = 0
-          while (i < size) {
-            targetData.copyFromSafe(start + i, row * size + i, sourceData)
-            i += 1
-          }
+    (source.getDataVector, target.getDataVector) match {
+      case (sourceData, targetData) if contiguous =>
+        if (rows > 0) {
+          sourceData
+            .makeTransferPair(targetData)
+            .splitAndTransfer(source.getElementStartIndex(0), rows * size)
         }
-        row += 1
-      }
+      case (sourceData: BaseFixedWidthVector, targetData: BaseFixedWidthVector)
+          if sourceData.getNullCount == 0 =>
+        copyRows(source, sourceData, targetData, rows, size)
+      case (sourceData, targetData) =>
+        // A null row still takes `size` element slots, left null.
+        row = 0
+        while (row < rows) {
+          if (!source.isNull(row)) {
+            val start = source.getElementStartIndex(row)
+            var i = 0
+            while (i < size) {
+              targetData.copyFromSafe(start + i, row * size + i, sourceData)
+              i += 1
+            }
+          }
+          row += 1
+        }
     }
     target.setValueCount(rows)
+  }
+
+  /**
+   * Copies the elements of each row with one memory copy, for elements without nulls. Every element
+   * slot is marked valid; the slots of a null row are zeroed, and readers ignore them.
+   */
+  private def copyRows(
+      lists: ListVector,
+      source: BaseFixedWidthVector,
+      target: BaseFixedWidthVector,
+      rows: Int,
+      size: Int): Unit = {
+    val rowBytes = size.toLong * source.getTypeWidth
+    val sourceBuffer = source.getDataBuffer
+    val targetBuffer = target.getDataBuffer
+    target.getValidityBuffer.setOne(0, BitVectorHelper.getValidityBufferSize(rows * size))
+    var row = 0
+    while (row < rows) {
+      if (lists.isNull(row)) {
+        targetBuffer.setZero(row * rowBytes, rowBytes)
+      } else {
+        val start = lists.getElementStartIndex(row) * source.getTypeWidth.toLong
+        targetBuffer.setBytes(row * rowBytes, sourceBuffer, start, rowBytes)
+      }
+      row += 1
+    }
   }
 }

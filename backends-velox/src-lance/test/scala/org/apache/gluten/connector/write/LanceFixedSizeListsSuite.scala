@@ -47,10 +47,13 @@ class LanceFixedSizeListsSuite extends AnyFunSuite {
   }
 
   /**
-   * Moves rows whose lists are given as offsets into elements 0 to 9, which hold their own index,
-   * and returns the fixed-size lists, None for a null row.
+   * Moves rows whose lists are given as offsets into elements 0 to 9, which hold their own index
+   * unless they are in `nullElements`, and returns the fixed-size lists, None for a null row.
    */
-  private def move(offsets: Seq[Int], nullRows: Set[Int]): Seq[Option[Seq[Float]]] = {
+  private def move(
+      offsets: Seq[Int],
+      nullRows: Set[Int],
+      nullElements: Set[Int] = Set.empty): Seq[Option[Seq[Any]]] = {
     val allocator = new RootAllocator(Long.MaxValue)
     try {
       val from =
@@ -64,7 +67,9 @@ class LanceFixedSizeListsSuite extends AnyFunSuite {
         val list = from.getVector(1).asInstanceOf[ListVector]
         list.allocateNew()
         val elements = list.getDataVector.asInstanceOf[Float4Vector]
-        (0 until 10).foreach(i => elements.setSafe(i, i.toFloat))
+        (0 until 10).foreach {
+          i => if (nullElements(i)) elements.setNull(i) else elements.setSafe(i, i.toFloat)
+        }
         elements.setValueCount(10)
         while (list.getOffsetBuffer.capacity() < (rows + 1) * 4) list.reAlloc()
         offsets.zipWithIndex.foreach { case (o, i) => list.getOffsetBuffer.setInt(i * 4L, o) }
@@ -81,7 +86,7 @@ class LanceFixedSizeListsSuite extends AnyFunSuite {
         (0 until rows).map {
           i =>
             if (fixed.isNull(i)) None
-            else Some(fixed.getObject(i).asScala.map(_.asInstanceOf[Float]).toSeq)
+            else Some(fixed.getObject(i).asScala.toSeq)
         }
       } finally {
         from.close()
@@ -100,6 +105,12 @@ class LanceFixedSizeListsSuite extends AnyFunSuite {
 
   test("copies lists around null rows, which may take no elements") {
     assert(move(Seq(1, 3, 3, 5), Set(1)) == Seq(Some(Seq(1f, 2f)), None, Some(Seq(3f, 4f))))
+  }
+
+  test("copies lists with null elements one element at a time") {
+    assert(
+      move(Seq(1, 3, 3, 5), Set(1), nullElements = Set(2)) ==
+        Seq(Some(Seq(1f, null)), None, Some(Seq(3f, 4f))))
   }
 
   test("rejects a list of the wrong size") {
