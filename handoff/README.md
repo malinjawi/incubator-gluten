@@ -1,8 +1,13 @@
 # Handoff: native Lance writer for Gluten (2026-11-03)
 
-This branch (`handoff/lance-native-write`) is the writer branch `feat/lance-native-write` plus one
-commit that adds this `handoff/` folder. **Never push this commit or put it in a PR.** Do code work on
-`feat/lance-native-write`.
+This branch (`handoff/lance-native-write`) is the writer branch `feat/lance-native-write` plus the
+commits that add this `handoff/` folder. It's on the user's fork under the same name. **Never put
+these commits in a PR or on any other branch.** Do code work on `feat/lance-native-write`.
+
+Not on the user's Mac? Clone `https://github.com/malinjawi/incubator-gluten` and check out
+`handoff/lance-native-write`. The local paths below aren't available to you: the worktree, the native
+build, the benchmark jars, `~/.m2` and the `~/Documents/GitHub/...` scripts. You can still read the
+code, review it, edit the PR drafts and run the Scala build. Tests need Gluten's native libraries.
 
 ## In one paragraph
 
@@ -26,8 +31,8 @@ Nothing is blocked on code. The next step is waiting for #13515 to merge.
 | Writer branch | `feat/lance-native-write`, based on main `3ab17271e` (20+ commits behind main now) |
 | Core writer commit | `7c4a9be5d` "[VL] Offload Lance table writes to Velox" (still includes the pom bump) |
 | Vectors commit | `c8f17e537` "[VL] Write Lance fixed-size list columns natively" |
-| Bulk-copy fix for null vectors | `7372e9fdd` "fixup! ...": **local only**, not on the fork |
-| Fork branch | `fork-ssh` (`git@github.com:malinjawi/incubator-gluten.git`) `feat/lance-native-write` = `c8f17e537` |
+| Bulk-copy fix for null vectors | `7372e9fdd` "fixup! ...": on local `feat/lance-native-write` and on this branch, but not on the fork's `feat/lance-native-write` |
+| Fork branch | `fork-ssh` (`git@github.com:malinjawi/incubator-gluten.git`) `feat/lance-native-write` = `c8f17e537`; getting the fixup there is a fast-forward to `7372e9fdd`, no force needed |
 | Pre-audit backup | local branch `lance-writer-pre-audit` (`be4d19e78`) |
 | Bump PR branch | fork `chore/lance-0.9.0-beta.2` = `f7c0a7929` = local `lance-bump-pr`. Local `chore/lance-0.9.0-beta.2` (`c36a05d64`) is stale. |
 | PR drafts (not posted) | `handoff/pr/core-writer.md`, `handoff/pr/vectors.md` |
