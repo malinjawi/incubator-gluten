@@ -31,8 +31,8 @@ Nothing is blocked on code. The next step is waiting for #13515 to merge.
 | Writer branch | `feat/lance-native-write`, based on main `3ab17271e` (20+ commits behind main now) |
 | Core writer commit | `7c4a9be5d` "[VL] Offload Lance table writes to Velox" (still includes the pom bump) |
 | Vectors commit | `c8f17e537` "[VL] Write Lance fixed-size list columns natively" |
-| Bulk-copy fix for null vectors | `7372e9fdd` "fixup! ...": on local `feat/lance-native-write` and on this branch, but not on the fork's `feat/lance-native-write` |
-| Fork branch | `fork-ssh` (`git@github.com:malinjawi/incubator-gluten.git`) `feat/lance-native-write` = `c8f17e537`; getting the fixup there is a fast-forward to `7372e9fdd`, no force needed |
+| Bulk-copy fix for null vectors | `7372e9fdd` "fixup! ...", not squashed yet |
+| Fork branch | `fork-ssh` (`git@github.com:malinjawi/incubator-gluten.git`) `feat/lance-native-write` = `7372e9fdd`, same as local |
 | Pre-audit backup | local branch `lance-writer-pre-audit` (`be4d19e78`) |
 | Bump PR branch | fork `chore/lance-0.9.0-beta.2` = `f7c0a7929` = local `lance-bump-pr`. Local `chore/lance-0.9.0-beta.2` (`c36a05d64`) is stale. |
 | PR drafts (not posted) | `handoff/pr/core-writer.md`, `handoff/pr/vectors.md` |
